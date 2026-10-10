@@ -1,0 +1,78 @@
+---
+title: "Room object"
+description: "Use the underlying room for events, metadata, media and cleanup."
+section: "React SDK"
+---
+
+## Access
+
+```tsx
+import { useRoom } from '@relayrtc/react'
+
+const { room } = useRoom()
+```
+
+## Properties
+
+| Property | Purpose |
+| --- | --- |
+| id, info | Room ID and server room object. |
+| localParticipant | Local identity and controls. |
+| session | Current participant session. |
+| connectionState | Connection lifecycle. |
+| participants | ReadonlyMap of remote participants. |
+| remoteTracks | ReadonlyMap of remote publications. |
+| microphone, camera, screen | Local capture controls. |
+| devices, permissions | Device enumeration and permission APIs. |
+| messages | send(text) and subscribe(listener). |
+| events | emit(name, data) and subscribe(listener) for custom events. |
+| presence | Local and remote participant snapshot. |
+| quality, qualityStats, participantQualities | Network health and statistics. |
+
+## Methods
+
+| Method | Purpose |
+| --- | --- |
+| `on(event, listener)` | Subscribe to a room event; returns cleanup. |
+| `refreshCredentials()` | Run configured credential refresh callbacks. Returns Promise of void. |
+| `leave()` | Leave this participant’s call. Returns Promise of void. |
+
+## Example
+
+```tsx
+useEffect(() => {
+  if (!room) return
+  return room.on('participantJoined', (participant) => {
+    console.log(participant.name)
+  })
+}, [room])
+```
+
+Import `useEffect` from React and clean up listeners when the room changes.
+
+## Events
+
+| Events | Payload |
+| --- | --- |
+| connectionStateChanged | RoomConnectionState. |
+| error | RoomError. |
+| participantJoined, participantLeft, participantUpdated | RoomRemoteParticipant. |
+| participantReconnected | participant and session. |
+| localParticipantUpdated | RoomLocalParticipant. |
+| presenceChanged | RoomPresenceSnapshot. |
+| trackPublished, trackUnpublished, trackUpdated, trackSubscribed, trackUnsubscribed | RoomRemoteTrack. |
+| trackSubscriptionFailed | track and error. |
+| messageReceived, messageSent | RoomTextMessage. |
+| customEventReceived, customEventSent | RoomCustomEvent. |
+| connectionQualityChanged, connectionDegraded, connectionRecovered | ConnectionQualityEvent. |
+| qualityStatsUpdated | RtcQualityStats. |
+| reconnectAttempt | attempt, delayMs and error. |
+| reconnected | attempts and session. |
+| credentialsRefreshed | tokenExpiresAt and turnExpiresAt. |
+
+## Leave versus end
+
+Leave affects only this participant. Ending a room for everyone is a privileged REST/Node operation.
+
+`refreshCredentials()` requires at least one configured refresh callback. Calling it does not create a token renewal API.
+

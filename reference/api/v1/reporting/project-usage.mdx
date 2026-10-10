@@ -1,0 +1,33 @@
+---
+title: "Project usage report"
+description: "Read project usage in the console reporting format."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/projects/{projectId}/usage"
+---
+
+## Authentication
+
+Use a secret key with `usage:read` for its own project environment, or a valid console session with organization membership.
+
+## Parameters
+
+projectId is required in the path. range: 24h, 7d, 14d or 30d, default 7d. Optional environmentId.
+
+## Example
+
+```bash
+curl "$RELAYRTC_API_URL/projects/project_example/usage?range=7d" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+
+
+## Response
+
+`200` with scope, window, summary, buckets and dataQuality. Buckets contain startedAt, endedAt, participantSeconds and roomsCreated. This reporting format differs from /usage, which includes public metric definitions.
+
+## Availability
+
+This endpoint is REST-only. The current Node SDK exposes public `usage.get`, but has no wrapper for these reporting endpoints. It is separate from [public scoped usage](/reference/api/v1/usage/all).
+

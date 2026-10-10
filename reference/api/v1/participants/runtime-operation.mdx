@@ -1,0 +1,47 @@
+---
+title: "Read participant cleanup"
+description: "Inspect the durable operation for removing a participant."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/rooms/{roomId}/participants/{participantId}/runtime-operation"
+---
+
+## Requirements
+
+A secret API key with `participants:read`. Resources are restricted to the key's project and environment.
+
+## Path parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+| participantId | string | Required | ID of a participant in this room. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X GET "$RELAYRTC_API_URL/rooms/room_example/participants/participant_example/runtime-operation" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`200` with a [runtime operation](/reference/api/v1/schemas/runtime-operation). `404 OPERATION_NOT_FOUND` when no operation exists.
+
+```json
+{
+  "id": "operation_example",
+  "kind": "participant.remove",
+  "status": "pending",
+  "attempts": 0,
+  "lastError": null,
+  "completedAt": null
+}
+```
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

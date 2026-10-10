@@ -1,0 +1,59 @@
+---
+title: "React SDK"
+description: "Build your call interface with RelayRTC providers, hooks and media controls."
+section: "React SDK"
+---
+
+## Install
+
+<InstallTabs packages="@relayrtc/react @relayrtc/client" />
+
+See [installation](/installation) for package requirements.
+
+## Requirements
+
+Use React 18.3.1 or 19, a supported browser, a signaling URL and a participant token from your server. Use HTTPS outside localhost.
+
+Wrap your call in [RelayProvider](/reference/sdk/client/react/RelayProvider) and [RelayRoom](/reference/sdk/client/react/RelayRoom). Hooks read the nearest provider.
+
+## Connect a room
+
+```tsx
+'use client'
+
+import { RelayProvider, RelayRoom } from '@relayrtc/react'
+
+export function Call({ token, signalingUrl }: { token: string; signalingUrl: string }) {
+  return (
+    <RelayProvider signalingUrl={signalingUrl}>
+      <RelayRoom token={token}>
+        <div>Your call interface</div>
+      </RelayRoom>
+    </RelayProvider>
+  )
+}
+```
+
+The SDK handles room state and media. You choose the layout, controls and participant tiles.
+
+## Hooks
+
+| Hook | Purpose |
+| --- | --- |
+| [useRoom](/reference/sdk/client/react/hooks/useRoom) | Room, connection state, errors, join and leave. |
+| [useParticipants](/reference/sdk/client/react/hooks/useParticipants) | Local and remote participant list. |
+| [useLocalParticipant](/reference/sdk/client/react/hooks/useLocalParticipant) | Local identity, media controls and metadata. |
+| [useTracks](/reference/sdk/client/react/hooks/useTracks) | Filter remote publications. |
+| [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack) | Bind local or remote media to an element and track playback. |
+| [useLocalMedia](/reference/sdk/client/react/hooks/useLocalMedia) | Camera, microphone and screen snapshots. |
+| [useMessages](/reference/sdk/client/react/hooks/useMessages) | Local message history and sending. |
+| [useConnectionQuality](/reference/sdk/client/react/hooks/useConnectionQuality) | Room and participant network quality. |
+
+## Components
+
+Use [MediaLoader](/reference/sdk/client/react/MediaLoader) to show loading. The SDK does not include a prebuilt Zoom-style call layout.
+
+## Server work
+
+Create rooms, issue tokens and administer participants with the [Node SDK](/reference/sdk/server/node/overview) or [REST API](/reference/api/v1/overview). Keep secret API keys out of this package.
+

@@ -1,0 +1,65 @@
+---
+title: "Connection recovery"
+description: "Show reconnecting state and handle credential expiry."
+section: "Build calls"
+---
+
+## Room state
+
+```tsx
+import { MediaLoader, RelayProvider, RelayRoom, useRoom } from '@relayrtc/react'
+```
+
+```tsx
+const { connectionState, error } = useRoom()
+
+if (connectionState === 'reconnecting') return <MediaLoader label="Reconnecting to the call" />
+if (connectionState === 'failed') return <p role="alert">{error?.message}</p>
+```
+
+The default reconnect policy allows 6 attempts within 25 seconds. It restores the existing session and repairs media transport when possible.
+
+## Playback loading
+
+`useMediaTrack` reports loading while a remote track is starting or its room is reconnecting. Keep the media element mounted so the hook can attach it after recovery.
+
+If recovery fails, offer a deliberate rejoin flow. A room that ended or a participant that was removed cannot be restored by retrying indefinitely.
+
+## TURN renewal
+
+Provide a server-backed callback when issuing TURN credentials:
+
+```tsx
+<RelayProvider
+  signalingUrl={signalingUrl}
+  refreshTurnCredentials={async ({ roomId, sessionId, signal }) => {
+    const response = await fetch('/api/turn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ roomId, sessionId }),
+      signal,
+    })
+    if (!response.ok) throw new Error('TURN renewal failed')
+    return response.json()
+  }}
+>
+  <RelayRoom token={token}><YourCall /></RelayRoom>
+</RelayProvider>
+```
+
+`YourCall` is your call component. Authenticate `/api/turn` on your server and check that the caller owns the requested session. Your server uses [turn.createCredentials](/reference/sdk/server/node/turn/createCredentials).
+
+## Participant token expiry
+
+The public token endpoint issues a new participant identity. It does not renew a token while preserving the current participant and session.
+
+The browser supports a `refreshToken` callback, but that callback must return an identity-preserving token from an appropriate renewal service. Do not point it at `tokens.create` and assume the existing call can continue.
+
+Until you have that renewal flow, ask the participant to rejoin with a new token after expiry. The maximum public token lifetime is 3,600 seconds.
+
+## Startup delays
+
+Capture, publication, subscription, ICE negotiation and the first decodable frame all take time. Subscription success does not mean the video has started playing.
+
+Use playback state to show waiting and measure connection stages when investigating a slow start. A loader does not change transport setup time.
+

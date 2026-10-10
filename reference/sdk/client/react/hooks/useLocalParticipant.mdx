@@ -1,0 +1,38 @@
+---
+title: "useLocalParticipant"
+description: "Read local identity, metadata and media controls."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { useLocalParticipant } from '@relayrtc/react'
+```
+
+## Requirements
+
+Call this hook inside [RelayProvider](/reference/sdk/client/react/RelayProvider), in a React function component or custom hook. A joined room is needed for live data and actions.
+
+## Returns
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| Return value | RoomLocalParticipant or null | Local participant when joined. |
+
+## Example
+
+```tsx
+const local = useLocalParticipant()
+
+return (
+  <button disabled={!local} onClick={() => void local?.camera.enable().catch(console.error)}>
+    Enable camera
+  </button>
+)
+```
+
+## Options and behavior
+
+The participant exposes microphone, camera, screen, devices and permissions, plus updateMetadata(metadata). Metadata updates require metadata:update and replace the object.
+

@@ -1,0 +1,45 @@
+---
+title: "RelayRoom"
+description: "Join with a participant token and leave when the component unmounts."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { RelayRoom } from '@relayrtc/react'
+```
+
+## Requirements
+
+Render inside [RelayProvider](/reference/sdk/client/react/RelayProvider). Only one `RelayRoom` owns a provider at a time.
+
+## Props
+
+| Prop | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| token | string, null or undefined | Required prop | Token issued by your backend. Null/undefined waits without joining. |
+| connect | boolean | true | Enable the automatic join. |
+| children | ReactNode | Optional | Room UI; rendered while connecting too. |
+| onConnected | `(room: Room) => void` | Optional | Called when a new room becomes available. |
+| onDisconnected | `() => void` | Optional | Called when the previously available room is removed. |
+| onError | `(error: RoomError) => void` | Optional | Observe room errors. |
+
+## Example
+
+```tsx
+<RelayRoom
+  token={participantToken}
+  onConnected={(room) => console.log('Joined', room.id)}
+  onDisconnected={() => console.log('Left')}
+>
+  <YourCall />
+</RelayRoom>
+```
+
+## Token changes
+
+Changing the token starts a new join lifecycle. Unmounting cancels an in-flight join and releases room ownership.
+
+Joining does not enable local capture. Call camera or microphone controls after the room is connected.
+

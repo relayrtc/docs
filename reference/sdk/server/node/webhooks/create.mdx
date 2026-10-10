@@ -1,0 +1,57 @@
+---
+title: "webhooks.create"
+description: "Create a webhook in the authenticated project environment."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+The API must have signing encryption configured. Otherwise this operation throws WEBHOOK_SIGNING_UNAVAILABLE with HTTP status 503.
+
+A secret key with `webhooks:write`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| url | string | Required | Public, resolvable HTTP(S) URL, up to 2,048 characters. No credentials, fragment or private network destination. |
+| eventTypes | string[] | Required | Nonempty, unique supported event types. |
+| status | string | enabled | enabled or disabled. |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument. Optional scope parameters go before RequestOptions. They cannot expand the key’s project or environment.
+
+## Example
+
+```ts
+const result = await relay.webhooks.create({ url: 'https://your-app.example/webhooks/relayrtc', eventTypes: ['room.ended'] })
+```
+
+## Returns
+
+`Promise<RevealedWebhookEndpoint>`. Returns a webhook endpoint and its one-time signing secret.
+
+## Behavior
+
+Events: `room.created`, `room.started`, `room.ended`, `participant.joined`, `participant.left`, `participant.reconnected`, `track.published`, `track.unpublished`, `connection.degraded`, `connection.recovered`.
+
+Your endpoint is a receiver in your own backend. [Verify signed requests](/guides/webhooks) before processing them.
+
+Save `signingSecret` securely. The API returns it only when creating or rotating the endpoint.
+
+## REST equivalent
+
+[`POST /v1/webhooks`](/reference/api/v1/webhooks/create). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

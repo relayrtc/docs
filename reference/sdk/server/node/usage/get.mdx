@@ -1,0 +1,57 @@
+---
+title: "usage.get"
+description: "Read scoped usage across one category or all public categories."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `usage:read`. The result is restricted to its project and environment.
+
+## Query
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| category | UsageCategory | all | all, rooms, participants, sfu, turn, signaling or screen-share. |
+| range | UsageRange | 7d | 24h, 7d, 14d or 30d. |
+| startedAt | ISO datetime | With endedAt | Custom window start. Cannot combine with range. |
+| endedAt | ISO datetime | With startedAt | Custom exclusive end, no later than now. |
+| granularity | hour or day | Automatic | hour for ≤24h windows, otherwise day. |
+| projectId | string | Key project | Must match the key. |
+| environmentId | string | Key environment | Must match the key. |
+
+A custom window must be positive, no longer than 30 days and within retained history. Pass RequestOptions after the query.
+
+## Example
+
+```ts
+const usage = await relay.usage.get({
+  category: 'participants',
+  range: '7d',
+  granularity: 'day',
+})
+
+console.log(usage.summary.participantMinutesDerived)
+```
+
+## Returns
+
+`Promise<UsageResponse>`: scope, category, window, bucketDefinition, metricDefinitions, summary, buckets and dataQuality.
+
+Metrics use the units defined by the response. `5.538` participant minutes means about 5.5 minutes, not thousands. See [usage interpretation](/guides/usage).
+
+## REST equivalent
+
+Calls `GET /v1/usage` for all categories or `GET /v1/usage/{category}` for one category. The category belongs in the path, not the REST query string.
+

@@ -1,0 +1,36 @@
+---
+title: "useTracks"
+description: "Filter reactive remote track publications."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { useTracks } from '@relayrtc/react'
+```
+
+## Requirements
+
+Call this hook inside [RelayProvider](/reference/sdk/client/react/RelayProvider), in a React function component or custom hook. A joined room is needed for live data and actions.
+
+## Returns
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| Return value | readonly RoomRemoteTrack[] | Remote publications matching the filter. |
+
+## Example
+
+```tsx
+const cameras = useTracks({
+  participantId,
+  types: ['camera_video'],
+  subscribedOnly: false,
+})
+```
+
+## Options and behavior
+
+Options: participantId filters by participant; types filters by track type; subscribedOnly defaults to false. Available runtime media types are audio, camera_video, screen_video and screen_audio. This hook does not return your local capture tracks. Keeping unsubscribed tracks in the list lets a playback component show its loading state.
+

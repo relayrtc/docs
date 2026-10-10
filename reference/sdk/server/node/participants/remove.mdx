@@ -1,0 +1,60 @@
+---
+title: "participants.remove"
+description: "Disconnect one participant and remove their live media resources."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `participants:remove`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+| participantId | string | Required | ID of a participant in this room. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+## Example
+
+```ts
+const roomId = 'room_example'
+const participantId = 'participant_example'
+const result = await relay.participants.remove(roomId, participantId)
+```
+
+## Returns
+
+`Promise<CleanupResult>`. Returns `{ status: 'completed', httpStatus: 204 }` when cleanup finishes, or `{ status: 'pending', httpStatus: 202, operation }` while cleanup is still running.
+
+```ts
+if (result.status === 'pending') {
+  console.log(result.operation.id, result.operation.status)
+}
+```
+
+Poll `participants.getRuntimeOperation(roomId, participantId)` until completed. A completed result has `status: 'completed'` and `httpStatus: 204`.
+
+## Behavior
+
+<Callout type="danger" title="This disconnects the participant">
+Removal affects the participant’s live session and tracks. Use this operation for moderation or administrative removal.
+</Callout>
+
+## REST equivalent
+
+[`DELETE /v1/rooms/{roomId}/participants/{participantId}`](/reference/api/v1/participants/remove). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

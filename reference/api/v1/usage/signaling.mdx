@@ -1,0 +1,48 @@
+---
+title: "Signaling usage"
+description: "Read signaling usage for the key's project environment."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/usage/signaling"
+---
+
+## Requirements
+
+A secret API key with `usage:read`. Resources are restricted to the key's project and environment.
+
+## Query parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| range | string | 7d | 24h, 7d, 14d or 30d. Cannot combine with boundaries. |
+| startedAt | ISO datetime | With endedAt | Inclusive start, within retained history. |
+| endedAt | ISO datetime | With startedAt | Exclusive end. Must be in the past. |
+| granularity | string | Automatic | hour for windows ≤24h, otherwise day. |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X GET "$RELAYRTC_API_URL/usage/signaling?range=7d&granularity=day" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`200` with `scope`, `category`, `window`, `bucketDefinition`, `metricDefinitions`, `summary`, `buckets` and `dataQuality`.
+
+Included metrics: signalingConnections, signalingConnectionSeconds, signalingMessagesIn, signalingMessagesOut.
+
+## Notes
+
+Explicit windows must be positive, at most 30 days, and within retained history. Times and calendar buckets use UTC; the end boundary is exclusive.
+
+`participantMinutesDerived` is seconds divided by 60. It is a decimal number of minutes. Check `dataQuality` before treating missing TURN history as zero. See [usage response fields](/reference/api/v1/schemas/usage).
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

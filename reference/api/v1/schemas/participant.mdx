@@ -1,0 +1,34 @@
+---
+title: "Participant object"
+description: "Fields returned by the REST API for participant object."
+section: "REST API v1"
+---
+
+## Fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string | Resource identifier. |
+| `roomId` | string | Owning room. |
+| `externalId` | string or null | External identity, or null. |
+| `name` | string | Display name. |
+| `metadata` | object | Application-defined JSON object. |
+| `role` | string | Participant role. |
+| `joinedAt` | string | Join timestamp. |
+| `leftAt` | string or null | Leave timestamp, or null. |
+
+## Example
+
+```json
+{
+  "id": "participant_example",
+  "roomId": "room_example",
+  "externalId": null,
+  "name": "Alice",
+  "metadata": {},
+  "role": "participant",
+  "joinedAt": "2026-01-01T12:00:00.000Z",
+  "leftAt": null
+}
+```
+

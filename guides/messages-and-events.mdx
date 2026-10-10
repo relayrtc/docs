@@ -1,0 +1,71 @@
+---
+title: "Messages, events and raised hands"
+description: "Send chat, transient events and persistent participant metadata."
+section: "Build calls"
+---
+
+## Imports
+
+```tsx
+import { useEffect } from 'react'
+import { useLocalParticipant, useMessages, useParticipants, useRoom } from '@relayrtc/react'
+```
+
+## Text messages
+
+Your token needs `messages:send`.
+
+```tsx
+const { messages, send, clear } = useMessages()
+await send('Hello everyone')
+```
+
+Messages are limited to 4,000 characters. Whitespace-only text is rejected. The React provider keeps 100 messages by default; `messageHistoryLimit` changes that local limit.
+
+`clear()` clears your local history. It does not delete messages for other participants. Chat history is not durable across a reload.
+
+## Custom events
+
+Use custom events for transient actions that should reach current participants.
+
+Sending custom events also requires messages:send.
+
+```tsx
+const { room } = useRoom()
+
+useEffect(() => {
+  if (!room) return
+  return room.events.subscribe((event) => {
+    if (event.name === 'reaction.sent') console.log(event.data)
+  })
+}, [room])
+
+await room?.events.emit('reaction.sent', { emoji: 'hello' })
+```
+
+Names start with a lowercase letter and contain up to 64 lowercase letters, digits, underscores, dots or hyphens. Payloads must be JSON values. Events are not durable messages.
+
+## Raised hands
+
+Use participant metadata when the state should appear in presence snapshots.
+
+Updating metadata requires metadata:update.
+
+```tsx
+const local = useLocalParticipant()
+
+await local?.updateMetadata({
+  ...local.metadata,
+  handRaised: true,
+})
+```
+
+```tsx
+const participants = useParticipants()
+return participants.map((person) => (
+  <p key={person.id}>{person.name}{person.metadata.handRaised === true ? ' · Hand raised' : ''}</p>
+))
+```
+
+Metadata updates replace the participant metadata object. Spread existing values when keeping other fields. A raised-hand button is an application feature built on metadata, not a separate SDK method.
+

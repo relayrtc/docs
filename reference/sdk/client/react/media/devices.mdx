@@ -1,0 +1,58 @@
+---
+title: "Devices and permissions"
+description: "Enumerate inputs, observe device changes and request capture permission."
+section: "React SDK"
+---
+
+## Import and access
+
+```tsx
+import { useRoom } from '@relayrtc/react'
+
+const { room } = useRoom()
+```
+
+## Device methods
+
+| Method | Returns |
+| --- | --- |
+| `room.devices.enumerate()` | Promise of MediaDeviceSnapshot. |
+| `room.devices.subscribe(listener)` | Cleanup function for device change observation. |
+
+The snapshot has `cameras` and `microphones` arrays. Each entry contains `deviceId`, `groupId`, `kind` and `label`. Labels may be empty before permission is granted.
+
+## Permission methods
+
+| Method | Returns |
+| --- | --- |
+| `room.permissions.get()` | Promise of microphone/camera permission state. |
+| `room.permissions.request({ camera?, microphone? })` | Promise of the resulting permission snapshot. |
+
+Each permission state is `granted`, `denied`, `prompt` or `unsupported`. Reading permissions does not start publishing.
+
+Calling request with no options requests both devices. Set an option to false to skip that device. Permission requests temporarily capture the requested inputs and stop the resulting tracks; they do not publish them.
+
+## Example
+
+```ts
+if (room) {
+  await room.permissions.request({ camera: true, microphone: true })
+  const devices = await room.devices.enumerate()
+  const selected = devices.cameras[0]
+  if (selected) await room.camera.switchDevice(selected.deviceId)
+}
+```
+
+## Subscribe with cleanup
+
+```tsx
+useEffect(() => {
+  if (!room) return
+  return room.devices.subscribe((snapshot) => {
+    console.log(snapshot.cameras)
+  })
+}, [room])
+```
+
+Import `useEffect` from React. Device access requires an active room and browser media APIs.
+

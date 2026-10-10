@@ -1,0 +1,56 @@
+---
+title: "Webhook delivery"
+description: "Fields returned by the REST API for webhook delivery."
+section: "REST API v1"
+---
+
+## Fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string | Resource identifier. |
+| `endpointId` | string | Destination endpoint. |
+| `eventId` | string | Durable event ID for deduplication. |
+| `projectId` | string | Owning project. |
+| `environmentId` | string | Owning environment. |
+| `url` | string | Receiver URL. |
+| `status` | string | Lifecycle or delivery state. |
+| `attemptCount` | number | Lifetime attempt count. |
+| `runAttemptCount` | number | Attempts in the current retry run. |
+| `replayCount` | number | Number of explicit replays. |
+| `lastError` | string or null | Latest error, or null. |
+| `nextAttemptAt` | string or null | Next scheduled attempt, or null. |
+| `deliveredAt` | string or null | Successful delivery timestamp, or null. |
+| `runStartedAt` | string | Current run start. |
+| `createdAt` | string | Creation timestamp. |
+| `updatedAt` | string | Latest update timestamp. |
+
+## Example
+
+```json
+{
+  "id": "delivery_example",
+  "endpointId": "webhook_example",
+  "eventId": "event_example",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "url": "https://your-app.example/webhooks/relayrtc",
+  "status": "pending",
+  "attemptCount": 0,
+  "runAttemptCount": 0,
+  "replayCount": 0,
+  "lastError": null,
+  "nextAttemptAt": "2026-01-01T12:00:00.000Z",
+  "deliveredAt": null,
+  "runStartedAt": "2026-01-01T12:00:00.000Z",
+  "createdAt": "2026-01-01T12:00:00.000Z",
+  "updatedAt": "2026-01-01T12:00:00.000Z"
+}
+```
+
+## Detail response
+
+Reading one delivery adds `event`, `rawBody` and `attempts`. An event includes `id`, `type`, `projectId`, `environmentId`, `occurredAt` and JSON `data`. Each attempt records `id`, `attemptNumber`, `replayCount`, `status`, `signingSecretVersion`, `signatureTimestamp`, `httpStatus`, `errorCode`, `startedAt` and `finishedAt`.
+
+Attempt status is started, succeeded, failed or abandoned. HTTP status and completion/error fields can be null.
+

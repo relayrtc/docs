@@ -1,0 +1,58 @@
+---
+title: "Create a room"
+description: "Create a room in the authenticated project environment."
+section: "REST API v1"
+method: POST
+endpoint: "/v1/rooms"
+---
+
+## Requirements
+
+A secret API key with `rooms:create`. Resources are restricted to the key's project and environment.
+
+## Request body
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| name | string | Required | Trimmed name, 1–120 characters. |
+| metadata | JSON object | `{}` | Application-defined room metadata. |
+| maxParticipants | integer | 100 | From 1 to 100,000. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X POST "$RELAYRTC_API_URL/rooms" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Team call","maxParticipants":10}'
+```
+
+## Response
+
+`201` with a [room object](/reference/api/v1/schemas/room).
+
+```json
+{
+  "id": "room_example",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "name": "Team call",
+  "metadata": {},
+  "status": "created",
+  "maxParticipants": 10,
+  "createdAt": "2026-01-01T12:00:00.000Z",
+  "startedAt": null,
+  "endedAt": null
+}
+```
+
+## Notes
+
+Creating a room does not join it or open media devices. [Issue participant tokens](/reference/api/v1/tokens/create) next.
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

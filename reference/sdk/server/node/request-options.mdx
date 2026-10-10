@@ -1,0 +1,40 @@
+---
+title: "Request options"
+description: "Cancel a call, change its deadline or disable GET retries."
+section: "Node SDK"
+---
+
+## Import
+
+```ts
+import type { RequestOptions } from '@relayrtc/node'
+```
+
+## Options
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| signal | AbortSignal | Optional | Caller cancellation. |
+| timeoutMs | integer | Client default | Override the total deadline, 1–300,000 ms. |
+| retry | false | Optional | Disable retry for this request. Per-request retry tuning is not supported. |
+
+Pass options as the final method argument. When a method has an optional query or scope argument, pass `{}` for that argument first.
+
+## Example
+
+```ts
+const controller = new AbortController()
+
+const request = relay.rooms.list(
+  { limit: 20 },
+  { signal: controller.signal, timeoutMs: 5000, retry: false },
+)
+
+controller.abort()
+await request.catch((error) => console.log(error.code))
+```
+
+## Failures
+
+Cancellation throws `REQUEST_CANCELLED`. Deadline expiry throws `REQUEST_TIMEOUT`. The deadline includes attempts, backoff and reading the response body.
+

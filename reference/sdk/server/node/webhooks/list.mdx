@@ -1,0 +1,46 @@
+---
+title: "webhooks.list"
+description: "List webhooks in the authenticated project environment."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `webhooks:read`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+| limit | integer | 50 | From 1 to 100. |
+| offset | integer | 0 | From 0 to 100,000. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+## Example
+
+```ts
+const result = await relay.webhooks.list({ limit: 20, offset: 0 })
+```
+
+## Returns
+
+`Promise<WebhookEndpointList>`. Returns `endpoints` and `pagination`. Signing secrets are excluded.
+
+## REST equivalent
+
+[`GET /v1/webhooks`](/reference/api/v1/webhooks/list). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

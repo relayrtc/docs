@@ -1,0 +1,39 @@
+---
+title: "Pagination"
+description: "Read cursor-based and offset-based collections."
+section: "REST API v1"
+---
+
+## Room and participant lists
+
+Pass `limit` from 1 to 100; the default is 50. Use `pageInfo.endCursor` as the next request's `cursor`.
+
+```json
+{
+  "nodes": [],
+  "pageInfo": {
+    "endCursor": null,
+    "hasNextPage": false
+  }
+}
+```
+
+Stop when `hasNextPage` is false. Treat cursors as opaque values.
+
+## Webhook and delivery lists
+
+Use `limit` from 1 to 100 and `offset` from 0 to 100,000. Defaults are 50 and 0.
+
+```json
+{
+  "endpoints": [],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 0
+  }
+}
+```
+
+Delivery lists use `deliveries` instead of `endpoints`. Increment offset by the requested limit until you reach the total.
+

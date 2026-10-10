@@ -1,0 +1,50 @@
+---
+title: "Read a room"
+description: "Get the room's metadata, status and capacity."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/rooms/{roomId}"
+---
+
+## Requirements
+
+A secret API key with `rooms:read`. Resources are restricted to the key's project and environment.
+
+## Path parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X GET "$RELAYRTC_API_URL/rooms/room_example" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`200` with a [room object](/reference/api/v1/schemas/room).
+
+```json
+{
+  "id": "room_example",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "name": "Team call",
+  "metadata": {},
+  "status": "created",
+  "maxParticipants": 100,
+  "createdAt": "2026-01-01T12:00:00.000Z",
+  "startedAt": null,
+  "endedAt": null
+}
+```
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

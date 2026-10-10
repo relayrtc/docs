@@ -1,0 +1,46 @@
+---
+title: "useRoom"
+description: "Access the active room, connection state and join/leave actions."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { useRoom } from '@relayrtc/react'
+```
+
+## Requirements
+
+Call this hook inside [RelayProvider](/reference/sdk/client/react/RelayProvider), in a React function component or custom hook. A joined room is needed for live data and actions.
+
+## Returns
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| room | Room or null | Active room once the join has completed. |
+| client | RelayClient or null | Underlying browser client. |
+| connectionState | RoomConnectionState | connecting, connected, reconnecting, disconnected or failed. |
+| error | RoomError or null | Latest store error. |
+| join | `(token, options?) => Promise<Room>` | Join manually. JoinOptions accepts signal. |
+| leave | `() => Promise<void>` | Leave the current room. |
+| clearError | `() => void` | Clear the displayed store error. |
+
+## Example
+
+```tsx
+const { connectionState, error, leave, clearError } = useRoom()
+
+return (
+  <div>
+    <p>{connectionState}</p>
+    {error && <button onClick={clearError}>{error.message}</button>}
+    <button onClick={() => void leave().catch(console.error)}>Leave</button>
+  </div>
+)
+```
+
+## Options and behavior
+
+Use either RelayRoom’s automatic join or a manual join flow. Do not start both for the same provider. Null room state during setup is expected.
+

@@ -1,0 +1,86 @@
+---
+title: "Browser client"
+description: "Use the room API without React."
+section: "Browser SDK"
+---
+
+## Install
+
+<InstallTabs packages="@relayrtc/client" />
+
+See [installation](/installation) for package requirements.
+
+## Requirements
+
+A browser with WebRTC, a signaling URL, and a participant token issued by your backend. Media capture needs HTTPS or localhost and the appropriate participant permissions.
+
+## Create a client
+
+```ts
+import { RelayClient } from '@relayrtc/client'
+
+const client = new RelayClient({
+  signalingUrl: 'ws://localhost:8081/v1/connect',
+  autoSubscribe: true,
+})
+```
+
+The configuration is the same browser configuration accepted by [RelayProvider](/reference/sdk/client/react/RelayProvider), excluding React props, messageHistoryLimit and onError.
+
+## Join and publish
+
+```ts
+const token = await fetch('/api/join', { method: 'POST' })
+  .then((response) => {
+    if (!response.ok) throw new Error('Unable to join')
+    return response.json() as Promise<{ token: string }>
+  })
+
+const room = await client.join(token.token)
+await room.camera.enable()
+await room.microphone.enable()
+```
+
+Your application implements the authenticated /api/join endpoint. Joining alone does not open devices.
+
+## Subscribe to events
+
+```ts
+const stop = client.on('trackPublished', (track) => {
+  if (track.type !== 'camera_video') return
+  const video = document.createElement('video')
+  video.autoplay = true
+  video.playsInline = true
+  document.body.append(video)
+  void track.attach(video).catch(console.error)
+})
+```
+
+Call the returned cleanup function when removing the listener. Handle rejected playback when the browser requires a user gesture.
+
+```ts
+stop()
+```
+
+## Methods and properties
+
+| Member | Purpose |
+| --- | --- |
+| currentRoom | Current Room, or undefined when there is no room. |
+| connectionState | connecting, connected, reconnecting, disconnected or failed. |
+| join(token, options?) | Promise of Room. Optional signal cancels joining. |
+| leave() | Promise of void. Leaves this client’s current room. |
+| on(event, listener) | Register a RoomEvents listener and return its cleanup function. |
+
+Only one room can be active on a client. Leave it before joining another room.
+
+The returned [Room](/reference/sdk/client/react/room) provides camera, microphone, screen sharing, messages, metadata, remote tracks, credentials and quality statistics. Those methods work the same way outside React.
+
+## Leave
+
+```ts
+await client.leave()
+```
+
+Leaving releases the local session and media. To end the call for every participant, use [rooms.end](/reference/sdk/server/node/rooms/end) on your backend.
+

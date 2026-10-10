@@ -1,0 +1,76 @@
+---
+title: "Camera controls"
+description: "Capture, publish, turn off and switch your camera."
+section: "React SDK"
+---
+
+## Import and access
+
+```tsx
+import { useLocalParticipant, useLocalMedia } from '@relayrtc/react'
+
+const local = useLocalParticipant()
+const { camera } = useLocalMedia()
+```
+
+## Requirements
+
+Join the room, grant `video:publish` in the token and allow camera access. Use HTTPS outside localhost.
+
+## Methods
+
+| Method | Returns | Purpose |
+| --- | --- | --- |
+| enable(constraints?) | `Promise<MediaStreamTrack>` | Capture and publish. Repeated enable returns the existing track. |
+| disable() | `Promise<void>` | Stop capture and remove the publication. |
+| switchDevice(deviceId) | `Promise<MediaStreamTrack or null>` | Select a camera and replace the active capture when enabled. |
+| mute() | void | Pause the local sender without releasing capture. |
+| unmute() | void | Resume the local sender. |
+| subscribe(listener) | `() => void` | Observe snapshots outside React; return value removes the listener. |
+
+## Capture options
+
+`enable` accepts browser `MediaTrackConstraints`. With no argument, the SDK uses an empty constraint object and lets the browser choose capture settings. Common camera fields are:
+
+| Setting | Example | Meaning |
+| --- | --- | --- |
+| width | `{ ideal: 1280 }` | Requested capture width. |
+| height | `{ ideal: 720 }` | Requested capture height. |
+| frameRate | `{ ideal: 30, max: 30 }` | Requested frames per second. |
+| deviceId | `{ exact: selectedDeviceId }` | Capture a specific device. |
+| facingMode | `{ ideal: 'user' }` | Prefer front-facing or environment-facing camera. |
+| aspectRatio | `{ ideal: 16 / 9 }` | Requested capture aspect ratio. |
+
+These fields are browser constraints, not quality presets. Support varies by browser and device. `ideal` permits fallback; `exact` can reject unsupported capture.
+
+## Example
+
+```tsx
+await local?.camera.enable({
+  width: { ideal: 1280 },
+  height: { ideal: 720 },
+  frameRate: { ideal: 30 },
+})
+await local?.camera.disable()
+```
+
+Use these statements in an async handler and catch errors. For camera-off buttons, use disable/enable so other participants can replace video with a placeholder.
+
+## Snapshot
+
+| Field | Meaning |
+| --- | --- |
+| source | camera. |
+| enabled | A local publication exists. |
+| pending | A capture/device/cleanup operation is in progress. |
+| muted | Local sender is paused. |
+| deviceId | Selected capture device ID, or null. |
+| track | Local MediaStreamTrack, or null. |
+| publication | Published Track object, or null. |
+
+## Limits
+
+Local mute does not signal a remote paused publication in the current server. Use disable for camera-off.
+
+Operations can fail with MEDIA_OPERATION_PENDING, MEDIA_PERMISSION_DENIED or another media error. Catch enable/disable/device-switch promises and avoid starting another operation while `pending` is true.
+

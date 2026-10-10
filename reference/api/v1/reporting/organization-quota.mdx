@@ -1,0 +1,33 @@
+---
+title: "Organization quota"
+description: "Read the current quota configuration status."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/organizations/{organizationId}/quota"
+---
+
+## Authentication
+
+Requires a valid console session and organization membership. Project API keys are rejected with ORGANIZATION_SESSION_REQUIRED.
+
+## Parameters
+
+organizationId is required in the path. No query fields are accepted.
+
+## Example
+
+```bash
+curl "$RELAYRTC_API_URL/organizations/organization_example/quota" \
+  -H "Cookie: $RELAYRTC_CONSOLE_SESSION_COOKIE"
+```
+
+RELAYRTC_CONSOLE_SESSION_COOKIE represents your signed console session cookie, not an API key. Keep it private.
+
+## Response
+
+`200` with organizationId, status: "unconfigured" and limits: []. Enforced plan quota values are not configured by this endpoint.
+
+## Availability
+
+This endpoint is REST-only. The current Node SDK exposes public `usage.get`, but has no wrapper for these reporting endpoints. It is separate from [public scoped usage](/reference/api/v1/usage/all).
+

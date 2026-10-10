@@ -1,0 +1,49 @@
+---
+title: "Rooms, participants and tracks"
+description: "Understand the objects used throughout the API and SDKs."
+section: "Get started"
+---
+
+## Room
+
+A room belongs to one project environment. Create it on your server. A room can contain many participants and remains a server resource after a browser leaves.
+
+The room lifecycle is `created`, `active`, `ending`, `ended` or `failed`. Joining through the SDK and creating through REST are separate operations.
+
+## Participant and session
+
+A participant is a person joining a room with a participant token. A session represents their active connection. Each participant token has its own participant identity.
+
+A successful reconnect restores the existing session when the services still own its state. Issuing a fresh token is not the same as renewing that session.
+
+## Track
+
+A track is a published source:
+
+| Type | Source |
+| --- | --- |
+| `audio` | Microphone |
+| `camera_video` | Camera |
+| `screen_video` | Shared display |
+| `screen_audio` | Audio included with the display |
+
+Data tracks are present in shared types but are not supported for publishing in the current room runtime. Use [messages and custom events](/guides/messages-and-events).
+
+## Publish and subscribe
+
+Publishing sends local media to the media server. Subscribing receives a remote publication. A successful subscription still needs a playable frame before the browser can show video.
+
+The server can select a lower video layer to fit network conditions. A requested quality is a preference, not a guarantee of resolution.
+
+## Signaling and media
+
+The API handles room administration and tokens. The WebSocket signaling service handles room membership, messages and media negotiation. Audio and video flow through the media service, with TURN when relay connectivity is needed.
+
+REST room creation alone does not establish an audio or video connection.
+
+## Leave and end
+
+`room.leave()` leaves the current browser participant. `relay.rooms.end(roomId)` ends the room for everyone.
+
+[Destructive operations](/reference/api/v1/rooms/end) can return pending cleanup. Check their runtime operation before treating cleanup as complete.
+

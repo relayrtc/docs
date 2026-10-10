@@ -1,0 +1,44 @@
+---
+title: "Installation"
+description: "Install the browser, React and Node packages."
+section: "Get started"
+---
+
+## Packages
+
+| Package | Runs in | Purpose |
+| --- | --- | --- |
+| `@relayrtc/react` | Browser | React providers, hooks and media loading UI. |
+| `@relayrtc/client` | Browser | Room connection, capture, subscriptions and events. React depends on this package. |
+| `@relayrtc/node` | Node.js server | REST management and webhook verification. |
+
+## React
+
+Use React 18.3.1 or React 19 and TypeScript if you want typed options.
+
+<InstallTabs packages="@relayrtc/react @relayrtc/client" />
+
+```tsx
+import { RelayProvider, RelayRoom, useRoom } from '@relayrtc/react'
+```
+
+## Node.js
+
+Use Node.js 22 or newer.
+
+<InstallTabs packages="@relayrtc/node" />
+
+```ts
+import { RelayServer, verifyWebhookRequest } from '@relayrtc/node'
+```
+
+## Plain browser client
+
+Use this package when you want to manage the room without React.
+
+<InstallTabs packages="@relayrtc/client" />
+
+```ts
+import { RelayClient } from '@relayrtc/client'
+```
+

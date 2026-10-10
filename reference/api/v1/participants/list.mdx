@@ -1,0 +1,53 @@
+---
+title: "List participants"
+description: "Read participants belonging to a room."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/rooms/{roomId}/participants"
+---
+
+## Requirements
+
+A secret API key with `participants:read`. Resources are restricted to the key's project and environment.
+
+## Path parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+
+## Query parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| cursor | string | Optional | Opaque endCursor from the previous page. |
+| limit | integer | 50 | From 1 to 100. |
+| status | string | Optional | active or left. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X GET "$RELAYRTC_API_URL/rooms/room_example/participants?limit=20&status=active" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`200` with `nodes: Participant[]` and `pageInfo`.
+
+```json
+{
+  "nodes": [],
+  "pageInfo": {
+    "endCursor": null,
+    "hasNextPage": false
+  }
+}
+```
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

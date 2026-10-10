@@ -1,0 +1,52 @@
+---
+title: "webhooks.remove"
+description: "Remove a webhook in the authenticated project environment."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `webhooks:write`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| endpointId | string | Required | ID returned when creating the webhook. |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument. Optional scope parameters go before RequestOptions. They cannot expand the key’s project or environment.
+
+## Example
+
+```ts
+const endpointId = 'webhook_example'
+await relay.webhooks.remove(endpointId)
+```
+
+## Returns
+
+`Promise<void>`. Returns no response body.
+
+## Behavior
+
+<Callout type="danger" title="Remove the receiver configuration">
+This removes the endpoint from RelayRTC. It does not delete the receiver route in your own application.
+</Callout>
+
+## REST equivalent
+
+[`DELETE /v1/webhooks/{endpointId}`](/reference/api/v1/webhooks/remove). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

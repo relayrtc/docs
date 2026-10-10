@@ -1,0 +1,58 @@
+---
+title: "webhooks.deliveries.replay"
+description: "Replay a webhook delivery in the authenticated project environment."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `webhooks:write`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| endpointId | string | Required | ID returned when creating the webhook. |
+| deliveryId | string | Required | ID of a delivery for this endpoint. |
+| expectedReplayCount | integer | Required | The current replayCount, from 0 to 99. |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument. Optional scope parameters go before RequestOptions. They cannot expand the key’s project or environment.
+
+## Example
+
+```ts
+const endpointId = 'webhook_example'
+const deliveryId = 'delivery_example'
+const delivery = await relay.webhooks.deliveries.get(endpointId, deliveryId)
+const result = await relay.webhooks.deliveries.replay(endpointId, deliveryId, { expectedReplayCount: delivery.replayCount })
+```
+
+## Returns
+
+`Promise<WebhookDelivery>`. Returns the queued delivery, including its incremented `replayCount`.
+
+## Behavior
+
+The endpoint must be enabled. The delivery must be succeeded, failed or cancelled and have the expected replay count. Conflicts return `409`. Replay preserves event and delivery IDs and starts a new retry budget.
+
+<Callout type="warning" title="Replay can repeat side effects">
+Your receiver must deduplicate by event ID. There are at most 100 explicit replays per delivery.
+</Callout>
+
+## REST equivalent
+
+[`POST /v1/webhooks/{endpointId}/deliveries/{deliveryId}/replay`](/reference/api/v1/webhooks/deliveries/replay). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

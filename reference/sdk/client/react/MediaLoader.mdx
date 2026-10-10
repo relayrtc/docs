@@ -1,0 +1,52 @@
+---
+title: "MediaLoader"
+description: "Render an accessible loading indicator while capture or playback starts."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { MediaLoader, useMediaTrack } from '@relayrtc/react'
+import type { RoomRemoteTrack } from '@relayrtc/react'
+```
+
+## Requirements
+
+Use playback state from [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack), capture `pending` from [useLocalMedia](/reference/sdk/client/react/hooks/useLocalMedia), or connection state from `useRoom`.
+
+The loader component itself does not require a provider.
+
+## Props
+
+| Prop | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| label | string | Loading media | Text announced with role=status. |
+| children | ReactNode | label | Custom visible label. |
+| className | string | Optional | Style the container to suit your layout. |
+| Other div props | `HTMLAttributes<HTMLDivElement>` | Optional | Standard DOM props, including style and aria attributes. |
+
+## Example
+
+```tsx
+function Video({ track }: { track: RoomRemoteTrack }) {
+  const media = useMediaTrack(track)
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <video ref={media.ref} autoPlay playsInline />
+      {media.isLoading && (
+        <MediaLoader
+          label="Loading camera"
+          style={{ display: 'flex', alignItems: 'center', gap: 12 }}
+        />
+      )}
+    </div>
+  )
+}
+```
+
+## Behavior
+
+The component renders an animated SVG and label with `role="status"` and `aria-live="polite"`. It does not detect loading, subscribe to tracks or change transport speed.
+

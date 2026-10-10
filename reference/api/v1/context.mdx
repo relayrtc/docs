@@ -1,0 +1,43 @@
+---
+title: "Read API context"
+description: "Identify the project, environment and scopes of the supplied key."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/"
+---
+
+## Requirements
+
+A valid secret or publishable API key. No additional scope is required. The response describes the key's project and environment.
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X GET "$RELAYRTC_API_URL/" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`200` with the API context. This endpoint accepts secret or publishable keys and requires no management scope.
+
+```json
+{
+  "apiVersion": "v1",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "keyId": "key_example",
+  "keyType": "secret",
+  "scopes": [
+    "rooms:create",
+    "tokens:create"
+  ]
+}
+```
+
+## Errors
+
+Invalid credentials return `401`. See [error responses](/reference/api/v1/errors).
+

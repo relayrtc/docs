@@ -1,0 +1,67 @@
+---
+title: "Screen controls"
+description: "Capture a display with optional audio and manage its publication."
+section: "React SDK"
+---
+
+## Import and access
+
+```tsx
+import { useLocalParticipant, useLocalMedia } from '@relayrtc/react'
+
+const local = useLocalParticipant()
+const { screen } = useLocalMedia()
+```
+
+## Requirements
+
+A connected room and `screen:publish` permission. Start from a click or another user gesture.
+
+## Methods
+
+| Method | Returns | Purpose |
+| --- | --- | --- |
+| start(options?) | `Promise<RoomScreenSnapshot>` | Open the display picker and publish its tracks. |
+| stop() | `Promise<void>` | Stop capture and unpublish video/audio. |
+| mute() | void | Pause local screen video and audio senders. |
+| unmute() | void | Resume local senders. |
+| subscribe(listener) | `() => void` | Observe screen snapshots outside React. |
+
+## Options
+
+`start` takes browser `DisplayMediaStreamOptions`; the default is `{ video: true }`.
+
+| Setting | Example | Meaning |
+| --- | --- | --- |
+| video | true | Request display video. |
+| video.frameRate | `{ ideal: 15, max: 30 }` | Display capture frame-rate preference. |
+| audio | true | Ask for display audio, if supported and selected. |
+
+Other display options depend on the browser’s getDisplayMedia implementation. The user selects what to share. Requesting audio does not guarantee an audio track.
+
+## Example
+
+```tsx
+await local?.screen.start({
+  video: { frameRate: { ideal: 15, max: 30 } },
+  audio: true,
+})
+await local?.screen.stop()
+```
+
+## Snapshot
+
+| Field | Meaning |
+| --- | --- |
+| active | Screen capture and its video publication are active. |
+| pending | Capture, publication or cleanup is in progress. |
+| muted | Local screen sender is paused. |
+| videoTrack | Local display MediaStreamTrack, or null. |
+| audioTrack | Local display audio track, or null. |
+| videoPublication | Published screen_video Track, or null. |
+| audioPublication | Published screen_audio Track, or null. |
+
+## Behavior
+
+The SDK handles the browser’s capture-ended event and removes publications. Local mute does not signal remote pause/resume in the current server. To remove a shared screen from other participants, stop sharing.
+

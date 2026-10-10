@@ -1,0 +1,87 @@
+---
+title: "useMediaTrack"
+description: "Attach a local or remote media track and observe when it actually plays."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { useMediaTrack, MediaLoader } from '@relayrtc/react'
+import type { RoomRemoteTrack } from '@relayrtc/react'
+```
+
+## Requirements
+
+Use inside RelayProvider. Pass a `RoomRemoteTrack`, a local `MediaStreamTrack`, or null/undefined while waiting for one.
+
+Bind `ref` to a mounted `video` or `audio` element. Keep that element mounted while displaying a loading overlay.
+
+## Arguments
+
+| Argument | Default | Purpose |
+| --- | --- | --- |
+| track | Required | Local capture track or remote publication. Null returns idle. |
+| options.enabled | true | Attach/receive when true. False detaches the element; use track.unsubscribe() to stop the subscription too. |
+| options.paused | false | Mark playback paused for your UI. Does not mute the sender or unsubscribe. Useful for local capture previews. |
+
+## Returns
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| ref | `RefCallback<HTMLMediaElement>` | Attach to your video/audio element. |
+| state | MediaPlaybackState | Playback status listed below. |
+| isLoading | boolean | True only when state is loading. |
+| isPaused | boolean | True only when state is paused. |
+| error | Error or null | Playback/attachment error for blocked or failed state. |
+| play | `() => Promise<void>` | Retry browser playback from a user gesture. |
+
+## States
+
+| State | Meaning |
+| --- | --- |
+| idle | No track, attachment disabled, data track, or playback manually paused. |
+| loading | Waiting for attachment, playable data, incoming media or room recovery. |
+| playing | The element is playing with playable media data. |
+| paused | Explicit paused option or a paused publication. |
+| blocked | The browser rejected autoplay. Offer a play button. |
+| failed | Attachment or playback failed. Display the error. |
+| ended | The track ended, closed or was unpublished. |
+
+## Remote video example
+
+```tsx
+function RemoteVideo({ track }: { track: RoomRemoteTrack }) {
+  const media = useMediaTrack(track)
+
+  return (
+    <div>
+      <video
+        ref={media.ref}
+        autoPlay
+        playsInline
+        style={{ visibility: media.isPaused ? 'hidden' : 'visible' }}
+      />
+      {media.isLoading && <MediaLoader label="Loading camera" />}
+      {media.isPaused && <p>Video is paused</p>}
+      {media.state === 'blocked' && (
+        <button onClick={() => void media.play().catch(console.error)}>Play video</button>
+      )}
+      {media.state === 'failed' && <p role="alert">{media.error?.message}</p>}
+    </div>
+  )
+}
+```
+
+## Audio and local preview
+
+Use `<audio ref={media.ref} autoPlay />` for a remote audio track. Use a muted video element for local preview, passing `camera?.track` and `{ paused: camera?.muted }`.
+
+The hook detaches its element on cleanup. It does not stop local capture or unsubscribe a remote track solely because the UI unmounted.
+
+## Camera-off behavior
+
+Turning the camera off with `camera.disable()` removes its remote publication. Your participant tile should show a placeholder when there is no camera track. Do not wait for a paused state when the publication no longer exists.
+
+The current server does not signal remote pause/resume for local `camera.mute()`. See [camera-off controls](/guides/camera-and-microphone#camera-off).
+

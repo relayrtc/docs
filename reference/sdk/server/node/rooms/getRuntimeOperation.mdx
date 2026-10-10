@@ -1,0 +1,44 @@
+---
+title: "rooms.getRuntimeOperation"
+description: "Inspect the durable operation for ending a room."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `rooms:read`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+## Example
+
+```ts
+const roomId = 'room_example'
+const result = await relay.rooms.getRuntimeOperation(roomId)
+```
+
+## Returns
+
+`Promise<RuntimeOperation>`. Returns a [runtime operation](/reference/api/v1/schemas/runtime-operation). `404 OPERATION_NOT_FOUND` if none exists.
+
+## REST equivalent
+
+[`GET /v1/rooms/{roomId}/runtime-operation`](/reference/api/v1/rooms/runtime-operation). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

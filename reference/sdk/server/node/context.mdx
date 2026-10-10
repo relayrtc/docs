@@ -1,0 +1,41 @@
+---
+title: "context"
+description: "Identify the project, environment and scopes of the supplied key."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A valid secret API key. No additional management scope is required.
+
+## Parameters
+
+No resource or query parameters.
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+## Example
+
+```ts
+const result = await relay.context()
+```
+
+## Returns
+
+`Promise<ApiContext>`. Returns the project, environment and scopes for the configured secret key.
+
+## REST equivalent
+
+[`GET /v1/`](/reference/api/v1/context). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

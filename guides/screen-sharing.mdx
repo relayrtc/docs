@@ -1,0 +1,67 @@
+---
+title: "Screen sharing"
+description: "Share a display and receive another participant’s screen."
+section: "Build calls"
+---
+
+## Imports
+
+```tsx
+import { MediaLoader, useLocalMedia, useLocalParticipant, useMediaTrack, useTracks } from '@relayrtc/react'
+```
+
+## Requirements
+
+The token needs `screen:publish`. Start sharing from a user gesture so the browser can open its display picker.
+
+## Start sharing
+
+```tsx
+function ShareScreenButton() {
+  const local = useLocalParticipant()
+
+  return (
+    <button onClick={() => void local?.screen.start({ video: true, audio: true }).catch(console.error)}>
+      Share screen
+    </button>
+  )
+}
+```
+
+Screen audio is optional. The browser, operating system and selected capture surface decide whether an audio track is available.
+
+## Show loading and local preview
+
+```tsx
+const { screen } = useLocalMedia()
+const preview = useMediaTrack(screen?.videoTrack, { paused: screen?.muted })
+
+return (
+  <div>
+    <video ref={preview.ref} autoPlay muted playsInline />
+    {(screen?.pending || preview.isLoading) && <MediaLoader label="Starting screen share" />}
+  </div>
+)
+```
+
+Use `object-fit: contain` for screen video so the content remains visible.
+
+## Receive screens
+
+```tsx
+const screens = useTracks({ types: ['screen_video'] })
+const screenAudio = useTracks({ types: ['screen_audio'] })
+```
+
+Render each track with [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack). Screen audio needs a separate `audio` element. It is not automatically mixed with a participant’s microphone.
+
+## Stop sharing
+
+```ts
+await local?.screen.stop()
+```
+
+The SDK also stops the publication when the user ends capture from the browser’s sharing controls.
+
+See [screen controls and options](/reference/sdk/client/react/media/screen).
+

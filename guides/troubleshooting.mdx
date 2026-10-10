@@ -1,0 +1,45 @@
+---
+title: "Troubleshooting calls"
+description: "Find signaling, media, permission and playback problems."
+section: "Build calls"
+---
+
+## Signaling fails
+
+Check that the signaling URL points to the WebSocket service, not the REST API. Use `ws://localhost:8081/v1/connect` for the local deployment.
+
+A browser origin must be allowed by signaling. Changing your app's port changes its origin. Check the signaling logs for rejected origins, invalid tokens or missing room permissions.
+
+## Participants appear but media does not
+
+Room membership and media transport are separate. Inspect:
+
+1. Whether the publisher has a local track and the required token permission.
+2. The remote track’s subscriptionState and useMediaTrack error.
+3. ICE candidate connectivity and the announced media address.
+4. Whether the media and TURN services are reachable by the browser.
+
+For a local Docker deployment, a container-only address may be unreachable from the browser. A stale LAN address after restarting the host can break connectivity even while REST room creation works.
+
+## Autoplay is blocked
+
+`useMediaTrack` returns `state: 'blocked'`. Render a play button and call `media.play()` from that click. Do not treat an attached stream as proof that audio is playing.
+
+## Camera remains frozen after camera-off
+
+Use `camera.disable()` for camera-off. Local mute currently does not notify a remote publication pause. Show a placeholder when the participant has no camera track.
+
+## Screen audio is missing
+
+Display audio support depends on browser, operating system and selected screen/tab. Check `screen.audioTrack` before assuming it was captured. Render remote screen_audio separately from microphone audio.
+
+## Media takes several seconds to appear
+
+Capture, negotiation, subscription and a decodable video frame all happen before rendering. Use SDK loaders and measure each stage when a consistent startup delay needs investigation.
+
+## Recovery fails
+
+Look at RoomError.code and the connection state. Expired tokens, ended rooms, removed participants and lost media runtime cannot always be recovered automatically.
+
+If a new token has a different participant identity, leave and rejoin. It cannot renew the active session.
+

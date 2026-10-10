@@ -1,0 +1,56 @@
+---
+title: "List webhook deliveries"
+description: "List webhook deliveries in the authenticated project environment."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/webhooks/{endpointId}/deliveries"
+---
+
+## Requirements
+
+A secret API key with `webhooks:read`. Resources are restricted to the key's project and environment.
+
+## Path parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| endpointId | string | Required | ID returned when creating the webhook. |
+
+## Query parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+| limit | integer | 50 | From 1 to 100. |
+| offset | integer | 0 | From 0 to 100,000. |
+| status | string | Optional | pending, delivering, succeeded, failed or cancelled. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X GET "$RELAYRTC_API_URL/webhooks/webhook_example/deliveries" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`200` with `deliveries` and offset `pagination`.
+
+```json
+{
+  "deliveries": [],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 0
+  }
+}
+```
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

@@ -1,0 +1,74 @@
+---
+title: "verifyWebhookRequest"
+description: "Verify the original body and signed headers before processing a webhook."
+section: "Node SDK"
+---
+
+## Import
+
+```ts
+import { verifyWebhookRequest } from '@relayrtc/node'
+```
+
+## Signature
+
+```ts
+declare function verifyWebhookRequest(
+  secret: string,
+  rawBody: string | Uint8Array,
+  headers: WebhookHeaders,
+  options?: WebhookVerificationOptions,
+): boolean
+```
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| secret | string | Required | Full whsec_ signing secret returned by endpoint creation or rotation. |
+| rawBody | string or Uint8Array | Required | Unmodified body bytes. A Node Buffer is accepted. |
+| headers | Headers or readonly header record | Required | Incoming request headers. |
+| options.now | Date | Current time | Clock override, useful for controlled verification. |
+| options.toleranceSeconds | integer | 300 | Allowed clock difference, 1–300 seconds. |
+
+## Example
+
+```ts
+const valid = verifyWebhookRequest(
+  process.env.RELAYRTC_WEBHOOK_SECRET!,
+  rawRequestBody,
+  request.headers,
+)
+
+if (!valid) {
+  throw new Error('Invalid webhook signature')
+}
+```
+
+`rawRequestBody` must be captured before a JSON parser rewrites the body. See the [Express receiver](/guides/webhooks#verify-before-parsing).
+
+## Returns
+
+A boolean. Invalid secret format, missing/duplicate headers, malformed signature, stale timestamp or mismatched digest returns false.
+
+## Headers
+
+| Header | Purpose |
+| --- | --- |
+| `x-relayrtc-signature` | Signature string with timestamp. |
+| `x-relayrtc-delivery-id` | Delivery ID included in the signed content. |
+| `x-relayrtc-replay-count` | Replay count included in the signed content. |
+| `x-relayrtc-signing-key-version` | Informational secret version; not part of the verifier’s signed input. |
+
+Signature format is `t=TIMESTAMP,v1=HEX_DIGEST`.
+
+The HMAC-SHA256 input is the ASCII prefix `TIMESTAMP.DELIVERY_ID.REPLAY_COUNT.` followed by the original body bytes. The HMAC key is the complete signing secret string, including `whsec_`; do not decode its suffix as a separate key.
+
+## Processing events
+
+Signature verification authenticates a delivery. It does not prevent duplicate processing. Store each event ID atomically with its side effects and processing result.
+
+<Callout type="danger" title="Verify the original bytes">
+Parsing and serializing JSON before verification can change the bytes and invalidate the signature. Register the raw-body receiver before general JSON middleware.
+</Callout>
+

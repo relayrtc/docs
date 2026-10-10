@@ -1,0 +1,185 @@
+---
+title: "Build your first call"
+description: "Create a room on your server, then join it from React."
+section: "Get started"
+---
+
+## Requirements
+
+- A running RelayRTC API, signaling service and media service.
+- A secret API key with `rooms:create` and `tokens:create`.
+- Node.js 22 or newer and a React application.
+- Camera and microphone permission. Use HTTPS in deployment; localhost works for development.
+
+[Install the SDKs](/installation) before following this page.
+
+## Configure your server
+
+Keep these values on your backend. These URLs are for a local RelayRTC deployment.
+
+```bash
+RELAYRTC_API_URL=http://localhost:8082/v1
+RELAYRTC_SIGNALING_URL=ws://localhost:8081/v1/connect
+RELAYRTC_SECRET_KEY=your-secret-api-key
+```
+
+<Callout type="danger" title="Keep secret keys on your server">
+Never place a secret key in frontend code, a public environment variable or a participant token response. Authenticate your own users before issuing tokens.
+</Callout>
+
+## Create a room
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+
+const room = await relay.rooms.create({
+  name: 'Team call',
+  maxParticipants: 10,
+})
+```
+
+Save `room.id` in your application. Everyone in the same call needs a token for that room.
+
+## Issue participant tokens
+
+Create a token for each person, not one token shared by the whole room.
+
+```ts
+const issued = await relay.tokens.create(room.id, {
+  participantName: 'Alice',
+  ttlSeconds: 3600,
+  permissions: [
+    'room:join',
+    'audio:publish',
+    'video:publish',
+    'screen:publish',
+    'messages:send',
+    'metadata:update',
+  ],
+})
+
+const joinResponse = {
+  token: issued.token,
+  expiresAt: issued.expiresAt,
+  signalingUrl: process.env.RELAYRTC_SIGNALING_URL,
+}
+```
+
+Return `joinResponse` from your authenticated backend endpoint. Do not return the secret key.
+
+## Connect from React
+
+In Next.js, put this component in a client module.
+
+```tsx
+'use client'
+
+import { RelayProvider, RelayRoom, useLocalMedia, useLocalParticipant, useRoom } from '@relayrtc/react'
+
+function Controls() {
+  const local = useLocalParticipant()
+  const { camera, microphone } = useLocalMedia()
+  const { connectionState, error } = useRoom()
+
+  return (
+    <div>
+      <p>{connectionState}</p>
+      {error && <p role="alert">{error.message}</p>}
+      <button
+        disabled={!local || camera?.pending || connectionState !== 'connected'}
+        onClick={() => void local?.camera.enable().catch(console.error)}
+      >
+        Enable camera
+      </button>
+      <button
+        disabled={!local || microphone?.pending || connectionState !== 'connected'}
+        onClick={() => void local?.microphone.enable().catch(console.error)}
+      >
+        Enable microphone
+      </button>
+    </div>
+  )
+}
+
+export function Call({ token, signalingUrl }: { token: string; signalingUrl: string }) {
+  return (
+    <RelayProvider signalingUrl={signalingUrl} autoSubscribe>
+      <RelayRoom token={token}>
+        <Controls />
+        <RemoteCameras />
+        <RemoteAudio />
+      </RelayRoom>
+    </RelayProvider>
+  )
+}
+```
+
+Joining a room does not open the camera or microphone. The controls request capture permission when clicked.
+
+The next two sections define RemoteCameras and RemoteAudio. Keep the React examples in the same client module, or export and import those components from separate files.
+
+## Render remote video
+
+```tsx
+import { MediaLoader, useMediaTrack, useTracks } from '@relayrtc/react'
+import type { RoomRemoteTrack } from '@relayrtc/react'
+
+function RemoteVideo({ track }: { track: RoomRemoteTrack }) {
+  const media = useMediaTrack(track)
+
+  return (
+    <div>
+      <video ref={media.ref} autoPlay playsInline hidden={media.isPaused} />
+      {media.isLoading && <MediaLoader label="Loading camera" />}
+      {media.state === 'blocked' && (
+        <button onClick={() => void media.play().catch(console.error)}>Play video</button>
+      )}
+      {media.error && <p role="alert">{media.error.message}</p>}
+    </div>
+  )
+}
+
+export function RemoteCameras() {
+  const tracks = useTracks({ types: ['camera_video'] })
+  return tracks.map((track) => <RemoteVideo key={track.id} track={track} />)
+}
+```
+
+## Render remote audio
+
+Audio uses a separate element, including audio captured with a shared screen. Use the same imports as the video example.
+
+```tsx
+function RemoteSound({ track }: { track: RoomRemoteTrack }) {
+  const media = useMediaTrack(track)
+
+  return (
+    <div>
+      <audio ref={media.ref} autoPlay />
+      {media.state === 'blocked' && (
+        <button onClick={() => void media.play().catch(console.error)}>Enable sound</button>
+      )}
+      {media.error && <p role="alert">{media.error.message}</p>}
+    </div>
+  )
+}
+
+export function RemoteAudio() {
+  const tracks = useTracks({ types: ['audio', 'screen_audio'] })
+  return tracks.map((track) => <RemoteSound key={track.id} track={track} />)
+}
+```
+
+The browser may require a click before playing remote audio. See [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack).
+
+## Test with a second participant
+
+Open your app in another browser and issue another token for the same room. Enable the microphone and camera on both sides.
+
+Next, add [screen sharing](/guides/screen-sharing), [messages](/guides/messages-and-events) and [camera-off placeholders](/guides/camera-and-microphone).
+

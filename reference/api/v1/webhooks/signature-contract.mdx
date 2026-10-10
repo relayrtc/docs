@@ -1,0 +1,88 @@
+---
+title: "Read signing and retry policy"
+description: "Read signing and retry policy in the authenticated project environment."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/webhooks/signature-contract"
+---
+
+## Requirements
+
+A secret API key with `webhooks:read`. Resources are restricted to the key's project and environment.
+
+## Query parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X GET "$RELAYRTC_API_URL/webhooks/signature-contract" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`200` with the signature version, algorithm, header names, signed-content format, replay limits, backoff and retention policy.
+
+```json
+{
+  "version": "v1",
+  "algorithm": "HMAC-SHA256",
+  "signatureHeader": "x-relayrtc-signature",
+  "deliveryIdHeader": "x-relayrtc-delivery-id",
+  "replayCountHeader": "x-relayrtc-replay-count",
+  "secretVersionHeader": "x-relayrtc-signing-key-version",
+  "signedContent": "ASCII(timestamp.deliveryId.replayCount.) followed by the exact raw request body bytes",
+  "signatureFormat": "t=<Unix seconds>,v1=<lowercase hexadecimal HMAC>",
+  "secretEncoding": "Use the complete whsec_ signing secret as UTF-8 HMAC key bytes",
+  "toleranceSeconds": 300,
+  "deduplication": "Atomically persist the event id with business processing; retries and replays retain event and delivery ids",
+  "replay": "Explicit replay increments the signed replay count and resets the retry budget without creating a business event",
+  "attemptsPerRun": 8,
+  "maximumExplicitReplays": 100,
+  "concurrencyPerWorker": 4,
+  "leaseSeconds": 120,
+  "backoffSeconds": [
+    5,
+    30,
+    120,
+    600,
+    1800,
+    3600,
+    21600
+  ],
+  "backoffJitter": "Each retry delay receives up to 20 percent additional random jitter",
+  "retryPolicy": "Retry DNS and network failures, HTTP 408, 425, 429 and 5xx; other HTTP failures and unsafe destinations are terminal",
+  "deliveryDeadlineSeconds": 10,
+  "dnsDeadlineSeconds": 5,
+  "maximumRunAgeDays": 7,
+  "terminalRetentionDays": 30,
+  "retention": "Retain deliveries and attempt logs for 30 days after their most recent terminal outcome; retain an event while any delivery still references it",
+  "replayInput": "Supply expectedReplayCount from the current delivery record; pending or delivering records cannot be replayed",
+  "replayDestination": "Replay uses the endpoint's current URL and signing secret; automatic retries retain the original delivery URL",
+  "verification": "Verify the timestamp, delivery id, replay count and signature against raw bytes before parsing JSON; compare signatures in constant time"
+}
+```
+
+## Verify a delivery
+
+Use the complete signing secret, including whsec_, as the UTF-8 HMAC key. The signed input is the ASCII prefix `TIMESTAMP.DELIVERY_ID.REPLAY_COUNT.` followed by the exact request body bytes. Compare the lowercase hexadecimal SHA-256 HMAC in constant time.
+
+Reject malformed headers and timestamps more than 300 seconds from your server clock. Verify before parsing JSON. The signing-key-version header identifies the secret version and is not part of the signed input.
+
+Store the event ID atomically with its processing result. Signature verification does not prevent duplicate processing.
+
+## Notes
+
+See [webhook verification](/reference/sdk/server/node/verifyWebhookRequest) for the signed content and [webhook delivery policy](/guides/webhooks#delivery-policy) for retry details.
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

@@ -1,0 +1,61 @@
+---
+title: "Issue a participant token"
+description: "Issue a short-lived bearer token for one participant in a room."
+section: "REST API v1"
+method: POST
+endpoint: "/v1/rooms/{roomId}/tokens"
+---
+
+## Requirements
+
+A secret API key with `tokens:create`. Resources are restricted to the key's project and environment.
+
+## Path parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+
+## Request body
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| participantName | string | Required | Trimmed name, 1–120 characters. |
+| permissions | string[] | ['room:join'] | Unique permissions. Must include room:join. |
+| metadata | JSON object | `{}` | Initial participant metadata. |
+| ttlSeconds | integer | 600 | From 60 to 3,600 seconds. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X POST "$RELAYRTC_API_URL/rooms/room_example/tokens" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"participantName":"Alice","permissions":["room:join","audio:publish","video:publish"],"ttlSeconds":3600}'
+```
+
+## Response
+
+`201` with `token`, `participantId`, `tokenId` and `expiresAt`. The example token is a placeholder.
+
+```json
+{
+  "token": "participant-jwt",
+  "participantId": "participant_example",
+  "tokenId": "token_example",
+  "expiresAt": "2026-01-01T13:00:00.000Z"
+}
+```
+
+## Notes
+
+Permissions are `room:join`, `audio:publish`, `video:publish`, `screen:publish`, `messages:send` and `metadata:update`.
+
+Every call creates a new participant identity. This is not an identity-preserving renewal endpoint. Authenticate your own user and check room access before issuing a token.
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

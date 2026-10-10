@@ -1,0 +1,48 @@
+---
+title: "webhooks.signatureContract"
+description: "Read signing and retry policy in the authenticated project environment."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `webhooks:read`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument. Optional scope parameters go before RequestOptions. They cannot expand the key’s project or environment.
+
+## Example
+
+```ts
+const result = await relay.webhooks.signatureContract()
+```
+
+## Returns
+
+`Promise<WebhookSignatureContract>`. Returns the signature version, algorithm, header names, signed-content format, replay limits, backoff and retention policy.
+
+## Behavior
+
+See [webhook verification](/reference/sdk/server/node/verifyWebhookRequest) for the signed content and [webhook delivery policy](/guides/webhooks#delivery-policy) for retry details.
+
+## REST equivalent
+
+[`GET /v1/webhooks/signature-contract`](/reference/api/v1/webhooks/signature-contract). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

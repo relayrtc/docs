@@ -1,0 +1,55 @@
+---
+title: "Usage and participant minutes"
+description: "Read scoped usage and interpret the units correctly."
+section: "Manage and deploy"
+---
+
+## Imports
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Fetch usage
+
+Your secret API key needs `usage:read`.
+
+```ts
+const usage = await relay.usage.get({
+  range: '7d',
+  category: 'participants',
+  granularity: 'day',
+})
+
+console.log(usage.summary.participantMinutesDerived)
+```
+
+Or use [GET /v1/usage](/reference/api/v1/usage/all) directly.
+
+## Participant minutes
+
+`participantMinutesDerived` is participant seconds divided by 60. It is a decimal quantity. A value of `5.538` means about 5.5 participant minutes, not 5,538 minutes.
+
+Two people in a room for 5 minutes account for about 10 participant minutes.
+
+## Time windows
+
+Ranges are `24h`, `7d`, `14d` and `30d`. You can instead supply both `startedAt` and `endedAt`, for a positive window no longer than 30 days.
+
+Windows use UTC. The end boundary is exclusive. Buckets align to UTC calendar hours or days and are clipped at the requested edges.
+
+## Media and traffic
+
+Audio, video and screen durations reflect observed lifecycle intervals. Traffic values use bytes. TURN traffic can be unavailable, partial or authoritative.
+
+Check `dataQuality` before interpreting missing or partial usage as zero. The response’s `metricDefinitions` supplies each metric’s unit, source and aggregation.
+
+## Scope
+
+A key reads usage from its own project environment. Supplying another project or environment does not expand access.
+

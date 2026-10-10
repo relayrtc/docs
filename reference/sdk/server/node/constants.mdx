@@ -1,0 +1,48 @@
+---
+title: "Permissions and webhook events"
+description: "Import the supported literal values from the Node SDK."
+section: "Node SDK"
+---
+
+## Import
+
+```ts
+import { participantPermissions, webhookEventTypes } from '@relayrtc/node'
+```
+
+## Participant permissions
+
+```ts
+const permissions = [
+  'room:join',
+  'audio:publish',
+  'video:publish',
+  'screen:publish',
+  'messages:send',
+  'metadata:update',
+] as const
+```
+
+The exported `participantPermissions` array contains these values. Tokens must include room:join. Grant only what the caller needs.
+
+## Webhook events
+
+```ts
+const events = [
+  'room.created',
+  'room.started',
+  'room.ended',
+  'participant.joined',
+  'participant.left',
+  'participant.reconnected',
+  'track.published',
+  'track.unpublished',
+  'connection.degraded',
+  'connection.recovered',
+] as const
+```
+
+The exported `webhookEventTypes` array contains these values. Endpoint subscriptions must be nonempty and unique.
+
+The SDK also exports `ParticipantPermission` and `WebhookEventType` types.
+

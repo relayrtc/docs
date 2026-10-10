@@ -1,0 +1,61 @@
+---
+title: "Webhook event"
+description: "The event envelope and data sent to your receiver."
+section: "REST API v1"
+---
+
+## Envelope
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| id | string | Stable event ID. Use it to deduplicate processing. |
+| type | string | One of the supported events below. |
+| projectId | string | Owning project. |
+| environmentId | string | Owning environment. |
+| occurredAt | ISO datetime | Event time in UTC. |
+| data | JSON object | Fields specific to the event. |
+
+```json
+{
+  "id": "event_example",
+  "type": "participant.joined",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "occurredAt": "2026-01-01T12:00:00.000Z",
+  "data": {
+    "roomId": "room_example",
+    "participantId": "participant_example",
+    "sessionId": "session_example",
+    "boundary": "observed"
+  }
+}
+```
+
+## Event types
+
+| Event | When it is emitted | Data |
+| --- | --- | --- |
+| room.created | A room is created. | roomId and boundary. |
+| room.started | The room lifecycle records its start. | roomId and boundary. |
+| room.ended | The room lifecycle records its end. | roomId and boundary. |
+| participant.joined | A participant establishes their first signaling connection. | roomId, participantId, sessionId and boundary. |
+| participant.left | The participant lifecycle records a departure. | roomId, participantId, boundary and sessionId when available. |
+| participant.reconnected | The same session establishes another signaling connection. | roomId, participantId, sessionId and boundary. |
+| track.published | A media publication is created. | roomId and track. |
+| track.unpublished | A media publication is removed. | roomId and track. |
+| connection.degraded | Quality moves from excellent/good to poor/critical/lost. | roomId, participantId, previousQuality and quality. |
+| connection.recovered | Quality moves from poor/critical/lost to excellent/good. | roomId, participantId, previousQuality and quality. |
+
+Lifecycle boundary is `observed` or `lease_bound`. A lease-bound event uses the service lease boundary when an exact disconnect time is unavailable.
+
+## Track fields
+
+The track object contains id, roomId, participantId, sessionId, type, state, priority, metadata, publishedAt and unpublishedAt. The last field is null until the track is unpublished.
+
+Supported room media types are audio, camera_video, screen_video and screen_audio. Track states are published, paused, resumed and unpublished. Pause/resume is represented in the protocol types but is not currently signaled by room mute controls.
+
+## Delivery and replay
+
+The event ID and body stay the same across retries and explicit replay. The signed timestamp and replay count identify the delivery attempt context. Delivery order is not guaranteed.
+
+Verify [the signature](/reference/api/v1/webhooks/signature-contract#verify-a-delivery) before processing. Subscribe only to events your receiver handles, and store the event ID with its processing result.

@@ -1,0 +1,46 @@
+---
+title: "Authentication"
+description: "Authorize REST requests with a scoped API key."
+section: "REST API v1"
+---
+
+## Bearer token
+
+```bash
+curl "$RELAYRTC_API_URL/rooms" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+Get a secret key from your project's API keys page. The key belongs to one environment. A publishable key can read its API context but cannot call management endpoints.
+
+## Scopes
+
+| Scope | Endpoints |
+| --- | --- |
+| `rooms:create` | Create rooms. |
+| `rooms:read` | List/read rooms and inspect their cleanup operation. |
+| `rooms:end` | End rooms. |
+| `tokens:create` | Issue participant tokens and TURN credentials. |
+| `participants:read` | List/read participants and inspect cleanup. |
+| `participants:remove` | Remove a participant. |
+| `usage:read` | Read environment usage and project usage reports. |
+| `analytics:read` | Read project analytics. |
+| `webhooks:read` | Read webhook endpoints, delivery logs and signing contract. |
+| `webhooks:write` | Create/update/remove endpoints, rotate secrets and replay deliveries. |
+
+Participant token permissions are separate from API key scopes. See [keys and permissions](/security).
+
+## Project and environment
+
+Paths and optional scope query parameters cannot override the key's project or environment. Mismatches return `403`.
+
+Optional `x-relayrtc-project-id` and `x-relayrtc-environment-id` headers are assertions of scope. If supplied, they must match the key.
+
+## Console routes
+
+Organization reporting requires a console session and organization membership, not a project API key. Project webhook aliases can accept a console session; session-authenticated writes require a trusted console `Origin` header.
+
+<Callout type="danger" title="Secret keys belong on the server">
+Never send a secret API key to a browser. Use participant tokens for room joins.
+</Callout>
+

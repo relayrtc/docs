@@ -1,0 +1,36 @@
+---
+title: "useParticipants"
+description: "Read a reactive list of local and remote participants."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { useParticipants } from '@relayrtc/react'
+```
+
+## Requirements
+
+Call this hook inside [RelayProvider](/reference/sdk/client/react/RelayProvider), in a React function component or custom hook. A joined room is needed for live data and actions.
+
+## Returns
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| Return value | readonly RelayParticipant[] | Participant views with id, name, metadata and identity fields. |
+
+## Example
+
+```tsx
+const participants = useParticipants({ includeLocal: false })
+
+return participants.map((person) => (
+  <p key={person.id}>{person.name}</p>
+))
+```
+
+## Options and behavior
+
+`includeLocal` defaults to `true`. With `false`, only remote participants are returned. Remote participants also expose a tracks map. The list is empty before joining.
+

@@ -1,0 +1,38 @@
+---
+title: "Room object"
+description: "Fields returned by the REST API for room object."
+section: "REST API v1"
+---
+
+## Fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string | Resource identifier. |
+| `projectId` | string | Owning project. |
+| `environmentId` | string | Owning environment. |
+| `name` | string | Display name. |
+| `metadata` | object | Application-defined JSON object. |
+| `status` | string | Lifecycle or delivery state. |
+| `maxParticipants` | number | Room capacity. |
+| `createdAt` | string | Creation timestamp. |
+| `startedAt` | string or null | Start timestamp, or null. |
+| `endedAt` | string or null | End timestamp, or null. |
+
+## Example
+
+```json
+{
+  "id": "room_example",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "name": "Team call",
+  "metadata": {},
+  "status": "created",
+  "maxParticipants": 100,
+  "createdAt": "2026-01-01T12:00:00.000Z",
+  "startedAt": null,
+  "endedAt": null
+}
+```
+

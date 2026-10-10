@@ -1,0 +1,60 @@
+---
+title: "rooms.end"
+description: "End the call and remove its live runtime resources."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `rooms:end`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+## Example
+
+```ts
+const roomId = 'room_example'
+const result = await relay.rooms.end(roomId)
+```
+
+## Returns
+
+`Promise<CleanupResult>`. Returns `{ status: 'completed', httpStatus: 204 }` when cleanup finishes, or `{ status: 'pending', httpStatus: 202, operation }` while cleanup is still running.
+
+```ts
+if (result.status === 'pending') {
+  console.log(result.operation.id, result.operation.status)
+}
+```
+
+Poll `rooms.getRuntimeOperation(roomId)` until completed. A completed result has `status: 'completed'` and `httpStatus: 204`.
+
+## Behavior
+
+<Callout type="danger" title="This ends the call for everyone">
+Ending a room disconnects its participants and removes its live media resources. To leave only one browser participant, use the browser SDK’s leave method.
+</Callout>
+
+Poll [the room runtime operation](/reference/api/v1/rooms/runtime-operation) when the response is `202`.
+
+## REST equivalent
+
+[`DELETE /v1/rooms/{roomId}`](/reference/api/v1/rooms/end). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

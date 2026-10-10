@@ -1,0 +1,47 @@
+---
+title: "Usage response"
+description: "Understand metrics, buckets and data-quality fields."
+section: "REST API v1"
+---
+
+## Top-level fields
+
+| Field | Meaning |
+| --- | --- |
+| scope | organizationId, projectId and environmentId. |
+| category | all, rooms, participants, sfu, turn, signaling or screen-share. |
+| window | range, startedAt, endedAt, timezone: UTC and endExclusive: true. |
+| bucketDefinition | granularity, alignment, partialEdges, durations and events definitions. |
+| metricDefinitions | Definition per returned metric: unit, aggregation, integer, definition and source. |
+| summary | Metric values for the complete requested window. |
+| buckets | Each bucket contains startedAt, endedAt and metrics. |
+| dataQuality | History completeness and TURN attribution quality. |
+
+## Metric names
+
+| Category | Fields | Units |
+| --- | --- | --- |
+| rooms | roomsCreated, roomsStarted, roomSeconds, peakConcurrentRooms | Counts and seconds. |
+| participants | participantSeconds, participantMinutesDerived, audioParticipantSeconds, videoParticipantSeconds, peakConcurrentParticipants, averageConcurrentParticipants | Seconds, derived minutes and participant counts. |
+| sfu | sfuIngressBytes, sfuEgressBytes | Bytes. |
+| turn | turnIngressBytes, turnEgressBytes, turnRelaySeconds, turnSessions | Bytes, seconds and count. |
+| signaling | signalingConnections, signalingConnectionSeconds, signalingMessagesIn, signalingMessagesOut | Counts and seconds. |
+| screen-share | screenShareSeconds, screenShareIngressBytes, screenShareEgressBytes | Seconds and bytes. |
+
+## Data quality
+
+| Field | Values |
+| --- | --- |
+| `sessionHistory` | complete or partial. |
+| `messageHistory` | complete or partial. |
+| `turnTraffic` | unavailable, partial or authoritative. |
+| `mediaDurations` | observation_time. |
+
+Do not treat partial or unavailable traffic as a guarantee of no usage.
+
+## Time rules
+
+The window uses UTC and an exclusive end. Buckets align to UTC calendar boundaries and are clipped to the requested window. Durations are clipped to each bucket; events are attributed to occurrence time.
+
+`participantMinutesDerived` is decimal minutes, computed as participantSeconds / 60.
+

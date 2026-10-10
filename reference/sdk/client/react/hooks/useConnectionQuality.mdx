@@ -1,0 +1,41 @@
+---
+title: "useConnectionQuality"
+description: "Read room network health, RTC stats and participant quality."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { useConnectionQuality } from '@relayrtc/react'
+```
+
+## Requirements
+
+Call this hook inside [RelayProvider](/reference/sdk/client/react/RelayProvider), in a React function component or custom hook. A joined room is needed for live data and actions.
+
+## Returns
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| quality | ConnectionQuality or null | excellent, good, poor, critical or lost. |
+| stats | RtcQualityStats or null | Latest local WebRTC statistics. |
+| participantQualities | `ReadonlyMap<string, ConnectionQualityEvent>` | Quality updates keyed by participant ID. |
+
+## Example
+
+```tsx
+const { quality, stats } = useConnectionQuality()
+
+return (
+  <div>
+    <p>Connection: {quality ?? 'Waiting for stats'}</p>
+    <p>Received bytes: {stats?.bytesReceived ?? 0}</p>
+  </div>
+)
+```
+
+## Options and behavior
+
+Stats are polled approximately every 2 seconds while the room is active. Fields include bytesSent, bytesReceived, packetsLost, packetsReceived, roundTripTime, jitter, availableIncomingBitrate, availableOutgoingBitrate and timestamp. Optional fields include incomingBitrate, outgoingBitrate, packetLossRatio, stale, streams and selected ICE candidate details. Jitter/RTT use WebRTC seconds; bitrates use bits per second. Null indicates unavailable measurements. Network quality is separate from video resolution.
+

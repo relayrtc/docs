@@ -1,0 +1,485 @@
+---
+title: "Types"
+description: "Public hook results, media snapshots and browser room types."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import type { RoomRemoteTrack, UseTracksOptions } from '@relayrtc/react'
+
+const options: UseTracksOptions = { types: ['camera_video'] }
+
+function trackLabel(track: RoomRemoteTrack) {
+  return `${track.participantId}: ${track.type}`
+}
+```
+
+These types are exported from `@relayrtc/react`. The definitions below use supporting names from the browser SDK, protocol and React. You only need to import the public types your application uses.
+
+## RelayParticipant
+
+See [useParticipants](/reference/sdk/client/react/hooks/useParticipants) for behavior, defaults and an example.
+
+```ts
+export type RelayParticipant = RoomLocalParticipant | RoomRemoteParticipant
+```
+
+## RelayProviderProps
+
+See [RelayProvider](/reference/sdk/client/react/RelayProvider) for behavior, defaults and an example.
+
+```ts
+export interface RelayProviderProps extends RelayClientOptions {
+  readonly children?: ReactNode
+  readonly messageHistoryLimit?: number
+  readonly onError?: (error: RoomError) => void
+}
+```
+
+## RelayRoomProps
+
+See [RelayRoom](/reference/sdk/client/react/RelayRoom) for behavior, defaults and an example.
+
+```ts
+export interface RelayRoomProps {
+  readonly children?: ReactNode
+  readonly token: string | null | undefined
+  readonly connect?: boolean
+  readonly onConnected?: (room: Room) => void
+  readonly onDisconnected?: () => void
+  readonly onError?: (error: RoomError) => void
+}
+```
+
+## UseRoomResult
+
+See [useRoom](/reference/sdk/client/react/hooks/useRoom) for behavior, defaults and an example.
+
+```ts
+export interface UseRoomResult {
+  readonly room: Room | null
+  readonly client: RelayClient | null
+  readonly connectionState: RoomConnectionState
+  readonly error: RoomError | null
+  readonly join: (token: string, options?: JoinOptions) => Promise<Room>
+  readonly leave: () => Promise<void>
+  readonly clearError: () => void
+}
+```
+
+## UseParticipantsOptions
+
+See [useParticipants](/reference/sdk/client/react/hooks/useParticipants) for behavior, defaults and an example.
+
+```ts
+export interface UseParticipantsOptions {
+  readonly includeLocal?: boolean
+}
+```
+
+## UseTracksOptions
+
+See [useTracks](/reference/sdk/client/react/hooks/useTracks) for behavior, defaults and an example.
+
+```ts
+export interface UseTracksOptions {
+  readonly participantId?: string
+  readonly types?: readonly RoomRemoteTrack['type'][]
+  readonly subscribedOnly?: boolean
+}
+```
+
+## UseMessagesResult
+
+See [useMessages](/reference/sdk/client/react/hooks/useMessages) for behavior, defaults and an example.
+
+```ts
+export interface UseMessagesResult {
+  readonly messages: readonly RoomTextMessage[]
+  readonly send: (text: string) => Promise<RoomTextMessage>
+  readonly clear: () => void
+}
+```
+
+## UseConnectionQualityResult
+
+See [useConnectionQuality](/reference/sdk/client/react/hooks/useConnectionQuality) for behavior, defaults and an example.
+
+```ts
+export interface UseConnectionQualityResult {
+  readonly quality: Room['quality']
+  readonly stats: Room['qualityStats']
+  readonly participantQualities: Room['participantQualities']
+}
+```
+
+## UseLocalMediaResult
+
+See [useLocalMedia](/reference/sdk/client/react/hooks/useLocalMedia) for behavior, defaults and an example.
+
+```ts
+export interface UseLocalMediaResult {
+  readonly microphone: RoomInputSnapshot | null
+  readonly camera: RoomInputSnapshot | null
+  readonly screen: RoomScreenSnapshot | null
+}
+```
+
+## MediaPlaybackState
+
+See [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack) for behavior, defaults and an example.
+
+```ts
+export type MediaPlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'blocked' | 'failed' | 'ended'
+```
+
+## UseMediaTrackOptions
+
+See [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack) for behavior, defaults and an example.
+
+```ts
+export interface UseMediaTrackOptions {
+  readonly enabled?: boolean
+  readonly paused?: boolean
+}
+```
+
+## UseMediaTrackResult
+
+See [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack) for behavior, defaults and an example.
+
+```ts
+export interface UseMediaTrackResult {
+  readonly ref: RefCallback<HTMLMediaElement>
+  readonly state: MediaPlaybackState
+  readonly isLoading: boolean
+  readonly isPaused: boolean
+  readonly error: Error | null
+  readonly play: () => Promise<void>
+}
+```
+
+## MediaLoaderProps
+
+See [MediaLoader](/reference/sdk/client/react/MediaLoader) for behavior, defaults and an example.
+
+```ts
+export interface MediaLoaderProps extends HTMLAttributes<HTMLDivElement> {
+  readonly label?: string
+}
+```
+
+## RtcQualityStats
+
+See [useConnectionQuality](/reference/sdk/client/react/hooks/useConnectionQuality) for behavior, defaults and an example.
+
+```ts
+export interface RtcQualityStats {
+  readonly availableIncomingBitrate: number | null;
+  readonly availableOutgoingBitrate: number | null;
+  readonly bytesReceived: number;
+  readonly bytesSent: number;
+  readonly jitter: number | null;
+  readonly packetsLost: number;
+  readonly packetsReceived: number;
+  readonly roundTripTime: number | null;
+  readonly timestamp: number;
+  readonly incomingBitrate?: number | null;
+  readonly outgoingBitrate?: number | null;
+  readonly packetLossRatio?: number | null;
+  readonly stale?: boolean;
+  readonly streams?: readonly RtcStreamStats[];
+  readonly selectedCandidatePairId?: string | null;
+  readonly localCandidateType?: string | null;
+  readonly remoteCandidateType?: string | null;
+  readonly candidateProtocol?: string | null;
+}
+```
+
+## RoomErrorCode
+
+See [RoomError](/reference/sdk/client/react/RoomError) for behavior, defaults and an example.
+
+```ts
+export type RoomErrorCode =
+  | "QUALITY_STATS_FAILED"
+  | MediaErrorCode
+  | "MEDIA_OPERATION_PENDING"
+  | "MEDIA_OPERATION_CANCELLED"
+  | "MEDIA_NOT_ENABLED"
+  | "MEDIA_PUBLISH_FAILED"
+  | "MEDIA_SUBSCRIBE_FAILED"
+  | "INVALID_PAYLOAD"
+  | "PAYLOAD_TOO_LARGE"
+  | "TOKEN_REFRESH_FAILED"
+  | "TURN_REFRESH_FAILED"
+  | "TURN_CREDENTIALS_EXPIRED"
+  | "CREDENTIALS_REVOKED"
+  | "RECONNECT_FAILED"
+  | "ICE_CONNECTION_LOST"
+  | "ICE_RECOVERY_FAILED"
+  | "MEDIA_RUNTIME_LOST"
+  | "INVALID_CONFIGURATION"
+  | "INVALID_TOKEN"
+  | "ALREADY_JOINED"
+  | "JOIN_CANCELLED"
+  | "NOT_CONNECTED"
+  | "CONNECTION_FAILED"
+  | "CONNECTION_CLOSED"
+  | "REQUEST_TIMEOUT"
+  | "PROTOCOL_ERROR"
+  | "SERVICE_UNAVAILABLE"
+  | "PERMISSION_DENIED"
+  | "RESOURCE_NOT_FOUND"
+  | "SESSION_CONFLICT"
+  | "RATE_LIMITED"
+  | "AUTHENTICATION_FAILED"
+  | "TOKEN_EXPIRED"
+  | "ROOM_ENDED"
+  | "RTC_STATE_CHANGED"
+  | "POLICY_VIOLATION"
+  | "PARTICIPANT_REMOVED"
+  | "RTC_SETUP_FAILED";
+```
+
+## RoomInputSnapshot
+
+See [useLocalMedia](/reference/sdk/client/react/hooks/useLocalMedia) for behavior, defaults and an example.
+
+```ts
+export interface RoomInputSnapshot {
+  readonly source: MediaSourceKind;
+  readonly enabled: boolean;
+  readonly pending: boolean;
+  readonly muted: boolean;
+  readonly deviceId: string | null;
+  readonly track: MediaStreamTrack | null;
+  readonly publication: Track | null;
+}
+```
+
+## RoomScreenSnapshot
+
+See [useLocalMedia](/reference/sdk/client/react/hooks/useLocalMedia) for behavior, defaults and an example.
+
+```ts
+export interface RoomScreenSnapshot extends ScreenShareSnapshot {
+  readonly pending: boolean;
+  readonly muted: boolean;
+  readonly videoPublication: Track | null;
+  readonly audioPublication: Track | null;
+}
+```
+
+## RoomLocalParticipant
+
+See [useLocalParticipant](/reference/sdk/client/react/hooks/useLocalParticipant) for behavior, defaults and an example.
+
+```ts
+export interface RoomLocalParticipant extends Participant, RoomLocalMedia {
+  updateMetadata(metadata: Metadata): Promise<Participant>;
+}
+```
+
+## RoomTextMessage
+
+See [useMessages](/reference/sdk/client/react/hooks/useMessages) for behavior, defaults and an example.
+
+```ts
+export type RoomTextMessage = TextMessagePayload;
+```
+
+## RoomRemoteTrack
+
+See [remote-tracks](/reference/sdk/client/react/media/remote-tracks) for behavior, defaults and an example.
+
+```ts
+export interface RoomRemoteTrack {
+  readonly id: string;
+  readonly info: Track;
+  readonly participantId: string;
+  readonly type: Track["type"];
+  readonly subscriptionState: RemoteTrackSubscriptionState;
+  readonly mediaStreamTrack: MediaStreamTrack | null;
+  readonly stream: MediaStream | null;
+  subscribe(): Promise<MediaStreamTrack>;
+  unsubscribe(): Promise<void>;
+  setQuality(quality: VideoQualityPreference): Promise<void>;
+  attach(element: HTMLMediaElement): Promise<HTMLMediaElement>;
+  detach(element?: HTMLMediaElement): void;
+}
+```
+
+## RoomRemoteParticipant
+
+See [useParticipants](/reference/sdk/client/react/hooks/useParticipants) for behavior, defaults and an example.
+
+```ts
+export interface RoomRemoteParticipant extends Participant {
+  readonly tracks: ReadonlyMap<string, RoomRemoteTrack>;
+}
+```
+
+## RoomConnectionState
+
+See [useRoom](/reference/sdk/client/react/hooks/useRoom) for behavior, defaults and an example.
+
+```ts
+export type RoomConnectionState =
+  "connecting" | "connected" | "reconnecting" | "disconnected" | "failed";
+```
+
+## RoomEvents
+
+See [room](/reference/sdk/client/react/room) for behavior, defaults and an example.
+
+```ts
+export interface RoomEvents {
+  readonly connectionQualityChanged: ConnectionQualityEvent;
+  readonly connectionDegraded: ConnectionQualityEvent;
+  readonly connectionRecovered: ConnectionQualityEvent;
+  readonly qualityStatsUpdated: RtcQualityStats;
+  readonly connectionStateChanged: RoomConnectionState;
+  readonly error: RoomError;
+  readonly messageReceived: RoomTextMessage;
+  readonly messageSent: RoomTextMessage;
+  readonly customEventReceived: RoomCustomEvent;
+  readonly customEventSent: RoomCustomEvent;
+  readonly localParticipantUpdated: RoomLocalParticipant;
+  readonly presenceChanged: RoomPresenceSnapshot;
+  readonly credentialsRefreshed: RoomCredentialSnapshot;
+  readonly reconnectAttempt: {
+    readonly attempt: number;
+    readonly delayMs: number;
+    readonly error: RoomError;
+  };
+  readonly reconnected: { readonly attempts: number; readonly session: ParticipantSession };
+  readonly participantJoined: RoomRemoteParticipant;
+  readonly participantLeft: RoomRemoteParticipant;
+  readonly participantUpdated: RoomRemoteParticipant;
+  readonly participantReconnected: {
+    readonly participant: RoomRemoteParticipant;
+    readonly session: ParticipantSession;
+  };
+  readonly trackPublished: RoomRemoteTrack;
+  readonly trackUnpublished: RoomRemoteTrack;
+  readonly trackUpdated: RoomRemoteTrack;
+  readonly trackSubscribed: RoomRemoteTrack;
+  readonly trackUnsubscribed: RoomRemoteTrack;
+  readonly trackSubscriptionFailed: { readonly track: RoomRemoteTrack; readonly error: RoomError };
+}
+```
+
+## Room
+
+See [room](/reference/sdk/client/react/room) for behavior, defaults and an example.
+
+```ts
+export interface Room extends RoomLocalMedia {
+  readonly quality: ConnectionQuality | null;
+  readonly qualityStats: RtcQualityStats | null;
+  readonly participantQualities: ReadonlyMap<string, ConnectionQualityEvent>;
+  readonly id: string;
+  readonly info: RoomInfo;
+  readonly localParticipant: RoomLocalParticipant;
+  readonly session: ParticipantSession;
+  readonly connectionState: RoomConnectionState;
+  readonly participants: ReadonlyMap<string, RoomRemoteParticipant>;
+  readonly remoteTracks: ReadonlyMap<string, RoomRemoteTrack>;
+  readonly messages: RoomMessages;
+  readonly events: RoomCustomEvents;
+  readonly presence: RoomPresenceSnapshot;
+  refreshCredentials(): Promise<void>;
+  on<Event extends keyof RoomEvents>(
+    event: Event,
+    listener: (value: RoomEvents[Event]) => void,
+  ): () => void;
+  leave(): Promise<void>;
+}
+```
+
+## RelayClientOptions
+
+See [RelayProvider](/reference/sdk/client/react/RelayProvider) for behavior, defaults and an example.
+
+```ts
+export interface RelayClientOptions extends RoomCredentialOptions {
+  readonly signalingUrl: string;
+  readonly requestTimeoutMs?: number;
+  readonly iceServers?: readonly RTCIceServer[];
+  readonly iceTransportPolicy?: RTCIceTransportPolicy;
+  readonly autoSubscribe?: boolean;
+  readonly reconnect?: false | RoomReconnectOptions;
+}
+```
+
+## JoinOptions
+
+See [useRoom](/reference/sdk/client/react/hooks/useRoom) for behavior, defaults and an example.
+
+```ts
+export interface JoinOptions {
+  readonly signal?: AbortSignal;
+}
+```
+
+## MediaPermissionsSnapshot
+
+See [devices](/reference/sdk/client/react/media/devices) for behavior, defaults and an example.
+
+```ts
+export interface MediaPermissionsSnapshot {
+  readonly microphone: MediaPermissionState;
+  readonly camera: MediaPermissionState;
+}
+```
+
+## MediaPermissionRequest
+
+See [devices](/reference/sdk/client/react/media/devices) for behavior, defaults and an example.
+
+```ts
+export interface MediaPermissionRequest {
+  readonly microphone?: boolean;
+  readonly camera?: boolean;
+}
+```
+
+## MediaInputDevice
+
+See [devices](/reference/sdk/client/react/media/devices) for behavior, defaults and an example.
+
+```ts
+export interface MediaInputDevice {
+  readonly deviceId: string;
+  readonly groupId: string;
+  readonly kind: MediaInputKind;
+  readonly label: string;
+}
+```
+
+## MediaDeviceSnapshot
+
+See [devices](/reference/sdk/client/react/media/devices) for behavior, defaults and an example.
+
+```ts
+export interface MediaDeviceSnapshot {
+  readonly microphones: readonly MediaInputDevice[];
+  readonly cameras: readonly MediaInputDevice[];
+}
+```
+
+## Related field values
+
+| Field | Values |
+| --- | --- |
+| Track type | `audio`, `camera_video`, `screen_video`, `screen_audio`; `data` is reserved and not supported for room media. |
+| Subscription state | `unsubscribed`, `subscribing`, `subscribed`, `failed`, `closed` |
+| Receive video preference | `auto`, `1080p`, `720p`, `360p`, `audio-only` |
+| Connection quality | `excellent`, `good`, `poor`, `critical`, `lost` |
+| Permission state | `granted`, `denied`, `prompt`, `unsupported` |
+
+Quality statistics use seconds for round-trip time and jitter, and bits per second for bitrates. Browser-specific values can be null. See [connection quality](/reference/sdk/client/react/hooks/useConnectionQuality).
+

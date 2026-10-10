@@ -1,0 +1,50 @@
+---
+title: "RelayApiError"
+description: "Handle HTTP, transport, validation and cancellation failures."
+section: "Node SDK"
+---
+
+## Import
+
+```ts
+import { RelayApiError } from '@relayrtc/node'
+```
+
+## Fields
+
+| Field | Meaning |
+| --- | --- |
+| `code` | API or SDK error code. |
+| `message` | Human-readable description. |
+| `status` | HTTP status or null for local/transport errors. |
+| `requestId` | Server request ID when available. |
+| `retryable` | Whether the failure can be transient. |
+
+## Example
+
+```ts
+try {
+  await relay.rooms.get(roomId)
+} catch (error) {
+  if (error instanceof RelayApiError) {
+    console.error(error.code, error.status, error.requestId)
+  } else {
+    throw error
+  }
+}
+```
+
+## SDK codes
+
+| Code | Meaning |
+| --- | --- |
+| `INVALID_CONFIGURATION` | Invalid URL, key format or options. |
+| `INVALID_REQUEST` | Invalid local parameters or body serialization. |
+| `INVALID_RESPONSE` | Non-JSON success, unexpected shape or excessive response body. |
+| `NETWORK_ERROR` | Request failed before a usable response. |
+| `REQUEST_TIMEOUT` | Request deadline expired. |
+| `REQUEST_CANCELLED` | Caller aborted the request. |
+| `HTTP_ERROR` | HTTP failure without a structured API code. |
+
+API failures keep the server's `code`, such as API_KEY_SCOPE_REQUIRED or RESOURCE_NOT_FOUND. `retryable` is a hint; it does not make a write operation safe to repeat.
+

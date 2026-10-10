@@ -1,0 +1,43 @@
+---
+title: "Errors and status codes"
+description: "Understand failures and pending cleanup responses."
+section: "REST API v1"
+---
+
+## Error format
+
+```json
+{
+  "code": "API_KEY_SCOPE_REQUIRED",
+  "description": "The API key requires the rooms:create scope",
+  "requestId": "request_example"
+}
+```
+
+The description explains the failure. The request ID also appears in the `x-request-id` response header.
+
+## Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Object or collection returned. |
+| `201` | Resource or credentials created. |
+| `202` | Work accepted; inspect the returned operation or delivery. |
+| `204` | Completed with no body. |
+| `400` | Invalid JSON fields, parameters or time window. |
+| `401` | Missing, invalid, expired or revoked key. |
+| `403` | Missing scope or project/environment mismatch. |
+| `404` | Resource, route or runtime operation not found. |
+| `409` | Lifecycle or replay conflict. |
+| `429` | Request limit exceeded. |
+| `500` | Server could not complete the request. |
+| `503` | A required service or signing configuration is unavailable. |
+
+## Pending cleanup
+
+Room ending and participant removal can return `202` with a runtime operation. Poll the corresponding runtime-operation endpoint until `status` is `completed`. A `failed` operation needs investigation.
+
+## Retry carefully
+
+Read requests can be retried after transient failures. Writes are not automatically safe to repeat after a lost response. Check resource state before creating another room, issuing another token, rotating a secret or replaying a delivery.
+

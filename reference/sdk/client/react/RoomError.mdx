@@ -1,0 +1,51 @@
+---
+title: "RoomError"
+description: "Inspect browser SDK failures and show an actionable message."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { RoomError, useRoom } from '@relayrtc/react'
+```
+
+## Fields
+
+| Field | Meaning |
+| --- | --- |
+| `code` | Typed error category. |
+| `message` | Human-readable failure. |
+| `retryable` | Whether retry may be appropriate. Defaults false. |
+| `serverCode` | Optional protocol failure code from the server. |
+
+## Example
+
+```tsx
+const { error, clearError } = useRoom()
+
+return error ? (
+  <div role="alert">
+    <p>{error.message}</p>
+    <button onClick={clearError}>Dismiss</button>
+  </div>
+) : null
+```
+
+## Common failures
+
+| Code | What to check |
+| --- | --- |
+| `INVALID_CONFIGURATION` | Signaling URL, timeouts and callback options. |
+| `INVALID_TOKEN`, `TOKEN_EXPIRED` | Participant token and its expiry. |
+| `PERMISSION_DENIED` | Token permissions for the requested action. |
+| `MEDIA_PERMISSION_DENIED` | Browser camera/microphone access. |
+| `MEDIA_OPERATION_PENDING` | Wait for the current capture operation. |
+| `MEDIA_PUBLISH_FAILED`, `MEDIA_SUBSCRIBE_FAILED` | Media setup, server and connectivity errors. |
+| `CONNECTION_FAILED` | Signaling URL, allowed origin and service availability. |
+| `RECONNECT_FAILED`, `ICE_RECOVERY_FAILED` | Recovery deadline or transport failure. |
+| `PARTICIPANT_REMOVED`, `ROOM_ENDED` | The session cannot continue. |
+| `RATE_LIMITED` | Reduce request frequency. |
+
+Catch promises returned by media and messaging controls. Clearing the displayed error does not repair a failed connection.
+

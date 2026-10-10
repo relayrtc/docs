@@ -1,0 +1,46 @@
+---
+title: "Read room cleanup"
+description: "Inspect the durable operation for ending a room."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/rooms/{roomId}/runtime-operation"
+---
+
+## Requirements
+
+A secret API key with `rooms:read`. Resources are restricted to the key's project and environment.
+
+## Path parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X GET "$RELAYRTC_API_URL/rooms/room_example/runtime-operation" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`200` with a [runtime operation](/reference/api/v1/schemas/runtime-operation). `404 OPERATION_NOT_FOUND` if none exists.
+
+```json
+{
+  "id": "operation_example",
+  "kind": "room.end",
+  "status": "pending",
+  "attempts": 0,
+  "lastError": null,
+  "completedAt": null
+}
+```
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

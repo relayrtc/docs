@@ -1,0 +1,73 @@
+---
+title: "Update a webhook"
+description: "Update a webhook in the authenticated project environment."
+section: "REST API v1"
+method: PATCH
+endpoint: "/v1/webhooks/{endpointId}"
+---
+
+## Requirements
+
+A secret API key with `webhooks:write`. Resources are restricted to the key's project and environment.
+
+## Path parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| endpointId | string | Required | ID returned when creating the webhook. |
+
+## Query parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+## Request body
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| url | string | Optional | Public, resolvable HTTP(S) URL, up to 2,048 characters. No credentials, fragment or private network destination. |
+| eventTypes | string[] | Optional | Nonempty, unique supported event types. |
+| status | string | Optional | enabled or disabled. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X PATCH "$RELAYRTC_API_URL/webhooks/webhook_example" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"disabled"}'
+```
+
+## Response
+
+`200` with the updated webhook endpoint.
+
+```json
+{
+  "id": "webhook_example",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "url": "https://your-app.example/webhooks/relayrtc",
+  "eventTypes": [
+    "room.ended"
+  ],
+  "status": "disabled",
+  "signingSecretVersion": 1,
+  "signingSecretRotatedAt": "2026-01-01T12:00:00.000Z",
+  "createdAt": "2026-01-01T12:00:00.000Z",
+  "updatedAt": "2026-01-01T12:00:00.000Z"
+}
+```
+
+## Notes
+
+Provide at least one field. Disabling an endpoint prevents new deliveries from being sent; inspect delivery logs for their resulting state.
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

@@ -1,0 +1,70 @@
+---
+title: "Video quality"
+description: "Choose capture constraints and remote quality preferences."
+section: "Build calls"
+---
+
+## Imports
+
+```tsx
+import { useConnectionQuality, useLocalParticipant, useTracks } from '@relayrtc/react'
+```
+
+## Capture resolution
+
+The camera captures according to browser constraints.
+
+Get the local participant inside your connected call. Run capture and quality changes from async handlers and catch failures.
+
+```tsx
+const local = useLocalParticipant()
+```
+
+```ts
+await local?.camera.enable({
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  frameRate: { ideal: 30 },
+})
+```
+
+`ideal` permits fallback. An `exact` constraint can reject capture when the device cannot satisfy it.
+
+## Receiving quality
+
+```tsx
+function Receive720pButton() {
+  const track = useTracks({ types: ['camera_video'] })[0]
+
+  return (
+    <button disabled={!track} onClick={() => void track?.setQuality('720p').catch(console.error)}>
+      Receive 720p
+    </button>
+  )
+}
+```
+
+| Preference | Meaning |
+| --- | --- |
+| `auto` | Let the server choose the layer. |
+| `1080p` | Prefer the highest available layer up to this level. |
+| `720p` | Prefer the middle quality level when available. |
+| `360p` | Prefer a lower video layer. |
+| `audio-only` | Stop receiving video for that subscription. |
+
+Quality selection applies to camera and screen video. It does not change microphone audio or your camera capture settings. A request for 1080p cannot create a 1080p source from a 720p capture.
+
+## Sending layers
+
+The current room client publishes three simulcast encodings. Their upper bitrate limits are 150 kbps, 1.5 Mbps and 4 Mbps, with resolution scale factors of 3, 1.5 and 1. These are SDK defaults, not configurable React provider props.
+
+Available bandwidth and the source dimensions determine the actual received layer. Use capture constraints for your source and setQuality for remote video.
+
+## Connection quality
+
+```tsx
+const { quality, stats, participantQualities } = useConnectionQuality()
+```
+
+Connection quality describes network health. Video resolution is a separate setting. Use [quality statistics](/reference/sdk/client/react/hooks/useConnectionQuality) to inspect bitrate, packet loss, jitter and selected ICE candidates.
+

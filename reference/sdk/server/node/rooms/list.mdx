@@ -1,0 +1,45 @@
+---
+title: "rooms.list"
+description: "List rooms in the key's environment."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `rooms:read`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| cursor | string | Optional | Opaque endCursor from the previous page. |
+| limit | integer | 50 | From 1 to 100. |
+| status | string | Optional | created, active, ending, ended or failed. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+## Example
+
+```ts
+const result = await relay.rooms.list({ limit: 20, status: 'active' })
+```
+
+## Returns
+
+`Promise<CursorPage<Room>>`. Returns `nodes: Room[]` and `pageInfo`.
+
+## REST equivalent
+
+[`GET /v1/rooms`](/reference/api/v1/rooms/list). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

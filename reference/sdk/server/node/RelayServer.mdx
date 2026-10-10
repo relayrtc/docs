@@ -1,0 +1,55 @@
+---
+title: "RelayServer"
+description: "Configure a server-side management client."
+section: "Node SDK"
+---
+
+## Import
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+```
+
+## Requirements
+
+Node.js 22 or newer, a configured HTTP(S) API URL and a secret API key. The key must have the scope required by each method.
+
+## Constructor options
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| apiUrl | string | Required | HTTP(S) base URL. /v1 is appended when absent. |
+| apiKey | string | Required | Secret RelayRTC key. Publishable keys are rejected. |
+| timeoutMs | integer | 10,000 | Total request deadline, 1–300,000 ms, including retries. |
+| retry | false or RetryOptions | Enabled | GET retries only. false allows one attempt. |
+| retry.maxAttempts | integer | 3 | From 1 to 5, including the initial attempt. |
+| retry.initialDelayMs | integer | 250 | From 0 to 30,000 ms. |
+| retry.maxDelayMs | integer | 2,000 | From initialDelayMs to 30,000 ms. |
+| maxResponseBytes | integer | 8 MiB | From 1 KiB to 32 MiB. |
+| fetch | typeof fetch | globalThis.fetch | Custom fetch implementation. |
+
+## Example
+
+```ts
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+  timeoutMs: 15000,
+  retry: { maxAttempts: 3, initialDelayMs: 250, maxDelayMs: 2000 },
+})
+```
+
+## URL rules
+
+URLs cannot contain embedded credentials, a query or a fragment. The SDK sends bearer authorization, accepts JSON and rejects redirects.
+
+## Retry policy
+
+GET retries cover network errors and HTTP 408, 425, 429 and 5xx. Retry-After is respected within the request deadline. Other errors fail immediately.
+
+Write methods do not retry automatically. Check the resource state after a lost write response before repeating it.
+
+<Callout type="danger" title="Server only">
+Do not instantiate this client in browser code or expose its key in public environment variables.
+</Callout>
+

@@ -1,0 +1,34 @@
+---
+title: "Runtime operation"
+description: "Fields returned by the REST API for runtime operation."
+section: "REST API v1"
+---
+
+## Fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string | Resource identifier. |
+| `kind` | string | Operation kind. |
+| `status` | string | Lifecycle or delivery state. |
+| `attempts` | number | Cleanup attempt count. |
+| `lastError` | string or null | Latest error, or null. |
+| `completedAt` | string or null | Completion timestamp, or null. |
+
+## Example
+
+```json
+{
+  "id": "operation_example",
+  "kind": "room.end",
+  "status": "pending",
+  "attempts": 0,
+  "lastError": null,
+  "completedAt": null
+}
+```
+
+## Status
+
+Status is pending, running, failed or completed. The operation can include additional target and lease metadata. Treat completion as `status === 'completed'`, not merely receipt of HTTP 202.
+

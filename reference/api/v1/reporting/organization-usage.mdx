@@ -1,0 +1,33 @@
+---
+title: "Organization usage report"
+description: "Read usage across an organization with a console session."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/organizations/{organizationId}/usage"
+---
+
+## Authentication
+
+Requires a valid console session and organization membership. Project API keys are rejected with ORGANIZATION_SESSION_REQUIRED.
+
+## Parameters
+
+organizationId is required in the path. range: 24h, 7d, 14d or 30d, default 7d. limit: 1–100, default 50. offset: 0–100,000, default 0.
+
+## Example
+
+```bash
+curl "$RELAYRTC_API_URL/organizations/organization_example/usage?range=7d" \
+  -H "Cookie: $RELAYRTC_CONSOLE_SESSION_COOKIE"
+```
+
+RELAYRTC_CONSOLE_SESSION_COOKIE represents your signed console session cookie, not an API key. Keep it private.
+
+## Response
+
+`200` with organizationId, window, summary, projects, pagination and dataQuality. Each project entry includes projectId, summary and dataQuality.
+
+## Availability
+
+This endpoint is REST-only. The current Node SDK exposes public `usage.get`, but has no wrapper for these reporting endpoints. It is separate from [public scoped usage](/reference/api/v1/usage/all).
+

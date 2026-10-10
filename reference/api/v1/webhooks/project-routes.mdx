@@ -1,0 +1,44 @@
+---
+title: "Project webhook routes"
+description: "Use the project-prefixed aliases for webhook configuration and logs."
+section: "REST API v1"
+---
+
+## Paths
+
+These routes expose the same operations as the environment-scoped `/v1/webhooks` endpoints:
+
+| Method | Path | Operation |
+| --- | --- | --- |
+| POST | `/v1/projects/{projectId}/webhooks` | [Create a webhook](/reference/api/v1/webhooks/create) |
+| GET | `/v1/projects/{projectId}/webhooks` | [List webhooks](/reference/api/v1/webhooks/list) |
+| GET | `/v1/projects/{projectId}/webhooks/{endpointId}` | [Read a webhook](/reference/api/v1/webhooks/get) |
+| PATCH | `/v1/projects/{projectId}/webhooks/{endpointId}` | [Update a webhook](/reference/api/v1/webhooks/update) |
+| DELETE | `/v1/projects/{projectId}/webhooks/{endpointId}` | [Remove a webhook](/reference/api/v1/webhooks/remove) |
+| POST | `/v1/projects/{projectId}/webhooks/{endpointId}/rotate-secret` | [Rotate the signing secret](/reference/api/v1/webhooks/rotate-secret) |
+| GET | `/v1/projects/{projectId}/webhooks/signature-contract` | [Read signing and retry policy](/reference/api/v1/webhooks/signature-contract) |
+| GET | `/v1/projects/{projectId}/webhooks/{endpointId}/deliveries` | [List webhook deliveries](/reference/api/v1/webhooks/deliveries/list) |
+| GET | `/v1/projects/{projectId}/webhooks/{endpointId}/deliveries/{deliveryId}` | [Read a webhook delivery](/reference/api/v1/webhooks/deliveries/get) |
+| POST | `/v1/projects/{projectId}/webhooks/{endpointId}/deliveries/{deliveryId}/replay` | [Replay a webhook delivery](/reference/api/v1/webhooks/deliveries/replay) |
+
+## Scope
+
+Pass `projectId` in the path. With a secret API key, projectId must match the key and environmentId defaults to its environment.
+
+With a console session, supply `environmentId` in the query and belong to the project's organization.
+
+## Authentication
+
+Secret keys require `webhooks:read` for reads or `webhooks:write` for writes. Console-session writes require the owner or admin role and an Origin header matching the trusted console origin.
+
+## Example
+
+```bash
+curl "$RELAYRTC_API_URL/projects/project_example/webhooks?environmentId=environment_example" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Request and response fields
+
+Follow the linked operation pages. The Node SDK uses the shorter `/v1/webhooks` endpoints.
+

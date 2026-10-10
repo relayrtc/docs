@@ -1,0 +1,53 @@
+---
+title: "webhooks.update"
+description: "Update a webhook in the authenticated project environment."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `webhooks:write`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| endpointId | string | Required | ID returned when creating the webhook. |
+| url | string | Optional | Public, resolvable HTTP(S) URL, up to 2,048 characters. No credentials, fragment or private network destination. |
+| eventTypes | string[] | Optional | Nonempty, unique supported event types. |
+| status | string | Optional | enabled or disabled. |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument. Optional scope parameters go before RequestOptions. They cannot expand the key’s project or environment.
+
+## Example
+
+```ts
+const endpointId = 'webhook_example'
+const result = await relay.webhooks.update(endpointId, { status: 'disabled' })
+```
+
+## Returns
+
+`Promise<WebhookEndpoint>`. Returns the updated webhook endpoint.
+
+## Behavior
+
+Provide at least one field. Disabling an endpoint prevents new deliveries from being sent; inspect delivery logs for their resulting state.
+
+## REST equivalent
+
+[`PATCH /v1/webhooks/{endpointId}`](/reference/api/v1/webhooks/update). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

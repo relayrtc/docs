@@ -1,0 +1,579 @@
+[
+  {
+    "label": "Get started",
+    "items": [
+      {
+        "label": "Overview",
+        "href": "/"
+      },
+      {
+        "label": "Installation",
+        "href": "/installation"
+      },
+      {
+        "label": "Build your first call",
+        "href": "/quickstart"
+      },
+      {
+        "label": "Rooms, participants and tracks",
+        "href": "/concepts"
+      },
+      {
+        "label": "Keys and permissions",
+        "href": "/security"
+      }
+    ]
+  },
+  {
+    "label": "Build calls",
+    "items": [
+      {
+        "label": "Camera and microphone",
+        "href": "/guides/camera-and-microphone"
+      },
+      {
+        "label": "Screen sharing",
+        "href": "/guides/screen-sharing"
+      },
+      {
+        "label": "Messages, events and raised hands",
+        "href": "/guides/messages-and-events"
+      },
+      {
+        "label": "Connection recovery",
+        "href": "/guides/connection-recovery"
+      },
+      {
+        "label": "Video quality",
+        "href": "/guides/video-quality"
+      },
+      {
+        "label": "Webhooks",
+        "href": "/guides/webhooks"
+      },
+      {
+        "label": "Usage and participant minutes",
+        "href": "/guides/usage"
+      },
+      {
+        "label": "Troubleshooting calls",
+        "href": "/guides/troubleshooting"
+      }
+    ]
+  },
+  {
+    "label": "REST API v1",
+    "items": [
+      {
+        "label": "Overview",
+        "href": "/reference/api/v1/overview"
+      },
+      {
+        "label": "Authentication",
+        "href": "/reference/api/v1/authentication"
+      },
+      {
+        "label": "Pagination",
+        "href": "/reference/api/v1/pagination"
+      },
+      {
+        "label": "Errors and status codes",
+        "href": "/reference/api/v1/errors"
+      },
+      {
+        "label": "Read API context",
+        "href": "/reference/api/v1/context"
+      },
+      {
+        "label": "Rooms",
+        "children": [
+          {
+            "label": "Create a room",
+            "href": "/reference/api/v1/rooms/create"
+          },
+          {
+            "label": "List rooms",
+            "href": "/reference/api/v1/rooms/list"
+          },
+          {
+            "label": "Read a room",
+            "href": "/reference/api/v1/rooms/get"
+          },
+          {
+            "label": "End a room",
+            "href": "/reference/api/v1/rooms/end"
+          },
+          {
+            "label": "Read room cleanup",
+            "href": "/reference/api/v1/rooms/runtime-operation"
+          }
+        ]
+      },
+      {
+        "label": "Participant tokens",
+        "children": [
+          {
+            "label": "Issue a participant token",
+            "href": "/reference/api/v1/tokens/create"
+          }
+        ]
+      },
+      {
+        "label": "Participants",
+        "children": [
+          {
+            "label": "List participants",
+            "href": "/reference/api/v1/participants/list"
+          },
+          {
+            "label": "Read a participant",
+            "href": "/reference/api/v1/participants/get"
+          },
+          {
+            "label": "Remove a participant",
+            "href": "/reference/api/v1/participants/remove"
+          },
+          {
+            "label": "Read participant cleanup",
+            "href": "/reference/api/v1/participants/runtime-operation"
+          }
+        ]
+      },
+      {
+        "label": "TURN",
+        "children": [
+          {
+            "label": "Issue TURN credentials",
+            "href": "/reference/api/v1/turn/create-credentials"
+          }
+        ]
+      },
+      {
+        "label": "Usage",
+        "children": [
+          {
+            "label": "All usage",
+            "href": "/reference/api/v1/usage/all"
+          },
+          {
+            "label": "Room usage",
+            "href": "/reference/api/v1/usage/rooms"
+          },
+          {
+            "label": "Participant usage",
+            "href": "/reference/api/v1/usage/participants"
+          },
+          {
+            "label": "SFU usage",
+            "href": "/reference/api/v1/usage/sfu"
+          },
+          {
+            "label": "TURN usage",
+            "href": "/reference/api/v1/usage/turn"
+          },
+          {
+            "label": "Signaling usage",
+            "href": "/reference/api/v1/usage/signaling"
+          },
+          {
+            "label": "Screen share usage",
+            "href": "/reference/api/v1/usage/screen-share"
+          }
+        ]
+      },
+      {
+        "label": "Webhooks",
+        "children": [
+          {
+            "label": "Create a webhook",
+            "href": "/reference/api/v1/webhooks/create"
+          },
+          {
+            "label": "List webhooks",
+            "href": "/reference/api/v1/webhooks/list"
+          },
+          {
+            "label": "Read a webhook",
+            "href": "/reference/api/v1/webhooks/get"
+          },
+          {
+            "label": "Update a webhook",
+            "href": "/reference/api/v1/webhooks/update"
+          },
+          {
+            "label": "Remove a webhook",
+            "href": "/reference/api/v1/webhooks/remove"
+          },
+          {
+            "label": "Rotate the signing secret",
+            "href": "/reference/api/v1/webhooks/rotate-secret"
+          },
+          {
+            "label": "Read signing and retry policy",
+            "href": "/reference/api/v1/webhooks/signature-contract"
+          },
+          {
+            "label": "Deliveries",
+            "children": [
+              {
+                "label": "List webhook deliveries",
+                "href": "/reference/api/v1/webhooks/deliveries/list"
+              },
+              {
+                "label": "Read a webhook delivery",
+                "href": "/reference/api/v1/webhooks/deliveries/get"
+              },
+              {
+                "label": "Replay a webhook delivery",
+                "href": "/reference/api/v1/webhooks/deliveries/replay"
+              }
+            ]
+          },
+          {
+            "label": "Project webhook routes",
+            "href": "/reference/api/v1/webhooks/project-routes"
+          }
+        ]
+      },
+      {
+        "label": "Response schemas",
+        "children": [
+          {
+            "label": "Room object",
+            "href": "/reference/api/v1/schemas/room"
+          },
+          {
+            "label": "Participant object",
+            "href": "/reference/api/v1/schemas/participant"
+          },
+          {
+            "label": "Runtime operation",
+            "href": "/reference/api/v1/schemas/runtime-operation"
+          },
+          {
+            "label": "TURN credentials",
+            "href": "/reference/api/v1/schemas/turn-credentials"
+          },
+          {
+            "label": "Webhook endpoint",
+            "href": "/reference/api/v1/schemas/webhook-endpoint"
+          },
+          {
+            "label": "Webhook delivery",
+            "href": "/reference/api/v1/schemas/webhook-delivery"
+          },
+          {
+            "label": "Participant token",
+            "href": "/reference/api/v1/schemas/participant-token"
+          },
+          {
+            "label": "Usage response",
+            "href": "/reference/api/v1/schemas/usage"
+          },
+          {
+            "label": "Webhook event",
+            "href": "/reference/api/v1/schemas/webhook-event"
+          }
+        ]
+      },
+      {
+        "label": "Rate limits",
+        "href": "/reference/api/v1/rate-limits"
+      },
+      {
+        "label": "Console reports",
+        "children": [
+          {
+            "label": "Project usage report",
+            "href": "/reference/api/v1/reporting/project-usage"
+          },
+          {
+            "label": "Project analytics",
+            "href": "/reference/api/v1/reporting/project-analytics"
+          },
+          {
+            "label": "Organization usage report",
+            "href": "/reference/api/v1/reporting/organization-usage"
+          },
+          {
+            "label": "Organization quota",
+            "href": "/reference/api/v1/reporting/organization-quota"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "label": "React SDK",
+    "items": [
+      {
+        "label": "Overview",
+        "href": "/reference/sdk/client/react/overview"
+      },
+      {
+        "label": "RelayProvider",
+        "href": "/reference/sdk/client/react/RelayProvider"
+      },
+      {
+        "label": "RelayRoom",
+        "href": "/reference/sdk/client/react/RelayRoom"
+      },
+      {
+        "label": "MediaLoader",
+        "href": "/reference/sdk/client/react/MediaLoader"
+      },
+      {
+        "label": "Hooks",
+        "children": [
+          {
+            "label": "useRoom",
+            "href": "/reference/sdk/client/react/hooks/useRoom"
+          },
+          {
+            "label": "useParticipants",
+            "href": "/reference/sdk/client/react/hooks/useParticipants"
+          },
+          {
+            "label": "useLocalParticipant",
+            "href": "/reference/sdk/client/react/hooks/useLocalParticipant"
+          },
+          {
+            "label": "useTracks",
+            "href": "/reference/sdk/client/react/hooks/useTracks"
+          },
+          {
+            "label": "useLocalMedia",
+            "href": "/reference/sdk/client/react/hooks/useLocalMedia"
+          },
+          {
+            "label": "useMessages",
+            "href": "/reference/sdk/client/react/hooks/useMessages"
+          },
+          {
+            "label": "useConnectionQuality",
+            "href": "/reference/sdk/client/react/hooks/useConnectionQuality"
+          },
+          {
+            "label": "useMediaTrack",
+            "href": "/reference/sdk/client/react/hooks/useMediaTrack"
+          }
+        ]
+      },
+      {
+        "label": "Media controls",
+        "children": [
+          {
+            "label": "Camera controls",
+            "href": "/reference/sdk/client/react/media/camera"
+          },
+          {
+            "label": "Microphone controls",
+            "href": "/reference/sdk/client/react/media/microphone"
+          },
+          {
+            "label": "Screen controls",
+            "href": "/reference/sdk/client/react/media/screen"
+          },
+          {
+            "label": "Remote tracks",
+            "href": "/reference/sdk/client/react/media/remote-tracks"
+          },
+          {
+            "label": "Devices and permissions",
+            "href": "/reference/sdk/client/react/media/devices"
+          }
+        ]
+      },
+      {
+        "label": "Room object",
+        "href": "/reference/sdk/client/react/room"
+      },
+      {
+        "label": "RoomError",
+        "href": "/reference/sdk/client/react/RoomError"
+      },
+      {
+        "label": "Types",
+        "href": "/reference/sdk/client/react/types"
+      }
+    ]
+  },
+  {
+    "label": "Browser SDK",
+    "items": [
+      {
+        "label": "Browser client",
+        "href": "/reference/sdk/client/javascript/overview"
+      }
+    ]
+  },
+  {
+    "label": "Node SDK",
+    "items": [
+      {
+        "label": "Overview",
+        "href": "/reference/sdk/server/node/overview"
+      },
+      {
+        "label": "RelayServer",
+        "href": "/reference/sdk/server/node/RelayServer"
+      },
+      {
+        "label": "Request options",
+        "href": "/reference/sdk/server/node/request-options"
+      },
+      {
+        "label": "context",
+        "href": "/reference/sdk/server/node/context"
+      },
+      {
+        "label": "Rooms",
+        "children": [
+          {
+            "label": "rooms.create",
+            "href": "/reference/sdk/server/node/rooms/create"
+          },
+          {
+            "label": "rooms.list",
+            "href": "/reference/sdk/server/node/rooms/list"
+          },
+          {
+            "label": "rooms.get",
+            "href": "/reference/sdk/server/node/rooms/get"
+          },
+          {
+            "label": "rooms.end",
+            "href": "/reference/sdk/server/node/rooms/end"
+          },
+          {
+            "label": "rooms.getRuntimeOperation",
+            "href": "/reference/sdk/server/node/rooms/getRuntimeOperation"
+          }
+        ]
+      },
+      {
+        "label": "Tokens",
+        "children": [
+          {
+            "label": "tokens.create",
+            "href": "/reference/sdk/server/node/tokens/create"
+          }
+        ]
+      },
+      {
+        "label": "Participants",
+        "children": [
+          {
+            "label": "participants.list",
+            "href": "/reference/sdk/server/node/participants/list"
+          },
+          {
+            "label": "participants.get",
+            "href": "/reference/sdk/server/node/participants/get"
+          },
+          {
+            "label": "participants.remove",
+            "href": "/reference/sdk/server/node/participants/remove"
+          },
+          {
+            "label": "participants.getRuntimeOperation",
+            "href": "/reference/sdk/server/node/participants/getRuntimeOperation"
+          }
+        ]
+      },
+      {
+        "label": "TURN",
+        "children": [
+          {
+            "label": "turn.createCredentials",
+            "href": "/reference/sdk/server/node/turn/createCredentials"
+          }
+        ]
+      },
+      {
+        "label": "Webhooks",
+        "children": [
+          {
+            "label": "webhooks.create",
+            "href": "/reference/sdk/server/node/webhooks/create"
+          },
+          {
+            "label": "webhooks.list",
+            "href": "/reference/sdk/server/node/webhooks/list"
+          },
+          {
+            "label": "webhooks.get",
+            "href": "/reference/sdk/server/node/webhooks/get"
+          },
+          {
+            "label": "webhooks.update",
+            "href": "/reference/sdk/server/node/webhooks/update"
+          },
+          {
+            "label": "webhooks.remove",
+            "href": "/reference/sdk/server/node/webhooks/remove"
+          },
+          {
+            "label": "webhooks.rotateSecret",
+            "href": "/reference/sdk/server/node/webhooks/rotateSecret"
+          },
+          {
+            "label": "webhooks.signatureContract",
+            "href": "/reference/sdk/server/node/webhooks/signatureContract"
+          },
+          {
+            "label": "Deliveries",
+            "children": [
+              {
+                "label": "webhooks.deliveries.list",
+                "href": "/reference/sdk/server/node/webhooks/deliveries/list"
+              },
+              {
+                "label": "webhooks.deliveries.get",
+                "href": "/reference/sdk/server/node/webhooks/deliveries/get"
+              },
+              {
+                "label": "webhooks.deliveries.replay",
+                "href": "/reference/sdk/server/node/webhooks/deliveries/replay"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Usage",
+        "children": [
+          {
+            "label": "usage.get",
+            "href": "/reference/sdk/server/node/usage/get"
+          }
+        ]
+      },
+      {
+        "label": "RelayApiError",
+        "href": "/reference/sdk/server/node/RelayApiError"
+      },
+      {
+        "label": "verifyWebhookRequest",
+        "href": "/reference/sdk/server/node/verifyWebhookRequest"
+      },
+      {
+        "label": "Permissions and events",
+        "href": "/reference/sdk/server/node/constants"
+      },
+      {
+        "label": "Types",
+        "href": "/reference/sdk/server/node/types"
+      }
+    ]
+  },
+  {
+    "label": "Deploy",
+    "items": [
+      {
+        "label": "Self-hosting",
+        "href": "/self-hosting"
+      }
+    ]
+  }
+]

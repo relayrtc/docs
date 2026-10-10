@@ -1,0 +1,54 @@
+---
+title: "tokens.create"
+description: "Issue a short-lived bearer token for one participant in a room."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `tokens:create`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+| participantName | string | Required | Trimmed name, 1–120 characters. |
+| permissions | string[] | ['room:join'] | Unique permissions. Must include room:join. |
+| metadata | JSON object | `{}` | Initial participant metadata. |
+| ttlSeconds | integer | 600 | From 60 to 3,600 seconds. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+## Example
+
+```ts
+const roomId = 'room_example'
+const result = await relay.tokens.create(roomId, { participantName: 'Alice', permissions: ['room:join', 'audio:publish', 'video:publish'], ttlSeconds: 3600 })
+```
+
+## Returns
+
+`Promise<ParticipantToken>`. Returns `token`, `participantId`, `tokenId` and `expiresAt`. The example token is a placeholder.
+
+## Behavior
+
+Permissions are `room:join`, `audio:publish`, `video:publish`, `screen:publish`, `messages:send` and `metadata:update`.
+
+Every call creates a new participant identity. This is not an identity-preserving renewal endpoint. Authenticate your own user and check room access before issuing a token.
+
+## REST equivalent
+
+[`POST /v1/rooms/{roomId}/tokens`](/reference/api/v1/tokens/create). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

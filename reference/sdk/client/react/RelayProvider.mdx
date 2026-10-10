@@ -1,0 +1,71 @@
+---
+title: "RelayProvider"
+description: "Own the room client and make reactive state available to child hooks."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { RelayProvider } from '@relayrtc/react'
+```
+
+## Requirements
+
+Use one provider for each independent room client. Put all room hooks inside it. In Next.js, render the call from a client module.
+
+## Props
+
+| Prop | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| signalingUrl | string | Required | ws:// or wss:// URL. No credentials, query or fragment. |
+| children | ReactNode | Optional | Your room and UI. |
+| autoSubscribe | boolean | true | Subscribe to remote media automatically. |
+| requestTimeoutMs | number | 10,000 | Signaling request timeout, 1–60,000 ms. |
+| iceServers | readonly RTCIceServer[] | Optional | Additional/custom ICE configuration. |
+| iceTransportPolicy | 'all' or 'relay' | all | Allow all candidates or require relay. |
+| turnCredentials | TurnCredentials | Optional | Initial TURN response with expiresAt and iceServers. |
+| refreshTurnCredentials | async callback | Optional | Fetch server-issued TURN credentials for the active session. |
+| refreshToken | async callback | Optional | Return an identity-preserving replacement token. See expiry limits below. |
+| credentialRefreshMarginMs | number | 60,000 | Refresh margin, 1,000–300,000 ms. |
+| reconnect | false or object | Enabled | See reconnect options below. |
+| messageHistoryLimit | number | 100 | Integer 0–10,000. Zero disables local history. |
+| onError | `(error: RoomError) => void` | Optional | Observe SDK failures. |
+
+## Reconnect options
+
+| Option | Default | Limits |
+| --- | --- | --- |
+| maxAttempts | 6 | Integer 1–20. |
+| timeoutMs | 25,000 | Overall deadline, 1,000–120,000 ms. |
+| initialDelayMs | 250 | Nonnegative; no greater than maxDelayMs. |
+| maxDelayMs | 4,000 | 1–30,000 ms. |
+
+## Example
+
+```tsx
+<RelayProvider
+  signalingUrl="ws://localhost:8081/v1/connect"
+  autoSubscribe
+  messageHistoryLimit={200}
+  reconnect={{ maxAttempts: 6, timeoutMs: 25000 }}
+  onError={(error) => console.error(error.code, error.message)}
+>
+  <YourRoom />
+</RelayProvider>
+```
+
+`YourRoom` is your component rendering [RelayRoom](/reference/sdk/client/react/RelayRoom) or calling `useRoom().join()`.
+
+## Credential callbacks
+
+Callbacks receive `roomId`, `participantId`, `sessionId`, `expiresAt`, `reason` and an `AbortSignal`. Reason is `initial`, `expiring` or `manual`.
+
+Return credentials from an authenticated backend. Do not expose the management key.
+
+The public token creation API creates a new participant. It cannot supply an identity-preserving refresh token for an ongoing call. See [connection recovery](/guides/connection-recovery).
+
+## Lifecycle
+
+Unmounting the provider disposes its store and leaves the room. Treat connection options as configuration for the active client; leave and join again to apply different connection settings.
+

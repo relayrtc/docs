@@ -1,0 +1,94 @@
+---
+title: "Camera and microphone"
+description: "Enable media, show previews and switch input devices."
+section: "Build calls"
+---
+
+## Imports
+
+```tsx
+import { MediaLoader, useLocalMedia, useLocalParticipant, useMediaTrack, useTracks, useRoom } from '@relayrtc/react'
+```
+
+## Enable capture
+
+Get the local participant from [useLocalParticipant](/reference/sdk/client/react/hooks/useLocalParticipant). Wait until the room is connected.
+
+```tsx
+const local = useLocalParticipant()
+const { room } = useRoom()
+
+await local?.camera.enable({
+  width: { ideal: 1280 },
+  height: { ideal: 720 },
+  frameRate: { ideal: 30 },
+})
+await local?.microphone.enable({
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+})
+```
+
+Use these calls in an event handler and catch rejected promises. Browser constraints are requests; device support determines the actual capture.
+
+## Show your preview
+
+```tsx
+const { camera } = useLocalMedia()
+const preview = useMediaTrack(camera?.track, { paused: camera?.muted })
+
+return (
+  <div>
+    <video ref={preview.ref} autoPlay muted playsInline hidden={!camera?.enabled || camera.muted} />
+    {(camera?.pending || preview.isLoading) && <MediaLoader label="Starting camera" />}
+  </div>
+)
+```
+
+The local preview must be muted to avoid feeding your microphone back through the speakers.
+
+## Camera off
+
+```ts
+await local?.camera.disable()
+await local?.camera.enable()
+```
+
+Disable stops capture and removes the publication. Other participants see the track disappear, so their UI can show a camera-off placeholder.
+
+```tsx
+const cameras = useTracks({ participantId, types: ['camera_video'] })
+
+return cameras[0]
+  ? <RemoteCamera track={cameras[0]} />
+  : <p>Camera is off</p>
+```
+
+`RemoteCamera` is your component using [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack).
+
+<Callout type="warning" title="Mute and camera-off behave differently">
+`camera.mute()` pauses the local sender. Remote publication pause/resume is not implemented by the current server, so mute alone can leave a frozen remote frame. Use disable/enable for camera-off controls.
+</Callout>
+
+## Microphone mute
+
+```ts
+local?.microphone.mute()
+local?.microphone.unmute()
+```
+
+Mute keeps the capture device open and stops sending its media. Use `microphone.disable()` to release capture.
+
+## Device selection
+
+```ts
+if (room) {
+  const devices = await room.devices.enumerate()
+  const firstCamera = devices.cameras[0]
+  if (firstCamera) await local?.camera.switchDevice(firstCamera.deviceId)
+}
+```
+
+Device labels can be empty before permission is granted. See the complete [camera settings](/reference/sdk/client/react/media/camera), [microphone settings](/reference/sdk/client/react/media/microphone) and [device API](/reference/sdk/client/react/media/devices).
+

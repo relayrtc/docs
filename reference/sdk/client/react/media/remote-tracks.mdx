@@ -1,0 +1,57 @@
+---
+title: "Remote tracks"
+description: "Subscribe, attach, choose video quality and stop receiving a publication."
+section: "React SDK"
+---
+
+## Access
+
+```tsx
+import { useTracks } from '@relayrtc/react'
+
+const tracks = useTracks({ types: ['camera_video'] })
+```
+
+A track is a publication from another participant. Use [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack) for React attachment and playback state.
+
+## Properties
+
+| Property | Meaning |
+| --- | --- |
+| id | Publication ID. |
+| info | Track identity, type and server lifecycle state. |
+| participantId | Publishing participant. |
+| type | audio, camera_video, screen_video, screen_audio, or the unsupported data type. |
+| subscriptionState | unsubscribed, subscribing, subscribed, failed or closed. |
+| mediaStreamTrack | Received browser track, or null. |
+| stream | Received MediaStream, or null. |
+
+## Methods
+
+| Method | Returns | Purpose |
+| --- | --- | --- |
+| subscribe() | `Promise<MediaStreamTrack>` | Receive the track; reuse a pending or active subscription. |
+| unsubscribe() | `Promise<void>` | Stop receiving and detach media elements. |
+| setQuality(preference) | `Promise<void>` | Set video preference: auto, 1080p, 720p, 360p or audio-only. |
+| attach(element) | `Promise<HTMLMediaElement>` | Subscribe if necessary and attach to an audio/video element. |
+| detach(element?) | void | Detach one element or all of this track’s attachments. Does not unsubscribe. |
+
+## Example
+
+```ts
+await track.subscribe()
+await track.setQuality('720p')
+await track.attach(videoElement)
+
+track.detach(videoElement)
+await track.unsubscribe()
+```
+
+Here `track` is a remote video publication and `videoElement` is an HTMLVideoElement.
+
+## Quality and lifecycle
+
+Quality is a receiving preference. It cannot increase source resolution and can be limited by bandwidth.
+
+When the publisher disables capture, the publication disappears. Build a placeholder from the participant having no camera track. A subscribed track may still be waiting for its first playable frame.
+

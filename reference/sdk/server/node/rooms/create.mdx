@@ -1,0 +1,49 @@
+---
+title: "rooms.create"
+description: "Create a room in the authenticated project environment."
+section: "Node SDK"
+---
+
+## Import and client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Requirements
+
+A secret key with `rooms:create`. The requested resource must belong to that key's project environment.
+
+## Parameters
+
+| Option | Type | Default / requirement | Purpose |
+| --- | --- | --- | --- |
+| name | string | Required | Trimmed name, 1–120 characters. |
+| metadata | JSON object | `{}` | Application-defined room metadata. |
+| maxParticipants | integer | 100 | From 1 to 100,000. |
+
+Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+## Example
+
+```ts
+const result = await relay.rooms.create({ name: 'Team call', maxParticipants: 10 })
+```
+
+## Returns
+
+`Promise<Room>`. Returns a [room object](/reference/api/v1/schemas/room).
+
+## Behavior
+
+Creating a room does not join it or open media devices. [Issue participant tokens](/reference/api/v1/tokens/create) next.
+
+## REST equivalent
+
+[`POST /v1/rooms`](/reference/api/v1/rooms/create). Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+

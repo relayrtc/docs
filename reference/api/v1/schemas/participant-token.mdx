@@ -1,0 +1,26 @@
+---
+title: "Participant token"
+description: "Fields returned by the REST API for participant token."
+section: "REST API v1"
+---
+
+## Fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `token` | string | Participant JWT. Treat it as a bearer credential. |
+| `participantId` | string | Issued participant identity. |
+| `tokenId` | string | Issued token identity. |
+| `expiresAt` | string | Credential expiry timestamp. |
+
+## Example
+
+```json
+{
+  "token": "participant-jwt",
+  "participantId": "participant_example",
+  "tokenId": "token_example",
+  "expiresAt": "2026-01-01T13:00:00.000Z"
+}
+```
+

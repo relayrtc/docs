@@ -1,0 +1,47 @@
+---
+title: "Keys and permissions"
+description: "Keep management credentials on the server and grant only the permissions a call needs."
+section: "Get started"
+---
+
+## API keys
+
+Secret API keys authorize REST administration. Their project and environment define the resource scope. A publishable key cannot create rooms, issue tokens or administer participants.
+
+The Node SDK accepts secret keys only. Its key format starts with `rk_sk_`.
+
+## Participant permissions
+
+| Permission | Allows |
+| --- | --- |
+| `room:join` | Join the room. Required in every token. |
+| `audio:publish` | Publish microphone audio. |
+| `video:publish` | Publish camera video. |
+| `screen:publish` | Publish screen video and screen audio. |
+| `messages:send` | Send text messages and custom events. |
+| `metadata:update` | Update participant metadata. |
+
+The token endpoint defaults to `['room:join']`. Grant media permissions explicitly.
+
+## Your token endpoint
+
+Authenticate the caller with your own user session. Check their right to join the requested room. Derive their name and permissions on the server.
+
+<Callout type="danger" title="Do not expose an unrestricted token endpoint">
+A public endpoint that signs arbitrary room IDs, names or permissions lets callers impersonate users and access calls. A participant token is a bearer credential.
+</Callout>
+
+## Webhooks
+
+Verify the original request body before parsing JSON. Reject old signatures and store event IDs atomically with your processing result to avoid duplicate work.
+
+Use [verifyWebhookRequest](/reference/sdk/server/node/verifyWebhookRequest). Keep the endpoint signing secret on your backend.
+
+## Camera access
+
+Use HTTPS in production. Provide clear controls for camera, microphone and screen sharing. To turn a camera off completely, call `camera.disable()`. Local mute pauses sending but does not release the device.
+
+## Logs and errors
+
+Log request IDs and error codes. Keep tokens, API keys and webhook signing secrets out of logs.
+

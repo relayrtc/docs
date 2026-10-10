@@ -1,0 +1,41 @@
+---
+title: "useLocalMedia"
+description: "Read camera, microphone and screen capture snapshots."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { useLocalMedia, MediaLoader } from '@relayrtc/react'
+```
+
+## Requirements
+
+Call this hook inside [RelayProvider](/reference/sdk/client/react/RelayProvider), in a React function component or custom hook. A joined room is needed for live data and actions.
+
+## Returns
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| microphone | RoomInputSnapshot or null | Microphone capture/publication state. |
+| camera | RoomInputSnapshot or null | Camera capture/publication state. |
+| screen | RoomScreenSnapshot or null | Display capture/publication state. |
+
+## Example
+
+```tsx
+const { camera } = useLocalMedia()
+
+return (
+  <div>
+    {camera?.pending && <MediaLoader label="Starting camera" />}
+    <p>{camera?.enabled ? 'Camera enabled' : 'Camera off'}</p>
+  </div>
+)
+```
+
+## Options and behavior
+
+Input snapshots include source, enabled, pending, muted, deviceId, track and publication. Screen snapshots include active, pending, muted, videoTrack, audioTrack, videoPublication and audioPublication. Pending reports a capture, device change or cleanup operation in progress. This hook observes state; use local participant controls to change it.
+

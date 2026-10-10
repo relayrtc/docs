@@ -1,0 +1,33 @@
+---
+title: "Project analytics"
+description: "Read traffic, quality and session analytics."
+section: "REST API v1"
+method: GET
+endpoint: "/v1/projects/{projectId}/analytics"
+---
+
+## Authentication
+
+Use a secret key with `analytics:read` for its own project environment, or a valid console session with organization membership.
+
+## Parameters
+
+projectId is required in the path. range: live, 24h, 7d or 30d, default 7d. Optional environmentId.
+
+## Example
+
+```bash
+curl "$RELAYRTC_API_URL/projects/project_example/analytics?range=7d" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+
+
+## Response
+
+`200` with scope, window, summary, network, dataQuality, qualityGranularitySeconds, traffic, networkSeries, quality, regions, qualityDistribution and topRooms. Summary includes peakConcurrent, totalSessions, averageSessionSeconds, participantSeconds and connectionSuccessRate. Quality entries include roundTripTimeMs, jitterMs, packetLossPercent and sampleCount; values may be null when absent.
+
+## Availability
+
+This endpoint is REST-only. The current Node SDK exposes public `usage.get`, but has no wrapper for these reporting endpoints. It is separate from [public scoped usage](/reference/api/v1/usage/all).
+

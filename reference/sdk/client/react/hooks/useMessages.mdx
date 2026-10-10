@@ -1,0 +1,41 @@
+---
+title: "useMessages"
+description: "Send room chat and read the provider's local history."
+section: "React SDK"
+---
+
+## Import
+
+```tsx
+import { useMessages } from '@relayrtc/react'
+```
+
+## Requirements
+
+Call this hook inside [RelayProvider](/reference/sdk/client/react/RelayProvider), in a React function component or custom hook. A joined room is needed for live data and actions.
+
+## Returns
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| messages | readonly RoomTextMessage[] | Messages collected by this provider. |
+| send | `(text: string) => Promise<RoomTextMessage>` | Send a text message. |
+| clear | `() => void` | Clear only this client's history. |
+
+## Example
+
+```tsx
+const { messages, send } = useMessages()
+
+return (
+  <div>
+    {messages.map((message) => <p key={message.messageId}>{message.text}</p>)}
+    <button onClick={() => void send('Hello').catch(console.error)}>Say hello</button>
+  </div>
+)
+```
+
+## Options and behavior
+
+Sending requires messages:send. Text must be nonblank and no longer than 4,000 characters. A message contains messageId, roomId, participantId and text. History is local, limited by messageHistoryLimit, and is not persisted across reloads.
+

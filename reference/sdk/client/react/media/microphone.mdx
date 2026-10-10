@@ -1,0 +1,65 @@
+---
+title: "Microphone controls"
+description: "Capture audio, mute sending and select an input device."
+section: "React SDK"
+---
+
+## Import and access
+
+```tsx
+import { useLocalParticipant, useLocalMedia } from '@relayrtc/react'
+
+const local = useLocalParticipant()
+const { microphone } = useLocalMedia()
+```
+
+## Requirements
+
+A connected room, `audio:publish` permission and microphone access.
+
+## Methods
+
+| Method | Returns | Purpose |
+| --- | --- | --- |
+| enable(constraints?) | `Promise<MediaStreamTrack>` | Capture and publish microphone audio. |
+| disable() | `Promise<void>` | Release capture and remove publication. |
+| switchDevice(deviceId) | `Promise<MediaStreamTrack or null>` | Replace the active input device. |
+| mute() | void | Pause outgoing audio while retaining capture. |
+| unmute() | void | Resume outgoing audio. |
+| subscribe(listener) | `() => void` | Observe the microphone snapshot. |
+
+## Audio constraints
+
+With no argument, enable uses an empty constraint object and lets the browser choose capture settings.
+
+| Setting | Example | Meaning |
+| --- | --- | --- |
+| deviceId | `{ exact: selectedDeviceId }` | Select the input device. |
+| echoCancellation | true | Request acoustic echo cancellation. |
+| noiseSuppression | true | Request background noise suppression. |
+| autoGainControl | true | Request automatic input gain. |
+| channelCount | 1 | Request a channel count. |
+| sampleRate | 48000 | Request sample rate when supported. |
+
+Browser and hardware support determine the actual capture settings.
+
+## Example
+
+```tsx
+await local?.microphone.enable({
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+})
+
+local?.microphone.mute()
+local?.microphone.unmute()
+await local?.microphone.disable()
+```
+
+## Snapshot
+
+Microphone uses the same [input snapshot fields](/reference/sdk/client/react/media/camera#snapshot), with `source: 'microphone'`.
+
+Mute retains device access and is not a remote participant status message. If your UI shows remote microphone status, define a metadata field for that application state and update it along with the control.
+

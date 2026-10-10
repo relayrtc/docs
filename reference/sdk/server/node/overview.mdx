@@ -1,0 +1,60 @@
+---
+title: "Node SDK"
+description: "Administer RelayRTC rooms and resources from a Node.js server."
+section: "Node SDK"
+---
+
+## Install
+
+<InstallTabs packages="@relayrtc/node" />
+
+The package requires Node.js 22 or newer. See [installation](/installation) for setup instructions.
+
+## Create a client
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+Use a secret API key. The client normalizes the API URL to include `/v1`.
+
+## Create a room and token
+
+```ts
+const room = await relay.rooms.create({ name: 'Team call' })
+const issued = await relay.tokens.create(room.id, {
+  participantName: 'Alice',
+  permissions: ['room:join', 'audio:publish', 'video:publish'],
+})
+```
+
+Send `issued.token` to that authenticated user. The browser joins with the React or browser SDK.
+
+## Resources
+
+| Client resource | Purpose |
+| --- | --- |
+| `context()` | Read API key context. |
+| `rooms` | Create, list, read and end rooms; inspect cleanup. |
+| `tokens` | Issue participant tokens. |
+| `participants` | List, read, remove and inspect cleanup. |
+| `turn` | Create temporary TURN credentials. |
+| `usage` | Read public usage categories. |
+| `webhooks` | Manage endpoints and signing secrets. |
+| `webhooks.deliveries` | Read delivery logs and replay. |
+
+The Node SDK does not capture a camera or join a media call. It wraps the public management REST API.
+
+## Request behavior
+
+Successful data objects are returned directly. Errors throw [RelayApiError](/reference/sdk/server/node/RelayApiError).
+
+Only GET requests retry automatically. Create, update, delete, secret rotation and replay requests are attempted once.
+
+See [RelayServer options](/reference/sdk/server/node/RelayServer) and [request options](/reference/sdk/server/node/request-options).
+

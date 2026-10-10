@@ -1,0 +1,53 @@
+---
+title: "REST API v1"
+description: "Manage rooms, participants, usage and webhooks over HTTP."
+section: "REST API v1"
+---
+
+## Base URL
+
+Use the API URL configured for your RelayRTC deployment, with the `/v1` prefix. Local development uses `http://localhost:8082/v1`.
+
+The examples use `RELAYRTC_API_URL` for that base and `RELAYRTC_SECRET_KEY` for your secret key.
+
+```bash
+curl "$RELAYRTC_API_URL/" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Authentication
+
+Pass a bearer API key on every request. Management endpoints require a secret key and the documented scope.
+
+See [authentication](/reference/api/v1/authentication) for scopes and environment boundaries.
+
+## Resources
+
+| Resource | Operations |
+| --- | --- |
+| [Rooms](/reference/api/v1/rooms/create) | Create, list, read, end and inspect runtime cleanup. |
+| [Participant tokens](/reference/api/v1/tokens/create) | Issue a token to join one room. |
+| [Participants](/reference/api/v1/participants/list) | List, read, remove and inspect cleanup. |
+| [TURN credentials](/reference/api/v1/turn/create-credentials) | Issue temporary ICE relay credentials. |
+| [Usage](/reference/api/v1/usage/all) | Read all usage or one category. |
+| [Webhooks](/reference/api/v1/webhooks/create) | Configure receivers, rotate secrets, inspect deliveries and replay. |
+| [Reporting](/reference/api/v1/reporting/project-usage) | Read project reports, analytics and console organization reports. |
+
+## Request and response bodies
+
+Use `Content-Type: application/json` for JSON writes. Successful objects are returned directly, without a `data` wrapper.
+
+Cursor lists return `nodes` and `pageInfo`. Webhook lists use offset pagination. A `204` response has no JSON body.
+
+Unknown fields are rejected by strict request schemas.
+
+Example IDs, dates and credentials are illustrative. Use resource IDs and secrets returned by your deployment.
+
+## Transport
+
+This reference documents HTTP endpoints. Joining a live room, sending in-room messages and transferring audio/video use the browser SDK and signaling service.
+
+## Version and request headers
+
+Responses include `x-relayrtc-api-version: v1` and `x-request-id`. Include the request ID when investigating an error.
+

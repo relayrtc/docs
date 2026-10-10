@@ -1,0 +1,44 @@
+---
+title: "Webhook endpoint"
+description: "Fields returned by the REST API for webhook endpoint."
+section: "REST API v1"
+---
+
+## Fields
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | string | Resource identifier. |
+| `projectId` | string | Owning project. |
+| `environmentId` | string | Owning environment. |
+| `url` | string | Receiver URL. |
+| `eventTypes` | array | Subscribed event names. |
+| `status` | string | Lifecycle or delivery state. |
+| `signingSecretVersion` | number | Current signing secret version. |
+| `signingSecretRotatedAt` | string | Latest secret rotation timestamp. |
+| `createdAt` | string | Creation timestamp. |
+| `updatedAt` | string | Latest update timestamp. |
+
+## Example
+
+```json
+{
+  "id": "webhook_example",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "url": "https://your-app.example/webhooks/relayrtc",
+  "eventTypes": [
+    "room.ended"
+  ],
+  "status": "enabled",
+  "signingSecretVersion": 1,
+  "signingSecretRotatedAt": "2026-01-01T12:00:00.000Z",
+  "createdAt": "2026-01-01T12:00:00.000Z",
+  "updatedAt": "2026-01-01T12:00:00.000Z"
+}
+```
+
+## Signing secret
+
+Creation and rotation return these fields plus `signingSecret` and `rotationPolicy: 'immediate replacement'`. Reads do not reveal the secret.
+

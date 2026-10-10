@@ -1,0 +1,53 @@
+---
+title: "Remove a participant"
+description: "Disconnect one participant and remove their live media resources."
+section: "REST API v1"
+method: DELETE
+endpoint: "/v1/rooms/{roomId}/participants/{participantId}"
+---
+
+## Requirements
+
+A secret API key with `participants:remove`. Resources are restricted to the key's project and environment.
+
+## Path parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| roomId | string | Required | ID of a room in the key's environment. |
+| participantId | string | Required | ID of a participant in this room. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X DELETE "$RELAYRTC_API_URL/rooms/room_example/participants/participant_example" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+## Response
+
+`204` when removal is complete. `202` with a [runtime operation](/reference/api/v1/schemas/runtime-operation) when cleanup is pending.
+
+```json
+{
+  "id": "operation_example",
+  "kind": "participant.remove",
+  "status": "pending",
+  "attempts": 0,
+  "lastError": null,
+  "completedAt": null
+}
+```
+
+## Notes
+
+<Callout type="danger" title="This disconnects the participant">
+Removal affects the participant’s live session and tracks. Use this operation for moderation or administrative removal.
+</Callout>
+
+## Errors
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+

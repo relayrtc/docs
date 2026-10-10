@@ -1,0 +1,75 @@
+---
+title: "Create a webhook"
+description: "Create a webhook in the authenticated project environment."
+section: "REST API v1"
+method: POST
+endpoint: "/v1/webhooks"
+---
+
+## Requirements
+
+A secret API key with `webhooks:write`. Resources are restricted to the key's project and environment.
+
+## Query parameters
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| projectId | string | Key project | Must match the key's project. |
+| environmentId | string | Key environment | Must match the key's environment. |
+
+## Request body
+
+| Name | Type | Required / default | Description |
+| --- | --- | --- | --- |
+| url | string | Required | Public, resolvable HTTP(S) URL, up to 2,048 characters. No credentials, fragment or private network destination. |
+| eventTypes | string[] | Required | Nonempty, unique supported event types. |
+| status | string | enabled | enabled or disabled. |
+
+## Example
+
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+
+```bash
+curl -X POST "$RELAYRTC_API_URL/webhooks" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://your-app.example/webhooks/relayrtc","eventTypes":["room.ended"]}'
+```
+
+## Response
+
+`201` with a webhook endpoint and its one-time signing secret.
+
+```json
+{
+  "id": "webhook_example",
+  "projectId": "project_example",
+  "environmentId": "environment_example",
+  "url": "https://your-app.example/webhooks/relayrtc",
+  "eventTypes": [
+    "room.ended"
+  ],
+  "status": "enabled",
+  "signingSecretVersion": 1,
+  "signingSecretRotatedAt": "2026-01-01T12:00:00.000Z",
+  "createdAt": "2026-01-01T12:00:00.000Z",
+  "updatedAt": "2026-01-01T12:00:00.000Z",
+  "signingSecret": "whsec_example_save_the_returned_secret",
+  "rotationPolicy": "immediate replacement"
+}
+```
+
+## Notes
+
+Events: `room.created`, `room.started`, `room.ended`, `participant.joined`, `participant.left`, `participant.reconnected`, `track.published`, `track.unpublished`, `connection.degraded`, `connection.recovered`.
+
+Your endpoint is a receiver in your own backend. [Verify signed requests](/guides/webhooks) before processing them.
+
+Save `signingSecret` securely. The API returns it only when creating or rotating the endpoint.
+
+## Errors
+
+`400 INVALID_WEBHOOK_DESTINATION` means the receiver URL is invalid, cannot be resolved or resolves to an unsafe address. `503 WEBHOOK_SIGNING_UNAVAILABLE` means signing encryption is not configured on the API.
+
+Invalid fields return `400`. Invalid credentials return `401`; a missing scope returns `403`. A missing resource returns `404`. See [error responses](/reference/api/v1/errors).
+
