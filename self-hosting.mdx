@@ -4,7 +4,7 @@ description: "Run the complete RelayRTC stack with prebuilt Docker images."
 section: "Deploy"
 ---
 
-Run RelayRTC on your own computer using its published container images. This guide starts the API, signaling, media, TURN, console, admin dashboard, PostgreSQL, Prometheus and Grafana. Database migrations run before the application services start.
+Run RelayRTC on your own computer using its published container images. This guide starts the API, signaling, media, TURN, console, PostgreSQL, Prometheus and Grafana. Database migrations run before the application services start.
 
 You only need the Docker configuration files and your environment settings. You do not need to clone the source repository or install Node.js, Go or pnpm.
 
@@ -31,9 +31,9 @@ Create a folder named `relayrtc`. Download these three files into it:
 
 | File | Download |
 | --- | --- |
-| `docker-compose.yml` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/f07e41d/docker-compose.yml) |
-| `docker-compose.release.yml` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/f07e41d/docker-compose.release.yml) |
-| `.env.example` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/f07e41d/.env.example) |
+| `docker-compose.yml` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/6612c2f/docker-compose.yml) |
+| `docker-compose.release.yml` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/6612c2f/docker-compose.release.yml) |
+| `.env.example` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/6612c2f/.env.example) |
 
 On each GitHub file page, use **Download raw file** in the file toolbar. Save the actual file content, not the GitHub HTML page. Keep the filenames exactly as shown, including the leading dot in `.env.example`.
 
@@ -66,7 +66,7 @@ Use a separate random value for each setting:
 | Setting | Used for |
 | --- | --- |
 | `POSTGRES_PASSWORD` | PostgreSQL authentication. |
-| `BETTER_AUTH_SECRET` | Console and dashboard authentication. |
+| `BETTER_AUTH_SECRET` | Console authentication. |
 | `PARTICIPANT_TOKEN_SIGNING_SECRET` | Signing participant tokens. |
 | `RELAYRTC_INTERNAL_SECRET` | Authentication between services. |
 | `TURN_SHARED_SECRET` | Issuing temporary TURN credentials. |
@@ -112,9 +112,9 @@ MEDIA_PORT=8083
 CONSOLE_PORT=3002
 POSTGRES_PORT=5433
 
-BETTER_AUTH_URL=http://localhost:3001
+BETTER_AUTH_URL=http://localhost:3002
 CONSOLE_AUTH_URL=http://localhost:3002
-BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3001,http://localhost:3002
+BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3002
 RELAYRTC_API_URL=http://localhost:8080
 RELAYRTC_SIGNALING_ALLOWED_ORIGINS=http://localhost:3005,http://localhost:3002
 
@@ -152,8 +152,6 @@ http://localhost:3002/api/auth/callback/github
 http://localhost:3002/api/auth/callback/google
 ```
 
-If you use OAuth on the admin dashboard, its callback URLs use port `3001`. Google supports multiple authorized redirect URIs. GitHub OAuth applications have one configured callback URL; use the provider application that matches the interface you intend to sign into.
-
 ## Download and start the images
 
 Validate your configuration:
@@ -176,7 +174,7 @@ docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-bu
 
 Docker downloads the images from GitHub Container Registry. No GitHub login is needed for public images. The first download can take several minutes, depending on your connection.
 
-The release Compose file selects the published images. Always include both `-f` arguments and `--no-build` when starting this setup; the base Compose file also contains source build definitions.
+The release Compose file selects eight RelayRTC images plus the official PostgreSQL image. Always include both `-f` arguments and `--no-build` when starting this setup; the base Compose file also contains source build definitions.
 
 Check the services:
 
@@ -193,7 +191,6 @@ Open [localhost:3002](http://localhost:3002), create your account, organization,
 | Service | Local address |
 | --- | --- |
 | Console | `http://localhost:3002` |
-| Admin dashboard | `http://localhost:3001` |
 | REST API | `http://localhost:8080/v1` |
 | Signaling | `ws://localhost:8081/v1/connect` |
 | Media readiness | `http://localhost:8083/ready` |
