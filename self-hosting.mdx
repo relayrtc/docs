@@ -1,10 +1,346 @@
 ---
 title: "Self-hosting"
 description: "Run RelayRTC on your own infrastructure."
-section: "Manage and deploy"
+section: "Deploy"
 ---
 
-## Coming soon
+## Requirements
 
-Self-hosting documentation is coming soon.
+This guide runs the API, console, signaling, media, PostgreSQL and TURN on one Linux server with Docker Compose. Nginx handles HTTPS and WebSocket connections.
+
+- Docker Engine and the Docker Compose plugin. See [Install Docker](https://docs.docker.com/engine/install/).
+- Git and OpenSSL on the server.
+- A public IPv4 address and access to your firewall settings.
+- Four hostnames pointing to that address: `api.example.com`, `signal.example.com`, `console.example.com` and `turn.example.com`.
+- GitHub and Google OAuth credentials, plus a Resend API key and verified sender for the console.
+
+Replace the example hostnames and `YOUR_PUBLIC_IP` throughout this guide. Run the commands on your server.
+
+## Download RelayRTC
+
+```bash
+git clone https://github.com/relayrtc/relayrtc.git
+cd relayrtc
+cp .env.example .env
+chmod 600 .env
+```
+
+The Docker build installs its own Node.js, Go and workspace dependencies. You do not need to install the SDKs or pnpm on the server.
+
+## Configure secrets
+
+Edit `.env` before starting the stack. Replace every `replace-with-...` value.
+
+Generate a separate value for each of these settings:
+
+```bash
+openssl rand -hex 32
+```
+
+| Setting | Used for |
+| --- | --- |
+| `POSTGRES_PASSWORD` | PostgreSQL authentication. |
+| `BETTER_AUTH_SECRET` | Console authentication. |
+| `PARTICIPANT_TOKEN_SIGNING_SECRET` | Participant tokens. |
+| `RELAYRTC_INTERNAL_SECRET` | Communication between services. |
+| `TURN_SHARED_SECRET` | Temporary TURN credentials. |
+| `GRAFANA_ADMIN_PASSWORD` | Grafana login if you start monitoring. |
+
+Use different values for the authentication, participant token, internal and TURN secrets. The production services reject shared or placeholder credentials.
+
+Set `DATABASE_URL` to match your PostgreSQL settings. With the template's host port, it looks like this:
+
+```bash
+DATABASE_URL=postgresql://relaykit:YOUR_POSTGRES_PASSWORD@localhost:5433/relaykit
+```
+
+Compose supplies the containers with a separate database URL using the `postgres` service hostname.
+
+Generate the webhook encryption key separately:
+
+```bash
+openssl rand -base64 32
+```
+
+Save that output as `WEBHOOK_SIGNING_ENCRYPTION_KEY`. It must be a base64-encoded 32-byte key, not a hexadecimal string.
+
+<Callout type="danger" title="Keep secrets and data together">
+Keep `.env` out of Git. Back up the webhook encryption key with your database; losing it prevents the API from decrypting existing webhook signing secrets. Changing token or authentication secrets can invalidate active tokens or sessions.
+</Callout>
+
+## Set public addresses
+
+Update these values in `.env`:
+
+```bash
+BETTER_AUTH_URL=https://console.example.com
+CONSOLE_AUTH_URL=https://console.example.com
+BETTER_AUTH_TRUSTED_ORIGINS=https://console.example.com
+RELAYRTC_API_URL=https://api.example.com
+RELAYRTC_SIGNALING_ALLOWED_ORIGINS=https://your-app.example.com,https://console.example.com
+
+MEDIA_RTC_LISTEN_IP=0.0.0.0
+MEDIA_RTC_ANNOUNCED_ADDRESS=YOUR_PUBLIC_IP
+MEDIA_RTC_PORT=40000
+MEDIA_RTC_MAX_PORT=40003
+MEDIA_WORKERS=1
+
+TURN_REALM=turn.example.com
+TURN_PUBLIC_IP=YOUR_PUBLIC_IP
+TURN_DOCKER_RELAY_ADDRESS=172.30.0.11
+TURN_STUN_URLS=stun:turn.example.com:3478
+TURN_URLS=turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?transport=tcp,turns:turn.example.com:5349?transport=tcp
+RTC_MIN_PORT=49160
+RTC_MAX_PORT=49200
+```
+
+The allowed origins are the HTTPS origins of your frontend applications, without paths. Add each application that connects to signaling.
+
+`MEDIA_RTC_ANNOUNCED_ADDRESS` and `TURN_PUBLIC_IP` must be reachable by participants. A localhost address can let someone join a room while preventing audio and video from reaching them.
+
+`TURN_DOCKER_RELAY_ADDRESS` is the coturn container's fixed address in the Compose network. Keep `172.30.0.11` unless you also change that network configuration. It is not your server's public address.
+
+The media port range above matches the repository defaults. Each media worker needs a port in that range. Increase the range and firewall rules if you add workers. Capacity also depends on CPU, bandwidth and the room limits.
+
+## Configure console sign-in
+
+Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from your OAuth applications.
+
+Register these callback URLs with the corresponding provider:
+
+```text
+https://console.example.com/api/auth/callback/github
+https://console.example.com/api/auth/callback/google
+```
+
+Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` using your verified sender:
+
+```bash
+RESEND_FROM_EMAIL="RelayRTC <noreply@example.com>"
+```
+
+The current console configuration requires both OAuth providers and the email settings. Email and password sign-in is also available.
+
+## Open network ports
+
+Create an A record for each hostname pointing to your server's public IPv4 address. Allow these ports in the server and provider firewalls:
+
+| Ports | Protocol | Purpose |
+| --- | --- | --- |
+| `80`, `443` | TCP | HTTPS and certificate validation. |
+| `40000-40003` | UDP and TCP | Direct media connections. |
+| `3478` | UDP and TCP | STUN and TURN. |
+| `5349` | TCP | TURN over TLS. |
+| `49160-49200` | UDP | TURN relay traffic. |
+
+If you change a port range in `.env`, update the firewall rules too. Keep SSH available for administration.
+
+The API, console, signaling HTTP port, media control API and PostgreSQL bind to localhost on the host. Keep the database, `/internal/v1` endpoints and monitoring private. Docker-published media and TURN ports need rules at your provider firewall; do not rely on UFW alone to restrict published container ports.
+
+## Configure HTTPS
+
+Install Nginx and [Certbot's Nginx plugin](https://certbot.eff.org/instructions?ws=nginx&os=snap). On Ubuntu, create `/etc/nginx/sites-available/relayrtc` with:
+
+```nginx
+server {
+    listen 80;
+    server_name api.example.com;
+
+    location /v1/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / { return 404; }
+}
+
+server {
+    listen 80;
+    server_name signal.example.com;
+
+    location = /v1/connect {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    location / { return 404; }
+}
+
+server {
+    listen 80;
+    server_name console.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name turn.example.com;
+    location / { return 404; }
+}
+```
+
+These upstream ports assume `API_PORT=8080`, `SIGNALING_PORT=8081` and `CONSOLE_PORT=3002`. Match them to your `.env` if you use different host ports.
+
+Enable the configuration and request a certificate once DNS resolves to your server:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/relayrtc /etc/nginx/sites-enabled/relayrtc
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx --cert-name relayrtc \
+  -d api.example.com -d signal.example.com \
+  -d console.example.com -d turn.example.com --redirect
+sudo certbot renew --dry-run
+```
+
+Nginx serves the HTTPS API, console and secure WebSocket connection. It does not proxy the media or TURN ports.
+
+## Mount the TURN certificate
+
+The coturn image includes a self-signed certificate for local development. Replace it with the trusted certificate before using `turns:` publicly.
+
+Copy the certificate into a directory readable by coturn's container user:
+
+```bash
+sudo install -d -m 0755 /etc/relayrtc/turn
+sudo install -o 65534 -g 65533 -m 0444 \
+  /etc/letsencrypt/live/relayrtc/fullchain.pem /etc/relayrtc/turn/tls.crt
+sudo install -o 65534 -g 65533 -m 0400 \
+  /etc/letsencrypt/live/relayrtc/privkey.pem /etc/relayrtc/turn/tls.key
+```
+
+In the repository root, create `compose.override.yaml`:
+
+```yaml
+services:
+  coturn:
+    volumes:
+      - /etc/relayrtc/turn:/etc/coturn/tls:ro
+```
+
+Docker Compose loads this alongside `docker-compose.yml`. Keep the template's `TURN_TLS_CERT_FILE` and `TURN_TLS_PRIVATE_KEY_FILE` paths.
+
+Add a Certbot deploy hook at `/etc/letsencrypt/renewal-hooks/deploy/relayrtc-turn` to copy renewed certificates and restart coturn. Replace `/opt/relayrtc` with the absolute path to your clone:
+
+```bash
+#!/bin/sh
+set -eu
+if [ "$RENEWED_LINEAGE" != /etc/letsencrypt/live/relayrtc ]; then
+  exit 0
+fi
+install -o 65534 -g 65533 -m 0444 "$RENEWED_LINEAGE/fullchain.pem" /etc/relayrtc/turn/tls.crt
+install -o 65534 -g 65533 -m 0400 "$RENEWED_LINEAGE/privkey.pem" /etc/relayrtc/turn/tls.key
+cd /opt/relayrtc
+docker compose --env-file .env restart coturn
+```
+
+Make the hook executable:
+
+```bash
+sudo chmod 700 /etc/letsencrypt/renewal-hooks/deploy/relayrtc-turn
+```
+
+Restarting coturn interrupts existing relay allocations. Schedule certificate renewal and service maintenance with active calls in mind.
+
+## Start the services
+
+From the repository root:
+
+```bash
+docker compose --env-file .env config --quiet
+docker compose --env-file .env up --detach --build --wait \
+  postgres coturn signaling media api console
+docker compose ps
+```
+
+The `migrate` service applies the committed database migrations before the application services start. A migration failure stops startup. It is normal for that container to exit with code `0` after completion.
+
+Check the internal readiness endpoints:
+
+```bash
+curl --fail http://127.0.0.1:8080/ready
+curl --fail http://127.0.0.1:8081/ready
+curl --fail http://127.0.0.1:8083/ready
+```
+
+The last command uses `MEDIA_PORT=8083` from `.env.example`. The media container itself listens on `8082`; that control port is not a public SDK endpoint.
+
+Open `https://console.example.com`, create your account, organization, project and environment, then create a secret API key. Follow [Build your first call](/quickstart) with your own endpoints:
+
+```bash
+RELAYRTC_API_URL=https://api.example.com/v1
+RELAYRTC_SIGNALING_URL=wss://signal.example.com/v1/connect
+RELAYRTC_SECRET_KEY=your-project-secret-key
+```
+
+Keep the secret key on your application's backend. Participants receive room tokens, not API keys. See [Keys and permissions](/security).
+
+Verify a call with two devices on different networks. Test camera, microphone, screen sharing and a relayed connection. Healthy containers alone do not confirm that participants can reach the advertised media addresses.
+
+## Logs and troubleshooting
+
+```bash
+docker compose logs --tail 100 api signaling media coturn console migrate
+```
+
+| Symptom | Check |
+| --- | --- |
+| API fails during startup | Secret values, database connection and webhook key encoding. |
+| Migration fails | The `migrate` logs and PostgreSQL readiness. |
+| WebSocket connection is rejected | Allowed origins, participant token and Nginx Upgrade headers. |
+| Room joins but audio or video is missing | Public media address, media ports, TURN addresses and relay ports. |
+| Console sign-in fails | Auth URLs, OAuth callback URLs and provider credentials. |
+| TURN TLS fails | Certificate hostname, expiry and mounted key permissions. |
+
+See [Troubleshooting calls](/guides/troubleshooting) for browser checks.
+
+## Updates and backups
+
+Back up PostgreSQL before updating. From the repository root:
+
+```bash
+mkdir -p backups
+chmod 700 backups
+umask 077
+docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' \
+  > "backups/relayrtc-$(date -u +%Y%m%d-%H%M%S).dump"
+```
+
+Keep an off-server copy of the backup, `.env` and certificate configuration. Test restoring the database before you need it.
+
+Update during a maintenance window; replacing media or signaling containers can interrupt calls:
+
+```bash
+git pull --ff-only
+docker compose --env-file .env build --pull
+docker compose --env-file .env run --rm migrate
+docker compose --env-file .env up --detach --wait \
+  postgres coturn signaling media api console
+```
+
+Stop if the migration exits with a nonzero code. Do not roll back application images without checking whether the previous version supports the updated database schema.
+
+To stop the stack while keeping its volumes:
+
+```bash
+docker compose down
+```
+
+<Callout type="danger" title="Do not delete your database volume">
+`docker compose down --volumes` removes the stored database and monitoring data. Use it only when you intend to delete that deployment's data.
+</Callout>
 
