@@ -1,100 +1,120 @@
----
+﻿---
 title: "Self-hosting"
-description: "Run RelayRTC locally on your computer with Docker."
+description: "Run the complete RelayRTC stack with prebuilt Docker images."
 section: "Deploy"
 ---
 
+Run RelayRTC on your own computer using its published container images. This guide starts the API, signaling, media, TURN, console, admin dashboard, PostgreSQL, Prometheus and Grafana. Database migrations run before the application services start.
+
+You only need the Docker configuration files and your environment settings. You do not need to clone the source repository or install Node.js, Go or pnpm.
+
 ## Requirements
 
-Run the API, console, signaling, media, PostgreSQL and TURN on your own computer. This setup is for developing and testing applications on localhost.
-
 - Docker Desktop with Linux containers on Windows or macOS, or Docker Engine with the Compose plugin on Linux.
-- Git.
-- Node.js 22 or newer for the secret-generation commands below.
+- An AMD64 computer. The current published images target Linux AMD64; native ARM64 images are not included in this release.
+- GitHub and Google OAuth credentials, plus a Resend API key and verified sender for console authentication and email.
 
-Start Docker, then check it is available:
+Start Docker and check that Compose is available:
 
 ```bash
 docker version
 docker compose version
 ```
 
-The application dependencies are installed inside the images. You do not need Go or pnpm on your computer for this setup.
+<Callout type="note" title="Local setup">
+The addresses below are for applications and browsers running on the same computer as Docker. Hosting on a server or connecting from another device requires reachable addresses, firewall rules and HTTPS for browser camera and microphone access.
+</Callout>
 
-## Download RelayRTC
+## Download the configuration
 
-```bash
-git clone https://github.com/relayrtc/relayrtc.git
-cd relayrtc
-```
+Create a folder named `relayrtc`. Download these three files into it:
 
-Copy the environment template. In PowerShell:
+| File | Download |
+| --- | --- |
+| `docker-compose.yml` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/f07e41d/docker-compose.yml) |
+| `docker-compose.release.yml` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/f07e41d/docker-compose.release.yml) |
+| `.env.example` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/f07e41d/.env.example) |
+
+On each GitHub file page, use **Download raw file** in the file toolbar. Save the actual file content, not the GitHub HTML page. Keep the filenames exactly as shown, including the leading dot in `.env.example`.
+
+These links point to the configuration used for the `0.1.0` container images.
+
+Copy `.env.example` to `.env`. In PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-In Git Bash, macOS or Linux:
+In Windows Command Prompt:
+
+```cmd
+copy .env.example .env
+```
+
+On macOS or Linux:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` in your editor. Run the remaining commands from the repository root.
+Open `.env` in your editor. Run all remaining commands from this folder.
 
-## Generate secrets
+## Set passwords and secrets
 
-Generate a new value for each setting in this table:
-
-```bash
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
-```
+Use a separate random value for each setting:
 
 | Setting | Used for |
 | --- | --- |
 | `POSTGRES_PASSWORD` | PostgreSQL authentication. |
-| `BETTER_AUTH_SECRET` | Console authentication. |
-| `PARTICIPANT_TOKEN_SIGNING_SECRET` | Participant tokens. |
-| `RELAYRTC_INTERNAL_SECRET` | Communication between services. |
-| `TURN_SHARED_SECRET` | Temporary TURN credentials. |
-| `GRAFANA_ADMIN_PASSWORD` | Grafana login if you start monitoring. |
+| `BETTER_AUTH_SECRET` | Console and dashboard authentication. |
+| `PARTICIPANT_TOKEN_SIGNING_SECRET` | Signing participant tokens. |
+| `RELAYRTC_INTERNAL_SECRET` | Authentication between services. |
+| `TURN_SHARED_SECRET` | Issuing temporary TURN credentials. |
+| `GRAFANA_ADMIN_PASSWORD` | Grafana administrator login. |
 
-Paste each value into its setting in `.env`. Use separate values for the authentication, participant token, internal and TURN secrets. The containers run in production mode and reject placeholder or shared credentials, even on your computer.
-
-Update `DATABASE_URL` with the same PostgreSQL password:
+You can generate a value through Docker. Run this command once for each setting and paste each result into `.env`:
 
 ```bash
+docker run --rm node:24-alpine node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Keep these values separate. The services reject placeholder or shared credentials.
+
+Set `DATABASE_URL` using the same PostgreSQL password:
+
+```dotenv
 DATABASE_URL=postgresql://relaykit:YOUR_POSTGRES_PASSWORD@localhost:5433/relaykit
 ```
 
-Compose supplies the containers with a database URL using the internal `postgres` hostname. The URL above is for tools running on your computer.
+This address is for tools running on your computer. Compose supplies the containers with their internal database address automatically.
 
 Generate the webhook encryption key:
 
 ```bash
-node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+docker run --rm node:24-alpine node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-Save that output as `WEBHOOK_SIGNING_ENCRYPTION_KEY`. It requires a base64-encoded 32-byte key, not a hexadecimal string.
+Paste the result into `WEBHOOK_SIGNING_ENCRYPTION_KEY`. This setting requires a base64-encoded 32-byte key, not a hexadecimal string.
 
-<Callout type="danger" title="Keep your environment file private">
-Do not commit `.env` or put its secrets in frontend code. Keep the webhook encryption key if you want to reuse your database; existing webhook signing secrets depend on it.
+<Callout type="danger" title="Keep your secrets private">
+Do not share `.env`, commit it to Git, or put its values in frontend code. Keep a secure backup of the webhook encryption key. Existing webhook signing secrets cannot be decrypted without it.
 </Callout>
 
-## Configure localhost
+## Configure local addresses
 
-Use these values in `.env`:
+Set these values in `.env`:
 
-```bash
+```dotenv
+RELAYRTC_VERSION=0.1.0
 API_PORT=8080
 SIGNALING_PORT=8081
 MEDIA_PORT=8083
 CONSOLE_PORT=3002
 POSTGRES_PORT=5433
 
-BETTER_AUTH_URL=http://localhost:3002
+BETTER_AUTH_URL=http://localhost:3001
 CONSOLE_AUTH_URL=http://localhost:3002
-BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3002
+BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3001,http://localhost:3002
 RELAYRTC_API_URL=http://localhost:8080
 RELAYRTC_SIGNALING_ALLOWED_ORIGINS=http://localhost:3005,http://localhost:3002
 
@@ -111,136 +131,163 @@ TURN_STUN_URLS=stun:localhost:3478
 TURN_URLS=turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp
 ```
 
-This example expects your frontend at `http://localhost:3005`. Change the allowed origins to match your application's exact origin, including its port. `http://127.0.0.1:3005` and `http://localhost:3005` are different origins.
+This example allows an application frontend at `http://localhost:3005`. Replace that origin with your application's address, including its port. `localhost` and `127.0.0.1` are different origins.
 
-Keep `TURN_DOCKER_RELAY_ADDRESS=172.30.0.11`. It is the coturn container's address in the Compose network.
+Keep `TURN_DOCKER_RELAY_ADDRESS=172.30.0.11`; it is the TURN container's address in the Docker network. The URLs above use TURN over UDP and TCP. The container generates its own self-signed TLS certificate at startup, but trusted TURN TLS is not configured by this local example.
 
-The image includes a self-signed TURN TLS certificate. The URLs above use TURN over UDP and TCP, so you do not need to configure a trusted certificate for this setup.
+## Configure sign-in and email
 
-## Configure console sign-in
-
-Replace the provider placeholders in `.env`:
+Replace these placeholders in `.env` with your provider credentials:
 
 - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-- `RESEND_API_KEY` and `RESEND_FROM_EMAIL`, using a verified sender.
+- `RESEND_API_KEY` and `RESEND_FROM_EMAIL`.
 
-Register this callback URL in your GitHub OAuth application:
+Use a verified Resend sender. The current configuration requires both OAuth providers and the email settings, even if you plan to use email and password sign-in.
+
+For the console, register these callback URLs with the respective providers:
 
 ```text
 http://localhost:3002/api/auth/callback/github
-```
-
-Register this callback URL in your Google OAuth application:
-
-```text
 http://localhost:3002/api/auth/callback/google
 ```
 
-The current console configuration requires both OAuth providers and the email settings. It also supports email and password sign-in. Provider placeholders do not give you working OAuth or email delivery.
+If you use OAuth on the admin dashboard, its callback URLs use port `3001`. Google supports multiple authorized redirect URIs. GitHub OAuth applications have one configured callback URL; use the provider application that matches the interface you intend to sign into.
 
-## Start RelayRTC
+## Download and start the images
+
+Validate your configuration:
 
 ```bash
-docker compose --env-file .env config --quiet
-docker compose --env-file .env up --detach --build --wait postgres coturn signaling media api console
-docker compose ps
+docker compose -f docker-compose.yml -f docker-compose.release.yml config --quiet
 ```
 
-The first build takes longer because Docker downloads images and installs dependencies.
+Download the published images:
 
-The `migrate` service applies the database migrations before the application services start. An exit code of `0` for that container means the migrations completed.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml pull
+```
 
-## Local endpoints
+Start the stack:
 
-| Service | Address |
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build --wait
+```
+
+Docker downloads the images from GitHub Container Registry. No GitHub login is needed for public images. The first download can take several minutes, depending on your connection.
+
+The release Compose file selects the published images. Always include both `-f` arguments and `--no-build` when starting this setup; the base Compose file also contains source build definitions.
+
+Check the services:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml ps -a
+```
+
+Application services should be running and become healthy. The `migrate` container exits after applying the database migrations. Exit code `0` means it completed successfully.
+
+## Open the console
+
+Open [localhost:3002](http://localhost:3002), create your account, organization, project and environment, then create a secret API key.
+
+| Service | Local address |
 | --- | --- |
 | Console | `http://localhost:3002` |
+| Admin dashboard | `http://localhost:3001` |
 | REST API | `http://localhost:8080/v1` |
 | Signaling | `ws://localhost:8081/v1/connect` |
 | Media readiness | `http://localhost:8083/ready` |
 | PostgreSQL | `localhost:5433` |
 | STUN and TURN | `localhost:3478` |
+| Prometheus | `http://localhost:9090` |
+| Grafana | `http://localhost:3000` |
 
-The media HTTP address is an internal control service, not an SDK endpoint. Browsers receive media transport information through signaling.
+Grafana uses the administrator username and password from `.env`. Dashboard access follows the application's authorization rules.
 
-Open the console, create your account, organization, project and environment, then create a secret API key.
+The media HTTP service is an internal control endpoint, not an SDK endpoint. Browsers receive their media transport configuration through signaling.
 
-## Connect your application
+## Connect an application
 
-Set these values on your application's backend:
+Configure your application's backend:
 
-```bash
+```dotenv
 RELAYRTC_API_URL=http://localhost:8080/v1
 RELAYRTC_SIGNALING_URL=ws://localhost:8081/v1/connect
 RELAYRTC_SECRET_KEY=your-project-secret-key
 ```
 
-Follow [Build your first call](/quickstart) to create a room and issue participant tokens. Use the API URL above for this deployment; the quickstart's example port may differ.
+Follow [Build your first call](/quickstart) to create a room and issue participant tokens. Use the local API and signaling addresses above if the quickstart uses different ports.
 
-Keep the secret key on your backend. Your frontend receives a participant token and the signaling URL.
+Keep the secret API key on your backend. Send only the participant token and signaling URL to the frontend.
 
-Open two browser windows and join the same room with different participant tokens. Allow camera and microphone access, then test audio, video, messages and screen sharing. Browsers allow camera and microphone access on localhost without configuring HTTPS.
+Join the same room from two browser windows using different participant tokens. Allow camera and microphone access, then test audio, video, messages and screen sharing.
 
 ## Troubleshooting
 
-Inspect the logs:
+Read the service logs:
 
 ```bash
-docker compose logs --tail 100 api signaling media coturn console migrate
+docker compose -f docker-compose.yml -f docker-compose.release.yml logs --tail=100 api signaling media coturn console migrate
 ```
 
 | Problem | Check |
 | --- | --- |
-| Docker cannot connect | Docker Desktop or the Docker Engine service is running. |
-| A port is already in use | Stop the other application or change the host port in `.env`. |
+| Docker cannot connect | Start Docker Desktop or Docker Engine. |
+| A configuration file is missing | Run the command from the folder containing both Compose files and `.env`. |
+| Image download is denied | Check the image name and version. The GHCR package must be public for anonymous downloads. |
+| Docker tries to build source | Include the release Compose file and `--no-build`. |
+| A port is already in use | Stop the other stack or application, or change its host port in `.env`. |
 | API exits during startup | Replace placeholder secrets and check the webhook key's base64 encoding. |
-| PostgreSQL rejects the password | An existing database volume keeps its original password. Use that password or update it in PostgreSQL. |
-| Signaling rejects the connection | Match your frontend origin and port in `RELAYRTC_SIGNALING_ALLOWED_ORIGINS`. |
-| Camera or microphone is unavailable | Check browser permissions and whether another application is using the device. |
-| Room joins but remote media is missing | Check the media address, Docker port mappings and your computer's firewall. |
-| Console OAuth or email fails | Check provider credentials, callback URLs and the Resend sender. |
+| PostgreSQL rejects the password | An existing volume keeps its original database password. Changing `.env` does not update that password. |
+| Signaling rejects a connection | Match the frontend origin in `RELAYRTC_SIGNALING_ALLOWED_ORIGINS`. |
+| Remote media is missing | Check media and TURN addresses, Docker port mappings and the host firewall. |
+| Camera or microphone is unavailable | Check browser permissions and other applications using the device. |
+| OAuth or email fails | Check provider credentials, callback URLs and your verified email sender. |
 
 See [Troubleshooting calls](/guides/troubleshooting) for browser checks.
 
-<Callout type="note" title="Localhost means this computer">
-This configuration is for browsers running on the same computer as Docker. A phone or another computer cannot reach it through localhost. Testing on another device requires reachable addresses, firewall access and HTTPS for browser camera and microphone permissions.
+## Change settings or upgrade
+
+After editing `.env`, recreate the services to apply the settings:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build --wait
+```
+
+To upgrade, back up your database and `.env`, read the release notes, and download any updated configuration files. Set `RELAYRTC_VERSION` to the published version you want to run, then download its images:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml pull
+```
+
+Run that version's migrations before starting the updated services:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm --no-deps migrate
+```
+
+The existing PostgreSQL service must be running for this command. Stop if migration fails. After a successful migration:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build --wait
+```
+
+Schedule upgrades when no calls are active. Recreating media or signaling services interrupts calls. Returning to an older image does not undo database migrations.
+
+## Stop or remove the installation
+
+Stop the containers while keeping your database and other saved data:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml down
+```
+
+To remove the saved data as well:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.release.yml down --volumes
+```
+
+<Callout type="danger" title="Removing volumes deletes data">
+This removes accounts, projects, API keys, rooms and other stored records. Back up anything you need before running `down --volumes`.
 </Callout>
-
-## Apply changes
-
-After editing `.env`, recreate the services so they receive the new values:
-
-```bash
-docker compose --env-file .env up --detach --wait postgres coturn signaling media api console
-```
-
-After updating the repository, rebuild the images and run the migrations:
-
-```bash
-git pull --ff-only
-docker compose --env-file .env build --pull
-docker compose --env-file .env run --rm migrate
-docker compose --env-file .env up --detach --wait postgres coturn signaling media api console
-```
-
-Stop if migration fails. Updating media or signaling can interrupt active calls.
-
-## Stop or reset
-
-Stop the stack and keep its saved data:
-
-```bash
-docker compose down
-```
-
-To delete the local database and other Compose volumes:
-
-```bash
-docker compose down --volumes
-```
-
-<Callout type="danger" title="Reset deletes your local data">
-Removing volumes deletes accounts, projects, API keys, rooms and other stored records. Export any data you need before resetting.
-</Callout>
-
