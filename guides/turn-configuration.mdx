@@ -1,0 +1,143 @@
+---
+title: "TURN configuration"
+description: "Configure TURN servers, require relayed media and renew temporary credentials."
+section: "Build calls"
+---
+
+## When TURN is used
+
+TURN relays media when a browser cannot establish a direct connection to the media server. It is useful on networks with restrictive firewalls or NAT configurations.
+
+The browser SDK accepts TURN configuration through `iceServers`, `turnCredentials` or `refreshTurnCredentials`. Supply the server configuration or a credential callback when creating your client or provider. The SDK does not discover a custom TURN URL for you.
+
+With the default `iceTransportPolicy: 'all'`, WebRTC can select a direct or relayed connection. Set `iceTransportPolicy: 'relay'` to require TURN for the media connection. Signaling still uses your configured WebSocket URL.
+
+## Requirements
+
+- A reachable TURN server and its authentication credentials.
+- A signaling URL and a participant token issued by your backend.
+- HTTPS or localhost for browser media capture.
+
+Use `turn:` for a TURN endpoint or `turns:` for TURN over TLS. Use the URL, port and transport supported by your provider. A typical deployment offers UDP on port 3478 and TLS over TCP on port 5349.
+
+The URL must be reachable from the participant's browser. `localhost` points to that participant's machine, so use a public hostname for remote participants.
+
+## Configure RelayClient
+
+```ts
+import { RelayClient } from '@relayrtc/client'
+
+const client = new RelayClient({
+  signalingUrl: 'wss://signaling.example.com/v1/connect',
+  iceTransportPolicy: 'relay',
+  iceServers: [
+    {
+      urls: [
+        'turn:turn.example.com:3478?transport=udp',
+        'turns:turn.example.com:5349?transport=tcp',
+      ],
+      username: 'your-turn-username',
+      credential: 'your-turn-password',
+    },
+  ],
+})
+```
+
+Replace the example URLs and credentials with your provider's values. Then join using your backend-issued participant token as shown in the [browser client guide](/reference/sdk/client/javascript/overview).
+
+To allow direct connections as well, use `iceTransportPolicy: 'all'` or omit the property. With `'relay'`, invalid credentials or an unreachable TURN server prevent the media connection from succeeding.
+
+TURN credentials supplied to a browser are visible to that browser. Prefer temporary credentials over placing a permanent provider password in your frontend bundle.
+
+## Configure RelayProvider
+
+The React SDK accepts the same ICE settings on [RelayProvider](/reference/sdk/client/react/RelayProvider).
+
+```tsx
+import { RelayProvider, RelayRoom } from '@relayrtc/react'
+
+function Call({ token }: { token: string }) {
+  return (
+    <RelayProvider
+      signalingUrl="wss://signaling.example.com/v1/connect"
+      iceTransportPolicy="relay"
+      iceServers={[
+        {
+          urls: 'turn:turn.example.com:3478?transport=udp',
+          username: 'your-turn-username',
+          credential: 'your-turn-password',
+        },
+      ]}
+    >
+      <RelayRoom token={token}>
+        <YourCall />
+      </RelayRoom>
+    </RelayProvider>
+  )
+}
+```
+
+`YourCall` is your call component. In Next.js, place this component in a client module.
+
+## Issue temporary credentials
+
+On your backend, use [turn.createCredentials](/reference/sdk/server/node/turn/createCredentials) or [POST /v1/turn/credentials](/reference/api/v1/turn/create-credentials). The management key needs the `tokens:create` scope and stays on your server.
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+
+const credentials = await relay.turn.createCredentials()
+```
+
+Calling without room/session IDs creates environment-scoped credentials for initial setup. Supply both `roomId` and `sessionId` for session-bound credentials. The response includes `iceServers` and `expiresAt`.
+
+For a self-hosted deployment, the issued URLs come from `TURN_URLS`. `TURN_SHARED_SECRET` must match the TURN server's shared-secret authentication configuration. An external provider with another credential mechanism needs its own backend integration.
+
+You can pass an initial response as `turnCredentials`. For automatic renewal, supply a server-backed `refreshTurnCredentials` callback:
+
+```ts
+import { RelayClient } from '@relayrtc/client'
+
+const client = new RelayClient({
+  signalingUrl: 'wss://signaling.example.com/v1/connect',
+  iceTransportPolicy: 'relay',
+  refreshTurnCredentials: async ({ roomId, sessionId, signal }) => {
+    const response = await fetch('/api/turn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ roomId, sessionId }),
+      signal,
+    })
+
+    if (!response.ok) throw new Error('Unable to obtain TURN credentials')
+    return response.json()
+  },
+})
+```
+
+Your application implements `/api/turn`. Authenticate the caller and verify their access to the requested room/session before issuing credentials. Return the credential response as JSON. Never send the management API key or shared TURN secret to the browser.
+
+The callback supplies initial credentials when none were provided and renews them before expiry. The SDK updates the ICE servers and restarts ICE during renewal. The default refresh margin is 60 seconds. See [connection recovery](/guides/connection-recovery) for the React callback example and participant token expiry behavior.
+
+## Check the connection
+
+To verify TURN usage, inspect the selected ICE candidate pair in your browser's WebRTC diagnostics. In Chromium browsers, open `chrome://webrtc-internals` before starting a call. A local candidate with type `relay` indicates that the browser is using a TURN allocation for that transport.
+
+Check each media transport. A successful WebSocket connection or room join alone does not prove that media is using TURN.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Room joins but media cannot connect with `'relay'` | TURN hostname, ports, transport, credentials and relay-port firewall rules. |
+| Local testing works but remote participants fail | Replace localhost URLs with a hostname reachable from participant browsers. |
+| Credentials are rejected | Username/password validity, expiry and the shared-secret configuration used by your issuer. |
+| A long call loses relay connectivity | Provide `refreshTurnCredentials` and check that your authenticated renewal endpoint succeeds. |
+| A connection still uses direct candidates | Confirm the client/provider was created with `iceTransportPolicy: 'relay'`. |
+
+See [troubleshooting calls](/guides/troubleshooting) for broader connection and media checks.
