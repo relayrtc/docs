@@ -83,5 +83,5 @@ The hook detaches its element on cleanup. It does not stop local capture or unsu
 
 Turning the camera off with `camera.disable()` removes its remote publication. Your participant tile should show a placeholder when there is no camera track. Do not wait for a paused state when the publication no longer exists.
 
-The current server does not signal remote pause/resume for local `camera.mute()`. See [camera-off controls](/guides/camera-and-microphone#camera-off).
+`await camera.mute()` signals a paused publication to remote participants; `await camera.unmute()` resumes it. See [camera-off controls](/guides/camera-and-microphone#camera-off).
 

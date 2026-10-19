@@ -28,7 +28,7 @@ function ShareScreenButton() {
 }
 ```
 
-Screen audio is optional. The browser, operating system and selected capture surface decide whether an audio track is available.
+Screen audio is optional. The browser, operating system and selected capture surface decide whether an audio track is available. If shared audio ends, the SDK removes its audio publication and keeps screen video running. Permission denial and picker cancellation reject the start promise; capture stays inactive. Stopping or leaving while a picker is open discards and stops any tracks it returns later.
 
 ## Show loading and local preview
 
@@ -62,6 +62,8 @@ await local?.screen.stop()
 ```
 
 The SDK also stops the publication when the user ends capture from the browser’s sharing controls.
+
+Use `await local?.screen.mute()` and `await local?.screen.unmute()` to pause/resume the screen publications while keeping capture open. These calls wait for server confirmation.
 
 See [screen controls and options](/reference/sdk/client/react/media/screen).
 

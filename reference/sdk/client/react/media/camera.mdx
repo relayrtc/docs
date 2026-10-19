@@ -24,8 +24,8 @@ Join the room, grant `video:publish` in the token and allow camera access. Use H
 | enable(constraints?) | `Promise<MediaStreamTrack>` | Capture and publish. Repeated enable returns the existing track. |
 | disable() | `Promise<void>` | Stop capture and remove the publication. |
 | switchDevice(deviceId) | `Promise<MediaStreamTrack or null>` | Select a camera and replace the active capture when enabled. |
-| mute() | void | Pause the local sender without releasing capture. |
-| unmute() | void | Resume the local sender. |
+| mute() | `Promise<void>` | Pause sending and await server confirmation without releasing capture. |
+| unmute() | `Promise<void>` | Resume sending after server confirmation. |
 | subscribe(listener) | `() => void` | Observe snapshots outside React; return value removes the listener. |
 
 ## Capture options

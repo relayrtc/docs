@@ -24,8 +24,8 @@ A connected room, `audio:publish` permission and microphone access.
 | enable(constraints?) | `Promise<MediaStreamTrack>` | Capture and publish microphone audio. |
 | disable() | `Promise<void>` | Release capture and remove publication. |
 | switchDevice(deviceId) | `Promise<MediaStreamTrack or null>` | Replace the active input device. |
-| mute() | void | Pause outgoing audio while retaining capture. |
-| unmute() | void | Resume outgoing audio. |
+| mute() | `Promise<void>` | Pause outgoing audio while retaining capture. |
+| unmute() | `Promise<void>` | Resume outgoing audio. |
 | subscribe(listener) | `() => void` | Observe the microphone snapshot. |
 
 ## Audio constraints
@@ -52,8 +52,8 @@ await local?.microphone.enable({
   autoGainControl: true,
 })
 
-local?.microphone.mute()
-local?.microphone.unmute()
+await local?.microphone.mute()
+await local?.microphone.unmute()
 await local?.microphone.disable()
 ```
 
