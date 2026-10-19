@@ -1,0 +1,64 @@
+---
+title: "Node recording methods"
+description: "Start recordings, configure automatic capture and authorize VOD assets from your backend."
+section: "Server SDK"
+---
+
+Use a matching local Node SDK build and a secret key with recordings:create and recordings:read. These methods belong on an application backend.
+
+```ts
+const policy = {
+  mode: 'manual' as const,
+  maxDurationSeconds: 14400,
+  retentionSeconds: 604800,
+  region: 'us-east-1',
+  allowPartial: false,
+  exportMp4: true,
+  segmentEvents: false,
+  consentAcknowledged: true,
+}
+// Obtain consent and authorize the host before reaching this call.
+const recording = await relay.streams.recordings.start(streamId, { broadcastId, policy })
+await relay.recordings.stop(recording.id)
+const observed = await relay.recordings.get(recording.id)
+// Follow observed.state until ready or failed before requesting access.
+```
+
+| Method | Returns |
+| --- | --- |
+| `streams.recordings.start(streamId, input, options?)` | RecordingResource |
+| `streams.recordings.list(streamId, query?, options?)` | RecordingPage |
+| `streams.recordings.getPolicy(streamId, options?)` | policy or null, version |
+| `streams.recordings.setPolicy(streamId, input, options?)` | policy, version |
+| `recordings.list(query?, options?)` | RecordingPage |
+| `recordings.get(recordingId, options?)` | RecordingResource |
+| `recordings.stop(recordingId, options?)` | observed RecordingResource |
+| `recordings.getPlayback(recordingId, options?)` | RecordingPlayback |
+| `recordings.delete(recordingId, options?)` | deleting/deleted RecordingResource |
+| `assets.get(assetId, options?)` | MediaAsset |
+| `assets.createAccessGrant(assetId, input?, options?)` | AssetAccessGrant |
+| `assets.delete(assetId, options?)` | associated RecordingResource |
+
+Command methods generate an idempotency key and preserve it through transport retries. Supply `options.idempotencyKey` to preserve command identity across application retries. Stop/delete return 202 observed resources, not completed cleanup promises; poll get until ready/failed/deleted as appropriate.
+
+## Automatic capture
+```ts
+const current = await relay.streams.recordings.getPolicy(streamId)
+await relay.streams.recordings.setPolicy(streamId, {
+  version: current.version,
+  policy: { ...policy, mode: 'automatic' },
+})
+// Create a NEW broadcast to snapshot this policy, then start it.
+```
+
+## Playback, download and ready events
+```ts
+// First authorize your application user to view this recording.
+const ready = await relay.recordings.get(recordingId)
+if (ready.state !== 'ready') throw new Error('Recording is not ready')
+const playback = await relay.recordings.getPlayback(ready.id)
+const grant = await relay.assets.createAccessGrant(ready.assetId, { action: 'playback' })
+const download = await relay.assets.createAccessGrant(ready.assetId, { action: 'download' })
+```
+
+Return only the needed metadata/grant to the authorized caller. Download is unavailable when exportMp4 was false. Use verifyWebhookRequest with the untouched raw body and delivery headers for recording.ready callbacks, deduplicate event IDs durably, and re-read recording/asset ownership and readiness before making a publication decision. The [runnable guide](/guides/recording-and-vod) describes the existing example's verified callback and limits.

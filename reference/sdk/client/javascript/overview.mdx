@@ -27,6 +27,16 @@ const client = new RelayClient({
 
 The configuration is the same browser configuration accepted by [RelayProvider](/reference/sdk/client/react/RelayProvider), excluding React props, messageHistoryLimit and onError.
 
+## Connection mode per participant
+
+Each `RelayClient` has its own ICE configuration. Participants in the same room can choose different modes: `iceTransportPolicy: 'all'` allows Automatic selection, while `iceTransportPolicy: 'relay'` requires TURN for that client's media connection.
+
+Provide TURN servers or temporary credentials when you want TURN to be available. To disable it, use `'all'` with `iceServers: []` and no `turnCredentials` or `refreshTurnCredentials`. Automatic alone does not mean TURN is disabled.
+
+Choose the policy when creating the client. Leave the current call and create a client with the new settings to change modes. See [TURN configuration](/guides/turn-configuration#choose-a-mode-for-each-participant) for the mode comparison and connection checks.
+
+The [browser example](/guides/turn-configuration#browser-example) shows a client factory accepting Automatic, Force TURN or TURN disabled for each participant, with temporary credential renewal.
+
 ## Join and publish
 
 ```ts
@@ -75,6 +85,26 @@ stop()
 Only one room can be active on a client. Leave it before joining another room.
 
 The returned [Room](/reference/sdk/client/react/room) provides camera, microphone, screen sharing, messages, metadata, remote tracks, credentials and quality statistics. Those methods work the same way outside React.
+
+## Inspect media connections
+
+The joined Room exposes `getMediaConnectionStats()`. It returns a local snapshot of the send and receive transports, including their state, actual route, protocols and selected-pair byte counters. This is separate from the requested connection policy and the room's signaling state.
+
+```ts
+import type { MediaConnectionStats } from '@relayrtc/client'
+
+const snapshot: MediaConnectionStats = await room.getMediaConnectionStats()
+
+for (const transport of snapshot.transports) {
+  console.log(transport.direction, transport.state, transport.route)
+  console.log(transport.protocol, transport.relayProtocol)
+  console.log(transport.bytesSent, transport.bytesReceived)
+}
+```
+
+Here, `room` is the result of `client.join()`. Handle rejected requests when the room closes or browser statistics are unavailable. Use a matching browser SDK build that includes this method and its types.
+
+The values describe this client's selected ICE pairs, not project usage or invoice totals. Counters can change or reset when a pair or transport changes. No selected pair produces an unknown route and zero fallback counters. See the shared [Room reference](/reference/sdk/client/react/room#media-connection-stats) and [stats types](/reference/sdk/client/react/types#mediaconnectionstats).
 
 ## Leave
 

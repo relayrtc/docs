@@ -32,6 +32,16 @@ Use one provider for each independent room client. Put all room hooks inside it.
 | messageHistoryLimit | number | 100 | Integer 0–10,000. Zero disables local history. |
 | onError | `(error: RoomError) => void` | Optional | Observe SDK failures. |
 
+## Connection mode per participant
+
+ICE settings apply to this provider's client connection. They do not set a policy for the whole room. One participant can use `iceTransportPolicy="all"` for Automatic while another participant in the same room uses `iceTransportPolicy="relay"` for Force TURN.
+
+Automatic can select a direct or relayed route when TURN credentials are supplied. Force TURN requires valid credentials and a reachable TURN server. To disable TURN, use `iceTransportPolicy="all"`, pass `iceServers={[]}`, and omit `turnCredentials` and `refreshTurnCredentials`.
+
+Choose these props before joining. Leave and rejoin with the new configuration to change modes. See [TURN configuration](/guides/turn-configuration#choose-a-mode-for-each-participant) for mode selection and route verification.
+
+The [React example](/guides/turn-configuration#react-example) shows a call component accepting a mode for the current participant and supplying temporary credentials only when TURN is enabled.
+
 ## Reconnect options
 
 | Option | Default | Limits |

@@ -1,0 +1,30 @@
+---
+title: "Mixers"
+description: "Tenant-scoped scene authoring, activation operations and approved image uploads."
+section: "REST API"
+---
+
+Authenticate with a secret key or console session. Reads require streams:read; authoring and stop require streams:write; create and activation also require streams:publish. Project/environment scope comes from verified credentials or explicit console scope and must match the owning broadcast/stream. Each additional source is checked against the same project/environment and read authority. Viewer playback uses existing application-issued stream grants, not management endpoints.
+
+| Method | Route | Result |
+| --- | --- | --- |
+| POST / GET | /v1/broadcasts/:broadcastId/mixers | 201 MixerResource / 200 data |
+| GET | /v1/mixers/:mixerId | 200 MixerResource |
+| GET | /v1/mixers/:mixerId/scenes | 200 data |
+| PUT | /v1/mixers/:mixerId/scenes/:sceneId | 200 MixerSceneResource |
+| POST | /v1/mixers/:mixerId/activate-scene | 202 mixer, operation |
+| POST | /v1/mixers/:mixerId/overlays | 201 MixerOverlay |
+| DELETE | /v1/mixers/:mixerId/overlays/:overlayId | 200 id, deleted |
+| POST | /v1/mixers/:mixerId/stop | 202 mixer, operation |
+| GET | /v1/mixer-operations/:operationId | 200 MixerOperation |
+| GET | /v1/mixers/openapi | 200 OpenAPI 3.1 description |
+
+Create accepts optional sources (up to three id/streamId bindings); primary is implicit. PUT scene accepts version and scene. Activation accepts version (mixer), sceneId and sceneVersion. Stop accepts version (mixer). Overlay upload accepts name, contentType: image/png and dataBase64; decoded PNG limits are 1 MiB and 640×360. The upload reserves an immutable private object before writing it, so retrying the same command can complete an interrupted upload. Requests are bounded to 1.5 MB for this upload route.
+
+Mutations support Idempotency-Key scoped to authenticated actor/method/path and checked against the request fingerprint. Reuse the same key and body for an uncertain result; use GET to observe newer status. Activation/stop return a durable operation ID with pending/completed/failed, errorCode and timestamps. One activation is pending at a time. Scene lists are bounded to twelve; broadcast mixer lists to ten definitions, newest first, so pagination is not needed for these bounded collections.
+
+MixerResource includes IDs/scope, lifecycle state, version, desiredVersion/appliedVersion, desiredSceneId/appliedSceneId, source and overlay metadata, lostSources, lastError, usage, limits and timestamps. State is created → preparing → live/degraded → stopping → stopped/failed. Degradation can recover without a new run. The immutable scene snapshot and applied snapshot are internal; ordinary reads do not expose storage keys, gateway credentials or process options.
+
+Typed conflicts include MIXER_CAPACITY, MIXER_RUN_ENDED, MIXER_PROFILE_LIMIT, MIXER_EXCLUSIVE_SOURCE, MIXER_SOURCE_SCOPE, MIXER_FEEDBACK_FORBIDDEN, MIXER_SOURCE_UNBOUND, MIXER_SCENE_LIMIT, MIXER_VERSION_CONFLICT, MIXER_SCENE_VERSION_CONFLICT, MIXER_ACTIVATION_PENDING, MIXER_SOURCE_REQUIRED, MIXER_OVERLAY_IN_USE and MIXER_OVERLAY_UNAVAILABLE. Invalid PNG admission returns MIXER_OVERLAY_INVALID; disabled admission returns MIXERS_DISABLED. A 60-second unconfirmed activation drains with MIXER_ACTIVATION_TIMEOUT. Owners that end or retire drain dependent mixers. Stop is distinct from stopping the original RTC room or broadcast.
+
+OpenAPI request/response schemas use the same shared validators as the API and console; cross-field canvas, source and ownership checks remain authoritative API policies. See [scene schema](/guides/mixer-scene-schema) and [operational limits](/guides/cloud-video-mixer).

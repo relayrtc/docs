@@ -1,0 +1,36 @@
+---
+title: "Node guest methods"
+description: "Explicit management and subject-bound audience operations for co-hosting."
+section: "Node SDK"
+---
+
+The matching unreleased Node SDK exposes relay.streams.guests. Methods take streamId and broadcastId, then their input/query and optional RequestOptions. Resource-specific methods also take guestId before input. RequestOptions support AbortSignal and mutation idempotency keys.
+
+| Methods | Purpose |
+| --- | --- |
+| `configureStage`, `getStage` | Versioned stage policy and occupancy |
+| `createAudienceGrant` | Bind backend-verified subject, role and delegations |
+| `invite`, `listInvites`, `cancelInvite` | Operator invitation management |
+| `acceptInvite`, `declineInvite` | Own bound recipient decisions |
+| `requestJoin`, `listRequests` | Own request and authorized queue |
+| `approveRequest`, `rejectRequest` | Authorized operator decisions |
+| `list` | Accepted/approved/joined roster |
+| `getStatus` | Explicit subject-owned snapshot |
+| `createJoinGrant`, `leave` | Own stage grant/departure |
+| `mute`, `remove` | Authorized backend moderation |
+
+```ts
+// Your backend has authenticated user and verified their run access first.
+const request = await relay.streams.guests.requestJoin(streamId, broadcastId, {
+  subject: user.id,
+  media: { audio: true, video: false, screen: false },
+}, { signal, idempotencyKey })
+// An authorized host/delegate approves separately.
+const approved = await relay.streams.guests.approveRequest(streamId, broadcastId,
+  request.id, { version: request.version }, { signal, idempotencyKey: approvalKey })
+// Only the bound guest's authorized backend may request this grant.
+const grant = await relay.streams.guests.createJoinGrant(streamId, broadcastId,
+  approved.id, { version: approved.version, subject: user.id }, { signal })
+```
+
+The SDK does not authenticate your application's caller: never accept subject, role or delegation directly from their body. Methods acting for a user require explicit subject on requestJoin, acceptInvite, declineInvite, createJoinGrant and leave; getStatus requires a subject query. Operator methods require your own host/delegation check before invoking a management-key SDK, or forward through a narrow audience credential so the API enforces the delegated actor itself. The example uses the latter for browser guest/host actions. Typed GuestResource/GuestRoster/GuestStage/GuestJoinGrant and existing RelayApiError describe outcomes. See [REST](/reference/api/v1/guests) and [guest identity](/guides/live-guests-and-cohosting).

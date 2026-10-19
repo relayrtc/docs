@@ -1,0 +1,54 @@
+---
+title: "Broadcasts REST API"
+description: "Run snapshots, scoped commands, output status and durable operations."
+section: "API reference"
+---
+
+## Authentication
+Unreleased Phase 1 endpoints are registered when the streaming foundation is enabled. Use a scoped secret API key or authorized console session. reads require streams:read; create/start/stop require streams:write. The API derives scope from verified keys; console requests supply projectId/environmentId query fields. Session mutations require the trusted console Origin. Application backends authorize their own browser users before forwarding commands.
+
+## Routes
+| Method | Path | Success |
+| --- | --- | --- |
+| POST | `/v1/broadcasts` | 201 BroadcastResource |
+| GET | `/v1/broadcasts` | 200 data and nextCursor |
+| GET | `/v1/broadcasts/{broadcastId}` | 200 resource plus usage |
+| POST | `/v1/broadcasts/{broadcastId}/start` | 202 StreamingOperation |
+| POST | `/v1/broadcasts/{broadcastId}/stop` | 202 StreamingOperation |
+| GET | `/v1/broadcasts/{broadcastId}/outputs` | 200 data: BroadcastOutput array |
+| GET | `/v1/streaming-operations/{operationId}` | 200 StreamingOperation |
+
+Lists use ascending scoped run IDs, limit 1..100 (default 30), cursor, optional streamId and state filters. Optional order=newest sorts by descending creation time and run ID using the same scoped cursor contract. Optional activeOnly=true restricts results to running desired state and excludes stopping/terminal runs. The console uses both to locate the current run even when older history spans pages. A null nextCursor ends pagination. The response also reports environment-scoped limits with activeRuns, maxActiveRuns and reservedOutputs. Ordinary reads exclude worker lease tokens and internal grants.
+
+## Create
+```json
+{
+  "streamId": "stream_example",
+  "name": "Town hall",
+  "outputs": [{"kind": "hls"}],
+  "waitTimeoutSeconds": 120,
+  "maxDurationSeconds": 14400
+}
+```
+
+Each run includes one HLS output. Optional destinationIds select up to eight enabled destinations from the same stream. Default source wait is 120 seconds, range 10..600. Maximum run duration defaults to four hours, range 60..86400 seconds, capped by the stream's configured maximum. The run captures streamVersion, source, profile, outputs, selected destination versions/profiles and recording=false. Configuration changes require a new run, not mutation of a running snapshot.
+
+Resources expose id, streamId, organizationId/projectId/environmentId, name, state, desiredState, version, snapshot, sourceSessionId/sourceGeneration, waitTimeoutSeconds, maxDurationSeconds, lastError, correlationId and ISO UTC createdAt/startRequestedAt/startedAt/endedAt. States: created, waiting_for_source, starting, live, reconnecting, degraded, stopping, stopped, failed. Terminal run IDs cannot restart.
+
+## Commands and operations
+Create/start/stop require Idempotency-Key: 1..128 letters/digits/dots/underscores/colons/hyphens. Identity is scoped to verified actor, method and URL with a canonical payload fingerprint. Identical replay returns the same recorded result for 24 hours; different payload reuse returns IDEMPOTENCY_CONFLICT.
+
+Start and stop bodies are empty objects or an optional positive integer version. Stale versions return BROADCAST_VERSION_CONFLICT. Start requires an active unchanged source configuration and available run quota; waiting for a source does not allocate an output slot. Stop is safe during startup, never ends the RTC room and waits for attachment teardown.
+
+Operations reuse the streaming operation endpoint and add nullable broadcastId and kinds broadcast.start/broadcast.stop/broadcast.output.retry; output retries include outputId. Existing streamId/sessionId/status/errorCode/createdAt/completedAt fields remain. Status is pending/completed/failed. Poll the operation before claiming completion; a cached command result can still show its original pending status.
+
+## Output and usage
+Output fields: id, broadcastId, kind, state, attempts, fence, lastError, lastHeartbeatAt, sourceSessionId/sourceGeneration. States: queued/running/retry/stopping/completed/failed/cancelled. Each output owns one independently leased job and persisted attempt history. Phase 2 adds POST /v1/broadcasts/{broadcastId}/outputs/{outputId}/retry, plus destinationId, bytes, bitrate, droppedFrames and transcodeSeconds in output status. See [destinations](/reference/api/v1/destinations).
+
+Run detail includes usage with runSeconds, outputSeconds, reservationSeconds, bytes, transcodeSeconds, samples and coverage. These are distinct observed live work and reserved-slot occupancy. Waiting/retry gaps are not counted as live duration. Missing live observations mark partial coverage. No HLS audience billing is inferred.
+
+## Errors and lifecycle
+Existing error shape is code/description/requestId. Common failures: 400 malformed input/missing key; 401 authentication; 403 scope/role/Origin; 404 inaccessible run/source; 409 BROADCAST_SOURCE_CHANGED, BROADCAST_ALREADY_STARTED, BROADCAST_CAPACITY, BROADCAST_VERSION_CONFLICT or IDEMPOTENCY_CONFLICT; 503 BROADCASTS_DISABLED. Safe runtime reasons include SOURCE_WAIT_TIMEOUT, SOURCE_CONFIGURATION_CHANGED, SOURCE_ENDED, WORKER_LEASE_EXPIRED and OUTPUT_RETRY_EXHAUSTED.
+
+Signed durable webhooks publish broadcast.created, broadcast.starting, broadcast.live, broadcast.reconnecting, broadcast.output_degraded, broadcast.stopped and broadcast.failed. Envelopes carry stable ID, UTC occurrence, ownership scope and run/source/version/correlation data. Delivery is at least once; deduplicate and reconcile REST state. Parent retirement triggers cancellation and waits for cleanup while retaining historical usage/audit.
+

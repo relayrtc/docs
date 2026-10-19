@@ -1,0 +1,58 @@
+---
+title: "Live DVR"
+description: "Retain live media, rewind within its actual window, and return to the live edge."
+section: "Streaming"
+---
+
+## Enable retention
+
+DVR operates on a broadcast run's canonical program. Start a stream, configure its DVR policy, and start a broadcast using that stream. Console → Streams → stream details → Live DVR provides the same controls. The first eligible running broadcast attaches its policy when buffer capacity is available. No second encoder is created.
+
+```ts
+await relay.streams.dvr.configure(streamId, {
+  policy: {
+    enabled: true, durationSeconds: 300, maxBytes: 134217728,
+    endedRetentionSeconds: 300, consentAcknowledged: true,
+  },
+})
+const playback = await relay.streams.dvr.getPlayback(streamId, { broadcastId })
+// Wait for state=live and a non-empty startSeconds/endSeconds range.
+const grant = await relay.streams.createPlaybackGrant(streamId, {
+  mode: 'dvr', broadcastId, ttlSeconds: 300,
+})
+```
+
+These methods require the matching unreleased Node SDK/API. A source without a broadcast does not create DVR media. Default shared capture capacity is four active/draining shared buffers globally and two per environment. Full recordings and buffers share recording-worker capture slots; waiting for a slot reports starting. The worker reserves one slot for finalization. Existing buffer capture is bounded to 24 hours per run.
+
+## What the window means
+
+The duration is an upper bound: byte limits, startup, source gaps and storage pressure can shorten the actual range. Defaults retain at most five minutes under a 128 MiB shared buffer cap. Duration can be 30–1800 seconds, bytes 16–512 MiB and below the operator's recording storage limit. DVR advertises a contiguous retained tail with one audio packaging mode; older clip-pinned islands are excluded. Media seconds are run-buffer time, not browser currentTime. Program date/time fields map media to wall time when the source provides timestamps. Reconnects preserve media sequence and explicit discontinuities; they do not silently concatenate decoder timelines.
+
+```text
+expired media       available retained range                  edge
+-------------------[------------------------------------------]
+                     ^ rewind / paused position               ^ Go live
+                     |---- published-playlist grace: 60s -----|
+```
+
+The DVR endpoint serves ordinary rolling HLS with full fragmented-MP4 segments and a fixed six-second HLS target duration. Canonical segments longer than six seconds fall outside the supported DVR tail; the next supported contiguous tail becomes available when normal packaging resumes. It does not retain LL-HLS partial segments or promise subsecond latency. The original live endpoint retains its existing LL-HLS behavior. Use a DVR-specific HLS adapter with lowLatencyMode false, a sensible liveSyncDuration such as six seconds, and no finite liveMaxLatencyDuration that would override intentional rewinds. Native HLS also works where supported.
+
+## Grants and application authorization
+
+Your backend authorizes the signed-in viewer for an explicit broadcast, obtains metadata with getPlayback and issues mode=dvr grants through the existing playback-grants API. Do not forward management keys to a browser. Bind grant renewal to the same broadcast returned by metadata; reject a changed run and refresh metadata instead of silently switching runs. Omitted broadcastId selects the newest DVR run, including an expired newest run; it never falls back to unrelated older media.
+
+Every playlist and segment request checks the signed grant, stream playback epoch, active tenant ownership and window expiry. The existing revoke playback-grants command revokes DVR too. A normal live or scheduled-viewer grant cannot read DVR. Scheduled audience rights do not automatically include after-event DVR: the application must authorize that entitlement separately. Grants renew before expiry without discarding a rewind or user pause. A segment outside the published range returns DVR_RANGE_EXPIRED (410); the player clamps to retained media. An ended/expired window returns DVR_WINDOW_EXPIRED (410).
+
+## Changes, disabling and shared objects
+
+The first DVR attachment snapshots its policy per run, including when enabled on an already running buffer. Later duration/byte changes apply on the next run. PATCH requires the current policy version; conflicts require reloading. Disabling prevents new attachments and drains current windows for their saved endedRetentionSeconds. DVR-only capture stops; clip buffer capture can continue while the ended DVR tail is pinned until its saved expiry. Draining windows occupy buffer quota until expiry. Re-enabling a disabled window does not revive that run: start a new broadcast. Stopping the run similarly freezes its window for the saved ended retention, then denies access. Owner deletion revokes access immediately; physical cleanup waits for outstanding references.
+
+Clip buffers and DVR share the same recording_segment/recording_object rows. Effective capture retention is the maximum required by enabled clip policy and the saved DVR window. Published DVR playlists pin segments for 60 seconds; segment requests extend their pin while loading. Eviction respects these pins and clip preparation pins. Full recordings and completed clips retain their own object references/copies. Shared buffer storage byte-time is metered once by the recording owner; DVR reports it as shared, not as another charge. Grace and clip pins consume the same cap. If pins prevent eviction, capture pauses rather than exceeding the cap; resume can create a documented source discontinuity.
+
+## Example and operations
+
+The existing examples/streaming-foundation application includes a Live DVR panel. Configure its room source and distinct host/viewer passwords as in [streaming playback](/guides/streaming-playback), enable DVR with the host, start the source/broadcast, then sign in as a viewer. Wait for retained media, pause, rewind 30 seconds and Go live. Stop the run and observe bounded ended access. This is runnable source; live acceptance is still operator work.
+
+See [DVR REST](/reference/api/v1/dvr), [Node methods](/reference/sdk/server/node/dvr), [BroadcastPlayer](/reference/sdk/client/react/broadcast-player), [useDvrPlayback](/reference/sdk/client/react/use-dvr-playback) and [self-hosting](/self-hosting).
+
+Watch relayrtc_dvr_active, relayrtc_dvr_draining, relayrtc_dvr_stalled, relayrtc_dvr_manifest_pins and relayrtc_dvr_delivered_bytes. DVR window_changed and segment_evicted webhooks are coalesced at most once per 30 seconds per run each; enabled/disabled are durable lifecycle events through the existing signed webhook outbox. Reconcile REST after reconnect. DVR delivery meters successfully completed origin HTTP payload bytes, including playlists; partial disconnected transfers, protocol overhead and CDN edge delivery are not measured. Usage rows retain 90 days; aggregate totals persist. Inspect buffer lastError and recording-worker capacity when stalled. Increasing caps needs a new run; disabling preserves bounded draining access.

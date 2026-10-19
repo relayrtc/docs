@@ -1,0 +1,43 @@
+---
+title: "Live streaming foundation"
+description: "Create an authorized source and deliver private HTTP playback."
+section: "Streaming"
+---
+## Availability
+These Phase 0 additions are unreleased drafts. Use matching local builds of core/browser 0.0.0, Node 0.1.0 and React 0.1.0. Existing published packages may not export these additions. No deployment or latency guarantee is implied.
+
+## Sources and viewers
+A stream is reusable source configuration in one project/environment. A source session is one ingest connection or RTC export. Generations distinguish encoder attempts. Broadcast runs and recording assets belong to later phases. HTTP HLS viewers do not join the RTC room and TURN does not relay HLS requests.
+
+Choose a room source for existing RelayRTC publishers, WHIP for WebRTC ingest or RTMP/RTMPS for encoders. WHIP and RTMP start when the publisher connects. A room source starts with `POST /v1/streams/{id}/source-sessions`. Stop ends source activity and revokes playback grants while preserving the source room. A later source connection can reuse configuration. Delete retires the stream, revokes credentials and cleans retained private media.
+
+## Quickstart
+Enable the [self-hosted streaming services](/guides/streaming-self-hosting), create an environment-scoped secret key and use the unreleased Node build on your backend:
+
+```ts
+const room = await relay.rooms.create({ name: 'Live stage' })
+const stream = await relay.streams.create({
+  name: 'Town hall',
+  source: { kind: 'room', roomId: room.id },
+  profile: { layout: 'single', audioOnly: false },
+})
+// Issue an RTC participant token through your authenticated application.
+// Have the publisher join and explicitly enable capture before starting.
+const operation = await relay.streams.start(stream.id)
+const progress = await relay.streamingOperations.get(operation.id)
+```
+
+Keep the resource IDs in your application. Authenticate viewers and check their entitlement before issuing a playback grant. Send only narrow participant tokens and expiring playback grants to browsers. The runnable local example is in `examples/streaming-foundation/` beside the core and SDK repositories.
+
+## Media policy
+Room exports accept H.264/VP8 video and Opus audio. WHIP uses negotiated H.264/VP8/VP9 and Opus; RTMP uses H.264 and AAC/MP3. FFmpeg produces H.264 Main/yuv420p and AAC-LC stereo with a two-second keyframe cadence. Audio-only output carries AAC without a video track.
+
+Empty room track selectors choose screen video first, then producer ID. Single layout selects one video; grid selects up to four. Up to eight authorized microphone/screen-audio publications are mixed. Explicit track IDs must belong to the selected room. Missing audio yields silence; external audio without video yields black output for a video profile. No selected room publications enter bounded recovery. Source replacement or encoder restart can change generation and rebuffer playback.
+
+Defaults: 1280×720, 30 fps, 2.5 Mbit/s video, 128 kbit/s audio, four-hour source limit and five-minute media retention. Limits: even dimensions 320..1920 by 180..1080, 15..30 fps, video 0.2..6 Mbit/s, audio 64..192 kbit/s. Duration and retention each range from 60 seconds to one day. These are source limits, not an audience quota.
+
+## Next steps
+[Ingest and OBS](/guides/streaming-ingest), [private playback](/guides/streaming-playback), [REST reference](/reference/api/v1/streams), [Node reference](/reference/sdk/server/node/streams) and [React player](/reference/sdk/client/react/broadcast-player).
+
+The unreleased [broadcast orchestration foundation](/guides/broadcasts) adds immutable execution runs, independent output jobs and durable operations around this source. Stopping a broadcast preserves its source stream.
+

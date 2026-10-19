@@ -1,0 +1,25 @@
+---
+title: "useStreamGuests and useGuestSession"
+description: "Authorized host controls and consent-first guest stage state."
+section: "React SDK"
+---
+
+Both hooks accept the stable StreamGuestOptions callbacks described by [StreamGuestClient](/reference/sdk/client/javascript/stream-guest-client). Memoize callbacks when they depend on a selected stream/run, and supply a caller-owned guest-status endpoint to useGuestSession. An operator's paginated roster is not a substitute for that caller snapshot.
+
+useStreamGuests returns roster, pending, error, client, refresh and command for host invitations, requests and moderation. useGuestSession adds joinStage and leaveStage and the room/activeGuestId snapshot. Effects connect polling and disconnect/leave RTC on unmount. Backend identity/role checks still apply when a button is hidden.
+
+```tsx
+const guest = useGuestSession(applicationGuestOptions)
+const own = guest.roster?.data.find(row => row.state === 'approved' || row.state === 'accepted')
+return <>
+  {own && !guest.room && <button onClick={() => guest.joinStage(own.id)}>
+    Join stage with devices off
+  </button>}
+  {guest.room && <button onClick={() => guest.room?.localParticipant.microphone.enable()}>
+    Enable microphone
+  </button>}
+  {guest.error && <p role="alert">{guest.error.message}</p>}
+</>
+```
+
+Use existing Room device controls and local-media hooks for prejoin preview/capture errors. Invitation acceptance, RTC join and device enablement are separate choices. Show camera-denial errors while allowing a permitted microphone; moderator mute is a server permission fence, separate from local mute or device disable. Unmount delayed HLS/DVR players during stage participation and restore authorized viewer playback after leave/removal. The streaming-foundation GuestPanel shows host/co-host/viewer flows, audio-only invitations, moderation confirmations, real-time track playback and return-to-viewer behavior. See [live guests](/guides/live-guests-and-cohosting).

@@ -1,0 +1,40 @@
+---
+title: "useRecording"
+description: "Observe recording, show consent-aware indicators and present private recorded video."
+section: "React SDK"
+---
+
+`useRecording` works independently of RelayProvider/RelayRoom. Its application callbacks authorize the caller on your backend. Never place a management key in the browser.
+
+```tsx
+const recording = useRecording({
+  getRecording: signal => app.getRecording({ signal }),
+  start: context => app.startRecording(context),
+  stop: context => app.stopRecording(context),
+  delete: context => app.deleteRecording(context),
+  pollIntervalMs: 2500,
+})
+return <>
+  <RecordingIndicator state={recording.recording?.state} />
+  <button disabled={!consentAcknowledged || !!recording.pending}
+    onClick={() => { void recording.start() }}>Record</button>
+</>
+```
+
+getRecording receives an AbortSignal and returns RecordingResource or null. Optional command callbacks receive `{ signal, idempotencyKey }` and return the observed resource. Forward the idempotency key to your backend's Node SDK command. The client retains it when a response is uncertain. Recreate callbacks when selecting a different stream or recording so an old command identity is not reused for another target.
+
+The hook returns recording, pending, error, isRecording, isProcessing, start, stop, delete and refresh. Queued means capture was requested; isRecording is true only for observed recording. isProcessing indicates finalization. Polling is bounded and canceled on unmount. Command revisions prevent an older status response from overwriting a newer command response. RecordingIndicator can be rendered inside a room UI but does not ask for consent or obtain recording permissions.
+
+## VOD player
+```tsx
+<BroadcastPlayer
+  mode="vod"
+  autoPlay={false}
+  source={{ mode: 'vod', getPlayback: app.getRecordingPlayback, getGrant: app.getAssetGrant }}
+  createHlsEngine={createHlsEngine}
+/>
+```
+
+getPlayback returns RecordingPlayback metadata; getGrant calls an application endpoint which issues a playback asset grant. Ready VOD metadata enables playback. Renewing grants preserves position and paused state for the same asset/generation. Use native controls to seek. An application-supplied HLS engine is required in browsers without native HLS. MP4 download grants are separate from playback grants.
+
+See [Recording and VOD](/guides/recording-and-vod) for partial results, retention, consent and the existing runnable React example. The browser SDK also exports RecordingClient with the same callback/state behavior.

@@ -1,0 +1,47 @@
+---
+title: "Node schedule methods"
+description: "Create scheduled events, convert local times safely and authorize event access."
+section: "Server SDK"
+---
+
+Use a matching local SDK and a backend secret key with streams:read/write. Event grants require streams:playback/publish, and automatic recording requires recordings:create.
+
+```ts
+import { resolveScheduleLocalTime } from '@relayrtc/node'
+
+// On your backend: an ambiguous local time requires an explicit offset in minutes.
+const startsAt = resolveScheduleLocalTime('2026-11-01T19:00', 'Africa/Casablanca')
+const endsAt = resolveScheduleLocalTime('2026-11-01T20:00', 'Africa/Casablanca')
+const event = await relay.schedules.create({
+  broadcast: { streamId, name: 'Weekly event' },
+  timing: { startsAt, endsAt, timeZone: 'Africa/Casablanca', sourceWaitSeconds: 120,
+    catchUpSeconds: 300, publisherEarlySeconds: 900, viewerEarlySeconds: 900,
+    viewerAfterSeconds: 0, notifyBeforeSeconds: null },
+})
+```
+
+| Method | Returns |
+| --- | --- |
+| `schedules.create(input, options?)` | ScheduledBroadcast |
+| `schedules.list(query?, options?)` | SchedulePage |
+| `schedules.get(scheduleId, options?)` | ScheduledBroadcast |
+| `schedules.update(scheduleId, {version, timing}, options?)` | ScheduledBroadcast |
+| `schedules.cancel(scheduleId, {version}, options?)` | cancelled ScheduledBroadcast |
+| `schedules.startNow(scheduleId, {version}, options?)` | accepted ScheduledBroadcast with operationId |
+| `schedules.getOperation(operationId, options?)` | ScheduleOperation |
+| `schedules.getPlayback(scheduleId, options?)` | ScheduledPlayback |
+| `schedules.createPlaybackGrant(scheduleId, {ttlSeconds?}, options?)` | PlaybackGrant |
+| `schedules.createIngestCredentials(scheduleId, options?)` | IngestCredential with scheduleId/notBefore |
+
+Command methods generate a stable key for transport retries. Supply options.idempotencyKey to reuse it across application retries. Conflict errors use the existing RelayApiError with code/status; reload on SCHEDULE_VERSION_CONFLICT. Do not retry with a changed version under the same key.
+
+```ts
+const current = await relay.schedules.get(event.id)
+const requested = await relay.schedules.startNow(current.id, { version: current.version })
+const operation = await relay.schedules.getOperation(requested.operationId)
+// Poll until completed/failed/cancelled; inspect the schedule for the current event lifecycle.
+```
+
+Authorize each application caller before issuing bounded credentials. Publisher notBefore/expiry are enforced on ingest, and the publisher still connects separately. Return scheduled playback metadata to entitled viewers, then issue the event playback grant only when live. A generic stream grant bypasses event-specific policy and should remain an operator capability.
+
+For schedule.reminder/schedule.started webhooks, verifyWebhookRequest must receive the untouched raw request body and headers. Deduplicate the event ID, fetch the schedule and verify project/environment plus intended application audience before notifying anyone. The provider configuration and a runnable example are described in [Scheduled broadcasts](/guides/scheduled-broadcasts).

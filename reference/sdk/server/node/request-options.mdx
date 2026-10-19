@@ -17,6 +17,7 @@ import type { RequestOptions } from '@relayrtc/node'
 | signal | AbortSignal | Optional | Caller cancellation. |
 | timeoutMs | integer | Client default | Override the total deadline, 1–300,000 ms. |
 | retry | false | Optional | Disable retry for this request. Per-request retry tuning is not supported. |
+| idempotencyKey | string | Optional, unreleased Phase 0 | Send a stable application command ID when retrying streaming commands. Streaming commands generate a UUID if omitted. |
 
 Pass options as the final method argument. When a method has an optional query or scope argument, pass `{}` for that argument first.
 

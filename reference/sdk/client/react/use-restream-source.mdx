@@ -1,0 +1,24 @@
+---
+title: "useRestreamSource"
+description: "Follow external source status through your application and reuse private playback."
+section: "React SDK"
+---
+
+Use matching local React/browser SDK builds. The hook is independent of RelayProvider and RTC room membership. Pass stable getSource and optional command callbacks backed by your application. Your backend must authenticate viewers, verify the source attachment, authorize management actions, and project audience-safe status. It must never return the upstream endpoint, headers or management API key.
+
+```tsx
+import { useRestreamSource, BroadcastPlayer } from '@relayrtc/react'
+// These stable callbacks call authenticated endpoints implemented by your application.
+function ExternalViewer() {
+  const source = useRestreamSource({ getSource })
+  return <section>
+    <p>{source.source?.state ?? 'Loading'}</p>
+    {source.error && <p role="alert">{source.error.message}</p>}
+    {source.isLive && <BroadcastPlayer source={{ getPlayback, getGrant }} controls />}
+  </section>
+}
+```
+
+getSource(signal) returns a RestreamDetail. Optional command(action,{idempotencyKey},signal) supports probe/start/stop and returns RestreamDetail. The application forwards the supplied key on its backend. Retries preserve uncertain command keys. Returned fields are source, pending, error, isLive, refresh and command. Poll interval defaults to 2500 ms, with supported values 1000-60000 ms. Cleanup cancels requests and timers; callback identity changes intentionally replace the client. Public playback still uses the stream's own callbacks and viewer authorization; no registry state grants access by itself.
+
+The framework-independent RestreamSourceClient exposes the same callbacks, subscription and snapshot contract. The local restream-panel.tsx example demonstrates the hook with the existing BroadcastPlayer. Supply an HLS engine for browsers without native support as described in [BroadcastPlayer](/reference/sdk/client/react/broadcast-player).

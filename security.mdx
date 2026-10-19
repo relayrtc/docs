@@ -45,3 +45,7 @@ Use HTTPS in production. Provide clear controls for camera, microphone and scree
 
 Log request IDs and error codes. Keep tokens, API keys and webhook signing secrets out of logs.
 
+## Streaming authority (unreleased)
+
+Keep streams:write/publish/playback management keys on your application backend. Authenticate viewers and verify their entitlement before issuing a narrow expiring grant. Ingest credentials, RTC participant tokens, worker grants and playback grants are separate capabilities. Stop/delete revoke viewing; every child manifest/segment is protected. Avoid token-bearing URL logs and public buckets. See [private playback](/guides/streaming-playback).
+

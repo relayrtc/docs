@@ -1,0 +1,56 @@
+---
+title: "useBroadcast and browser status"
+description: "Application-authorized run status, safe polling and explicit controls."
+section: "React SDK"
+---
+
+## Application callbacks
+Unreleased React useBroadcast wraps the browser BroadcastClient. Neither accepts a management key. Your backend authenticates the user, binds the selected run and checks viewer/operator authority. Pass stable callbacks or memoize them when the selected run changes.
+
+```tsx
+import { useBroadcast } from '@relayrtc/react'
+import type { BroadcastClientOptions } from '@relayrtc/client'
+
+async function request(path: string, signal: AbortSignal, body?: unknown, key?: string) {
+  const response = await fetch(path, {
+    method: body === undefined ? 'GET' : 'POST',
+    credentials: 'same-origin', cache: 'no-store', signal,
+    headers: { 'content-type': 'application/json', ...(key ? { 'idempotency-key': key } : {}) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+  if (!response.ok) throw new Error('Broadcast request unavailable')
+  return response.json()
+}
+const options: BroadcastClientOptions = {
+  getBroadcast: signal => request('/app-api/broadcast', signal),
+  getOutputs: signal => request('/app-api/broadcast/outputs', signal),
+  getOperation: (id, signal) => request('/app-api/operations/' + encodeURIComponent(id), signal),
+  start: (input, signal) => request('/app-api/broadcast/start', signal, { version: input.version }, input.idempotencyKey),
+  stop: (input, signal) => request('/app-api/broadcast/stop', signal, { version: input.version }, input.idempotencyKey),
+  retryOutput: (id, input, signal) => request('/app-api/broadcast/outputs/' + encodeURIComponent(id) + '/retry', signal, { version: input.version }, input.idempotencyKey),
+}
+export function RunControls() {
+  const status = useBroadcast(options)
+  return <div>
+    <p>{status.broadcast?.state ?? 'Loading'}</p>
+    <button disabled={status.broadcast?.state !== 'created' || !!status.pending}
+      onClick={() => { void status.start() }}>Start</button>
+    <button disabled={!status.broadcast || !!status.pending}
+      onClick={() => { void status.stop() }}>Stop</button>
+    {status.operation && <p>Operation: {status.operation.status}</p>}
+    {status.error && <p role="alert">{status.error.message}</p>}
+  </div>
+}
+```
+
+## Snapshot and recovery
+The snapshot contains broadcast, outputs, operation, pending, pendingOutputId and a sanitized error. pending is start/stop/retry/null for the application request; operation.status remains pending until durable completion. Disable controls as appropriate while requests run, but allow stop during startup. Optional start/stop/retryOutput callbacks support read-only viewers. Call status.retryOutput(output.id) to retry one failed output. Your backend must authorize operator access, bind the output to the selected run and forward the provided version/idempotency key. Viewers receive safe destination IDs and metrics, never server URLs or keys.
+
+Polling defaults to 3000 ms and accepts 1000..60000 ms. Successful polls reconcile current state and output status after network recovery; no additional signaling subscription is required. Only one poll is active per client. Unmount disconnects, aborts outstanding callbacks and clears polling. The hook is independent of RelayProvider/RelayRoom.
+
+The client preserves a failed command's idempotency key and version when retrying the same action. After a version conflict, explicitly call refresh(true) to discard the failed command identity and load current status before issuing a new command. Callbacks must honor AbortSignal. Errors never expose internal grants or authenticated URLs.
+
+For non-React applications, instantiate BroadcastClient(options), subscribe to getSnapshot(), call connect(), start()/stop()/retryOutput(outputId)/refresh(), then unsubscribe and dispose(). disconnect() resets state and permits later connect(); dispose() additionally removes listeners. Use a new client/options set for another run. Sources and playback grants remain independent of broadcast control; stopping a run does not end the source.
+
+The local streaming-foundation example contains the backend routes and React status panel with fixed-resource authorization, polling, pending/error handling and teardown. See [broadcast lifecycle](/guides/broadcasts) for quotas, safe draining and recovery.
+

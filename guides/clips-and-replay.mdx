@@ -1,0 +1,48 @@
+---
+title: "Clips and replay"
+description: "Retain a live interval and turn it into a private, independently retained highlight."
+section: "Streaming"
+---
+
+## Save a highlight
+
+Clips require retained media. Start a recording, or enable the stream's rolling buffer before starting a broadcast. In Console → Clips, select the environment and stream, acknowledge retention consent, enable the buffer and save. The buffer starts when a broadcast is live; an encoder connection alone does not start it. Existing recordings can also supply clips.
+
+The retained interval display identifies a recording and its broadcast. Choose Create clip, select that recording/buffer and request the last N seconds or a media interval. Wait for ready, preview or download, and publish when your application should issue viewer grants. Publication keeps the bucket private. Operator previews require recordings:create; viewer grants require publication and application authorization.
+
+```ts
+const clip = await relay.streams.clips.create(streamId, {
+  recordingId,
+  interval: { kind: 'last', seconds: 30 },
+  cutMode: 'keyframe',
+  retentionSeconds: 604800,
+  label: 'Match highlight',
+})
+// Poll relay.clips.get(clip.id) until ready or failed.
+```
+
+For exact timeline selection use `{ kind: 'media', startSeconds: 42.5, endSeconds: 55 }`. Media time starts at the first captured segment of the selected recording/run, not when the encoder connected. Buffer eviction does not reset the timeline. Wall-clock selection accepts `{ kind: 'wall', start: '<ISO UTC>', end: '<ISO UTC>' }` only when segment program-date-time maps uniquely. Select media time if wall time is unavailable or ambiguous. Requests crossing missing segments, reconnects or source generations fail rather than silently join unrelated intervals.
+
+## Accuracy and retention
+
+Fast keyframe mode expands the requested interval to complete retained HLS segment boundaries and remuxes H.264/AAC without transcoding. Those boundaries are the canonical packager's keyframe index. Both requested and resolved boundaries are returned; fast cuts can be longer than requested. Precise mode decodes and re-encodes the selected interval, including its edges, to H.264/AAC. It costs more processing and has frame/sample-level accuracy rather than arbitrary sub-frame precision. It does not splice unchanged middle GOPs. Output is an immutable MP4, finite fragmented-MP4 HLS package and a thumbnail when video is present.
+
+Clip requests always name a source recording, which fixes the broadcast/run. They snapshot segment references and pin those segments through processing. Copied clip inputs and outputs use the existing private recording asset store. Source-buffer eviction and stopping a broadcast do not remove a completed clip. Clip retention is independent (one hour to 90 days; default seven days). Deleting the owning stream, project, environment or organization still revokes all dependent assets for tenant security.
+
+Default limits are 120 requested seconds, four pending/rendering clips globally and ten new clips per environment per minute. Limits also apply to precise-mode commands and retries; an Idempotency-Key replay does not consume a new slot. Reuse the same key for the same request when its result is uncertain. Clipping cannot recover evicted media; last-N requests fail if the full requested interval is not retained.
+
+## Rolling buffer and cleanup
+
+Buffers are opt-in with acknowledged consent, default to 300 seconds and 128 MiB per run, and support 30–1800 seconds and 16–511 MiB beneath the deployment storage cap. Four active buffers are admitted globally by default. A buffer uses the recording capture worker, separately from a full recording, for at most 24 hours per broadcast. Duration eviction runs every few seconds; committed unreferenced objects have a 30-second safety grace. Storage pressure can shorten the advertised interval. Pinned media can outlive the duration window but cannot exceed the hard byte cap; if capture cannot fit the next segment it stops visibly with RECORDING_STORAGE_LIMIT. Lower bitrate or increase the permitted cap. Disabling the buffer schedules deletion; enabling again takes effect on a new broadcast run. Ended buffers retain pinned inputs until clip preparation/rendering completes, then retire without creating a full VOD asset. Request a clip while the buffer is active; use a recording for later clipping.
+
+Queued preparation has a ten-minute deadline. Rendering uses the recording worker's fenced leases, three capture slots and one reserved finalizer slot per worker, five attempts, five-second retry delay and a five-minute process deadline. Missing source media fails visibly. Pins are released on ready, failed, deleting and deleted paths. Upload reservations precede storage writes so retries and deletion can discover partial objects. Failed clips retain their diagnostic status until expiry/deletion; their unused media is removed after the finalization safety grace. Cleanup removes copied inputs and obsolete export attempts after finalization; usage history survives deletion.
+
+Processing seconds measure observed render elapsed time, not CPU billing. Stored bytes and byte-seconds belong to each buffer/recording/clip once; aggregate recording infrastructure totals already include clips. Clip metrics are a breakdown and must not be added to those totals. Subscribe to clip.requested, clip.rendering, clip.ready, clip.failed and clip.deleted through signed webhooks; reconcile current state through REST after reconnects.
+
+## Deployment and example
+
+Apply additive migration 0038 through your authorized deployment and rebuild matching API, recording worker, console and local SDKs. No new service or bucket is required. Configure STREAMING_MAX_CLIP_JOBS=4, STREAMING_MAX_CLIPS_PER_MINUTE=10, STREAMING_MAX_CLIP_DURATION_SECONDS=120 and STREAMING_MAX_BUFFERS=4. Existing STREAMING_MAX_RECORDING_BYTES also bounds clip input plus output. Keep the native FFmpeg network guard and the recording worker's bounded tmpfs. Before rollback, drain queued/rendering clips and buffers; preserve the additive tables and usage history.
+
+The existing examples/streaming-foundation application includes clip-panel.tsx and authenticated backend endpoints for interval requests, status, publication and shared VOD playback. Build the local Node/browser/React SDKs, run that example's server and Vite commands, sign in as host, start a recording/buffer and capture at least 30 seconds before saving the last 30. Sign in as viewer to watch a published clip. The demo keeps selected resource IDs in memory; production applications must store their own viewer entitlement and publication decisions durably.
+
+Replaying a finished clip uses a VOD asset. It does not implement DVR seeking within an ongoing live stream. See [REST contracts](/reference/api/v1/clips), [Node clip APIs](/reference/sdk/server/node/clips) and [useClip](/reference/sdk/client/react/use-clip).

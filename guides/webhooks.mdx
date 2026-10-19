@@ -94,3 +94,12 @@ Use a public HTTPS endpoint. Delivery rejects localhost, private network address
 
 Explicit replay uses the endpoint’s current URL and signing secret; automatic retries retain the URL selected for that delivery run. See [event types and payloads](/reference/api/v1/schemas/webhook-event).
 
+## Streaming source events (unreleased)
+
+The Phase 0 API adds stream.created, stream.starting, stream.live, stream.reconnecting, stream.ended and stream.failed to existing signed durable delivery and console filters. Events include source/session/version/correlation data in the existing envelope. Delivery remains at least once: deduplicate event IDs and reconcile current state from [streams REST](/reference/api/v1/streams) after reconnect. No browser management credential is needed to view HLS.
+
+Unreleased Phase 1 also emits broadcast.created, broadcast.starting, broadcast.live, broadcast.reconnecting, broadcast.output_degraded, broadcast.stopped and broadcast.failed. Events carry stable identity, run/source IDs, observed state/version, output summaries, actor snapshot and correlation. They reuse signed durable delivery and console filters. See [broadcast lifecycle](/guides/broadcasts).
+
+
+## Destination events
+Matching Phase 2 builds add destination.created, destination.connected, destination.disconnected, destination.retrying and destination.failed. Payloads include streamId/destinationId and, for runtime events, broadcastId/outputId/fence/correlationId. Keys, full server URLs and raw platform responses are excluded. Deduplicate event IDs and reconcile current output status.

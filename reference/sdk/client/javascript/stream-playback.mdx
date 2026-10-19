@@ -1,0 +1,41 @@
+---
+title: "Browser stream playback"
+description: "Application callbacks, private grants and media attachment without management authority."
+section: "JavaScript SDK"
+---
+## StreamPlaybackClient
+Unreleased additions to local @relayrtc/client 0.0.0. The existing RelayClient room API is preserved.
+
+```ts
+import { StreamPlaybackClient, attachBroadcastPlayback } from '@relayrtc/client'
+
+async function request(path, method, signal) {
+  const response = await fetch(path, {
+    method, signal, credentials: 'same-origin', cache: 'no-store',
+  })
+  if (!response.ok) throw new Error('Playback unavailable')
+  return response.json()
+}
+const client = new StreamPlaybackClient({
+  getPlayback: (signal) => request('/app-api/playback', 'GET', signal),
+  getGrant: (signal) => request('/app-api/grant', 'POST', signal),
+})
+const unsubscribe = client.subscribe(() => renderStatus(client.getSnapshot()))
+const detach = attachBroadcastPlayback(videoElement, client, {
+  autoPlay: true,
+  createHlsEngine, // optional adapter; see React player reference
+  onState: renderPlayerState,
+})
+client.start()
+// During teardown:
+detach()
+unsubscribe()
+client.dispose()
+```
+
+getPlayback returns at least streamId, sourceSessionId, generation and state. getGrant returns url and ISO expiresAt; token is optional because URL transport supports native players. Callbacks must honor AbortSignal and apply your application authentication. Poll interval defaults to 5000 ms and supports 1000..60000 ms. No management URL or secret key is accepted by this API.
+
+start is idempotent. refresh() reconciles metadata; refresh(true) also requests another grant. stop aborts polling and resets state; start can resume it. dispose additionally removes listeners. Snapshot fields are playback, grant and a sanitized error. getServerSnapshot supports SSR.
+
+attachBroadcastPlayback subscribes to this client, uses native HLS when available and otherwise an optional engine adapter, renews source URLs, preserves a paused viewer during renewal and returns complete teardown. It does not start/stop the shared client; the owner controls that lifetime. The adapter signature is `(media, url, onError, onReady) => teardown`. Notify on fatal media errors and destroy all engine resources in teardown. Attachments should not compete for one video element.
+

@@ -43,3 +43,7 @@ Look at RoomError.code and the connection state. Expired tokens, ended rooms, re
 
 If a new token has a different participant identity, leave and rejoin. It cannot renew the active session.
 
+## Streaming playback (unreleased)
+
+For unavailable media, inspect source health and pending operation status before retrying. Check selected publications, encoder codecs, ICE reachability, worker capacity and private storage. A revoked/expired viewer grant must be reissued through an authenticated application endpoint. Reconcile session/generation after worker restart; rebuffering can occur. See [private playback](/guides/streaming-playback) and [operator recovery](/guides/streaming-self-hosting).
+

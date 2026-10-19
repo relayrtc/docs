@@ -331,6 +331,37 @@ export type RoomConnectionState =
   "connecting" | "connected" | "reconnecting" | "disconnected" | "failed";
 ```
 
+## MediaTransportStats
+
+One send or receive transport observation from [room.getMediaConnectionStats()](/reference/sdk/client/react/room#media-connection-stats). Exported by both `@relayrtc/client` and `@relayrtc/react`.
+
+```ts
+export interface MediaTransportStats {
+  readonly direction: "send" | "receive";
+  readonly state: RTCPeerConnectionState;
+  readonly route: "direct" | "relay" | "unknown";
+  readonly protocol: string | null;
+  readonly relayProtocol: string | null;
+  readonly bytesSent: number;
+  readonly bytesReceived: number;
+}
+```
+
+`route` reflects the selected ICE pair when connected. `protocol` is the candidate protocol; `relayProtocol` describes the browser-to-TURN transport when available. Either protocol can be null. An unknown route or zero byte counter without a selected pair is not proof that no traffic occurred.
+
+## MediaConnectionStats
+
+A snapshot for the local client's media transports. Exported by both `@relayrtc/client` and `@relayrtc/react`.
+
+```ts
+export interface MediaConnectionStats {
+  readonly observedAt: string;
+  readonly transports: readonly MediaTransportStats[];
+}
+```
+
+`observedAt` is the ISO timestamp at which the SDK completed the observation. Snapshots do not update automatically; request another snapshot for a new reading.
+
 ## RoomEvents
 
 See [room](/reference/sdk/client/react/room) for behavior, defaults and an example.
@@ -392,6 +423,7 @@ export interface Room extends RoomLocalMedia {
   readonly events: RoomCustomEvents;
   readonly presence: RoomPresenceSnapshot;
   refreshCredentials(): Promise<void>;
+  getMediaConnectionStats(): Promise<MediaConnectionStats>;
   on<Event extends keyof RoomEvents>(
     event: Event,
     listener: (value: RoomEvents[Event]) => void,

@@ -1,0 +1,52 @@
+---
+title: "Recordings REST API"
+description: "Configure recording policies and manage durable capture and finalization."
+section: "API reference"
+---
+
+## Authentication
+Reads require a scoped secret key with `recordings:read`. Starting, stopping, deleting and setting policies require `recordings:create`; this existing scope covers recording management. Asset metadata and grants use the same recording scope. Console members may read; owners/admins may mutate. Project/environment must match the stream. Console mutations require a trusted Origin.
+
+Every mutation requires `Idempotency-Key`. Reuse that key and identical payload after an uncertain response. A different payload with the same key returns IDEMPOTENCY_CONFLICT. Retained command responses are available for 24 hours. Use a new key for each grant renewal.
+
+| Method | Route | Result |
+| --- | --- | --- |
+| POST | `/v1/streams/{streamId}/recordings` | 201 RecordingResource |
+| GET | `/v1/streams/{streamId}/recordings` | 200 data, nextCursor |
+| GET | `/v1/recordings` | 200 scoped recording library |
+| GET | `/v1/recordings/{recordingId}` | 200 RecordingResource |
+| POST | `/v1/recordings/{recordingId}/stop` | 202 observed RecordingResource |
+| DELETE | `/v1/recordings/{recordingId}` | 202 observed RecordingResource |
+| GET | `/v1/recordings/{recordingId}/playback` | 200 VOD metadata |
+| GET | `/v1/streams/{streamId}/recording-policy` | 200 policy or null, version |
+| PUT | `/v1/streams/{streamId}/recording-policy` | 200 policy, incremented version |
+
+List accepts `cursor`, `limit` (1-100; default 30), `projectId` and `environmentId`. Console sessions must select a scope; secret keys default to their own scope. Pagination uses the returned nextCursor.
+
+## Start and policy bodies
+```json
+{
+  "broadcastId": "broadcast_selected",
+  "policy": {
+    "mode": "manual",
+    "maxDurationSeconds": 14400,
+    "retentionSeconds": 604800,
+    "region": "us-east-1",
+    "allowPartial": false,
+    "exportMp4": true,
+    "segmentEvents": false,
+    "consentAcknowledged": true
+  }
+}
+```
+
+`broadcastId` must identify a running broadcast of this stream. Omitting it requires exactly one eligible run; zero or several return RECORDING_BROADCAST_REQUIRED. One active recording per run is allowed. RECORDING_CAPACITY indicates global/environment capacity; no capture is allocated on rejection. Region must match configured storage. Max duration is 10-86400 seconds; retention is 3600-7776000 seconds. Only the consent acknowledgment is mandatory inside policy; other fields have the defaults above.
+
+Set a saved policy using `{ "version": 0, "policy": { ... } }` for the first configuration. Read the current version before replacing it. Mode automatic is copied into new broadcasts; manual capture uses the request policy. A version conflict requires reloading. Setting a policy alone does not start recording. Starting an automatically recorded broadcast also requires recordings:create.
+
+## State and asynchronous commands
+Resource fields include id, streamId, broadcastId, assetId, projectId, environmentId, state, policy, partial, lastError, durationSeconds, storedBytes, storageByteSeconds, processingSeconds, segmentCount, createdAt, startedAt, endedAt and expiresAt. Safe errors never include bucket keys or internal grants.
+
+Stop takes an empty JSON object and requests capture shutdown. Its 202 response may still show recording or queued; poll the resource until finalizing and then ready/failed. Delete revokes all grants immediately and returns deleting; poll until deleted. These asynchronous commands expose progress through RecordingResource rather than a separate streaming-operation ID. Delete is safe to repeat; usage history survives.
+
+Playback metadata includes mode vod, sourceSessionId equal to assetId, generation for grant revocation, durationSeconds, partial and formats. State ready permits grants. Starting, failed and ended metadata do not expose unfinished media. Obtain URLs from the [asset access-grant API](/reference/api/v1/assets).
