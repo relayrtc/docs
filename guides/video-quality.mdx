@@ -52,6 +52,8 @@ function Receive720pButton() {
 | `360p` | Prefer a lower video layer. |
 | `audio-only` | Stop receiving video for that subscription. |
 
+Receive preferences apply immediately within the subscriber bandwidth budget. Automatic upgrades require three fresh observations; downgrades and audio-only fallback take effect without that delay. Stale observations cannot justify an upgrade.
+
 Quality selection applies to camera and screen video. It does not change microphone audio or your camera capture settings. A request for 1080p cannot create a 1080p source from a 720p capture.
 
 ## Sending layers
@@ -68,3 +70,5 @@ const { quality, stats, participantQualities } = useConnectionQuality()
 
 Connection quality describes network health. Video resolution is a separate setting. Use [quality statistics](/reference/sdk/client/react/hooks/useConnectionQuality) to inspect bitrate, packet loss, jitter and selected ICE candidates.
 
+
+Subscriber adaptation uses receive-transport observations; fresh upload statistics cannot make an old download sample current. Bitrate and packet-loss deltas reset after counter resets or observation gaps. Expired quality observations are removed rather than displayed indefinitely.
