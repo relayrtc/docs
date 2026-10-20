@@ -8,9 +8,10 @@ section: "API reference"
 | --- | --- | --- |
 | GET | `/v1/assets/{assetId}` | 200 MediaAsset |
 | POST | `/v1/assets/{assetId}/access-grants` | 201 AssetAccessGrant |
+| POST | `/v1/assets/{assetId}/access-grants/revoke` | 200 `{ assetId, revoked: true }` |
 | DELETE | `/v1/assets/{assetId}` | 202 associated RecordingResource |
 
-Metadata and grant issuance require recordings:read and a matching secret-key scope or console membership. Deletion requires recordings:create or owner/admin membership. Mutations require Idempotency-Key. Scope and Origin behavior match the [recordings API](/reference/api/v1/recordings).
+Metadata and grant issuance require recordings:read and a matching secret-key scope or console membership. Deletion and link revocation require recordings:create or owner/admin membership. Mutations require Idempotency-Key. Scope and Origin behavior match the [recordings API](/reference/api/v1/recordings).
 
 Metadata contains id, recordingId, streamId, broadcastId, state, partial, durationSeconds, region, formats, hasThumbnail, codecs, sizeBytes and expiresAt. Formats remain empty until ready. HLS is present on ready assets; MP4 requires a completed requested export. Audio-only assets have no thumbnail.
 
@@ -19,3 +20,17 @@ Grant input is `{ "action": "playback", "ttlSeconds": 300 }`. Action is playback
 The returned playback URL identifies the protected VOD manifest. Its fragment and initialization references carry the same grant. A playback grant can also authorize `/assets/{assetId}/thumbnail.jpg?token=...` when hasThumbnail is true. Download grants authorize only the MP4 route. Every object checks the owning resources, asset state, grant epoch, expiry and revocation. Bucket keys remain private. MP4 supports a single byte range; authorization is rechecked between chunks. All responses use private, no-store caching and configured streaming CORS origins.
 
 Deleting an asset deletes its recording and media variants, revokes grants immediately and completes asynchronously after worker shutdown. Metadata and cumulative usage remain. Assets from failed or unfinished recordings cannot receive grants. Retention expiry makes media unavailable even if background removal has not finished.
+
+## Revoke existing links
+
+Send an empty JSON object to `POST /v1/assets/{assetId}/access-grants/revoke` with an Idempotency-Key. This retires all existing playback and download grants for that asset without deleting it. The old master playlist, child playlists, initialization files, segments and MP4 range requests stop working. Authorized applications can issue new grants afterward. Console exposes **Revoke existing links** in recording and clip details.
+
+```bash
+curl -X POST "$API_URL/v1/assets/$ASSET_ID/access-grants/revoke" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY" \
+  -H "Idempotency-Key: 79d6a601-fdb0-4ed1-97cd-51a63b14d8e0" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Playback exposes only the committed export generation. A clip grant cannot fetch its temporary, untrimmed source segments or a previous rendering attempt.
