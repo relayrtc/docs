@@ -70,3 +70,11 @@ Mixer usage measures observed pipeline elapsed render seconds, gateway-observed 
 The existing streaming-foundation example includes MixerPanel and host-authenticated mixer/scene/operation endpoints. Build the local SDKs, start its server and Vite app, sign in as host, start the source and broadcast, save a studio scene, then activate it. Use the console to bind additional inputs. The program player and ordinary viewers show the same rendered feed; no management key enters the browser. The demo stores selected IDs in memory; production applications should persist their own studio authorization and command identity. Local compilation does not establish live-media or load acceptance.
 
 See [scene schema](/guides/mixer-scene-schema), [REST APIs](/reference/api/v1/mixers), [Node methods](/reference/sdk/server/node/mixers) and [useMixer](/reference/sdk/client/react/use-mixer).
+
+## Applying a scene safely
+
+Saving a scene does not put it on air. Activation prepares its assets and waits for fresh required inputs before cutting on the compositor clock. The previous applied scene stays selected while preparation runs. The operation completes only after the worker reports the revision and the API observes advancing program output across successive reports. Missing inputs, preparation failures and overload cannot acknowledge a new revision as successfully applied.
+
+A lost input in an already applied scene falls back to black/silence and reports degraded state. Switch to a scene with healthy inputs to recover; the output encoder and playback grant remain in place during ordinary scene changes. Muting the ducking source also stops it from ducking the remaining audio. Microphone gain is applied when determining whether that source crosses the ducking threshold.
+
+Primary external input reads the dedicated ingest path, never the mixer's own program output. Room input uses current leased RTP subscriptions. Additional source decoders remain behind the authorized, bounded local media proxy. Decoder failures produce bounded diagnostics with addresses and credentials redacted.
