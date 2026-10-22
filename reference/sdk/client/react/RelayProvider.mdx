@@ -73,7 +73,7 @@ Callbacks receive `roomId`, `participantId`, `sessionId`, `expiresAt`, `reason` 
 
 Return credentials from an authenticated backend. Do not expose the management key.
 
-The public token creation API creates a new participant. It cannot supply an identity-preserving refresh token for an ongoing call. See [connection recovery](/guides/connection-recovery).
+The creation API creates a new participant. For an ongoing call, connect `refreshToken` to an authorized backend using [`tokens.renew`](/reference/sdk/server/node/tokens/renew). This preserves identity/session and permissions. Temporary retryable failures retry before expiry; denial stops renewal. See [connection recovery](/guides/connection-recovery). Matching local API/SDK builds are required.
 
 ## Lifecycle
 

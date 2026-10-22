@@ -51,11 +51,35 @@ Provide a server-backed callback when issuing TURN credentials:
 
 ## Participant token expiry
 
-The public token endpoint issues a new participant identity. It does not renew a token while preserving the current participant and session.
+The creation endpoint issues a new participant identity. For an ongoing call, use [`tokens.renew`](/reference/sdk/server/node/tokens/renew) on your backend and provide `refreshToken` to the browser SDK or React `RelayProvider`. Matching local API/SDK builds are required; older deployments do not expose the renewal endpoint.
 
-The browser supports a `refreshToken` callback, but that callback must return an identity-preserving token from an appropriate renewal service. Do not point it at `tokens.create` and assume the existing call can continue.
+```tsx
+import { RoomError } from '@relayrtc/react'
 
-Until you have that renewal flow, ask the participant to rejoin with a new token after expiry. The maximum public token lifetime is 3,600 seconds.
+<RelayProvider
+  signalingUrl={signalingUrl}
+  refreshToken={async ({ roomId, participantId, sessionId, signal }) => {
+    const response = await fetch('/api/renew-participant', {
+      method: 'POST', signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId, participantId, sessionId }),
+    })
+    if ([401, 403, 404].includes(response.status)) return null
+    if (!response.ok) throw new RoomError('TOKEN_REFRESH_FAILED', 'Renewal unavailable', response.status >= 500 || [408, 429].includes(response.status))
+    return (await response.json()).token
+  }}
+>
+  <RelayRoom token={token}><YourCall /></RelayRoom>
+</RelayProvider>
+```
+
+Your `/api/renew-participant` endpoint authenticates the caller, looks up their current participant token in server-side session storage, verifies room access and calls `relay.tokens.renew(roomId, { participantToken: storedToken, sessionId, ttlSeconds: 600 })`. Save the replacement token for subsequent renewals. Use the same configured lifetime as initial issuance; do not silently shorten a one-hour token to the ten-minute default.
+
+The callback runs before expiry. The SDK applies the new credential through `session.refresh`, preserves the room/participant/session and existing media, and uses the replacement token for later reconnects. Each token remains limited to 60–3600 seconds; repeated authorized renewal supports longer meetings.
+
+Returning `null` denies renewal. Changed identity/permissions and explicit authorization errors terminate the call. Retryable `RoomError` failures and ordinary callback exceptions receive bounded-backoff retries while the current token remains valid; expiry still ends the session. Mark permanent application failures non-retryable. Without a callback, expiry requires a deliberate rejoin. `autoSubscribe` only controls receiving media and does not configure renewal.
+
+Streaming guest grants use their existing guest-specific renewal flow.
 
 ## Startup delays
 

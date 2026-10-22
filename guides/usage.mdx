@@ -53,6 +53,59 @@ Check `dataQuality` before interpreting missing or partial usage as zero. The re
 
 A key reads usage from its own project environment. Supplying another project or environment does not expand access.
 
+## Streaming and assets (unreleased)
+
+The unified journal requires the Phase 7 API and database migration. `GET /v1/usage` adds `serviceUsage` alongside the existing room metrics. Use `GET /v1/usage/streaming` for this report directly. The Node SDK's published usage category union may not yet include `streaming`; use REST until the matching SDK release is available.
+
+```ts
+const response = await fetch(`${process.env.RELAYRTC_API_URL}/usage/streaming?range=7d`, {
+  headers: { Authorization: `Bearer ${process.env.RELAYRTC_SECRET_KEY}` },
+})
+if (!response.ok) throw new Error('Usage request failed')
+const { serviceUsage } = await response.json()
+
+console.log(serviceUsage.summary.liveDeliveryBytes)
+console.log(serviceUsage.coverage.liveDeliveryBytes)
+console.log(serviceUsage.metricDefinitions.liveDeliveryBytes)
+```
+
+| Category | What is measured |
+| --- | --- |
+| Sources | Encoded media progress, compositor frames, external ingress, room export and encoder program hops. |
+| Outputs | Successful output time, reserved capacity, external output bytes and live transcode-profile wall time. |
+| Viewers | Completed live origin response bytes, estimated recent media-request activity and peak overlap. |
+| Recordings and clips | Attempted finalization, successful finalizations, completed delivery, retained bytes and storage byte-seconds. |
+| DVR | Window delivery and one shared physical buffer owner, regardless of pins. |
+| Mixers | Render attempts, healthy applied program, fresh input activity and submitted frames. |
+| External sources | Upstream fetched bytes and worker processing. |
+
+These are usage quantities, with `pricing: 'unpriced'`. They do not define plan allowances or introduce automatic charges. Each metric includes its unit, source and aggregation in `metricDefinitions`. Storage byte-seconds represent bytes multiplied by retained seconds; the console displays them as GiB-hours. Stored bytes are a gauge at the end of the selected window.
+
+Durations are clipped to each UTC bucket. Byte and frame events belong to their occurrence time. Viewer peaks are recomputed for the whole scope, rather than added across resources or projects. `live` analytics means the last 15 minutes, so totals can decrease when older activity leaves the window.
+
+### Delivery and audience coverage
+
+Completed origin response-body bytes include manifests, successful retries and actual byte ranges. HEAD, rejected access, invalid ranges and error bodies do not become media delivery. Incomplete responses use separate partial `abortedDeliveryBytes`; bytes handed to the server transport do not prove client receipt. Durable partial intents identify responses whose completion could not be confirmed.
+
+A playback grant alone adds no viewer time. Successful media responses establish activity; successive completions within 30 seconds create an estimated interval. The first response and longer idle gaps add no duration. Downloads and thumbnails do not create playback activity. This is not proven watch time or a count of unique people. Shared grants share an identity, and renewed grants start another identity. CDN delivery that bypasses the origin is not measured by this journal.
+
+Inspect `coverage`, `journalStartedAt` and `historicalCoverage`. Earlier activity cannot be reconstructed from lifetime counters. An unavailable zero is not proof of no consumption. Recording and clip usage remains after retirement; expired media remains inaccessible.
+
+Requests older than the retained service-history boundary return `USAGE_HISTORY_EXPIRED`. Select a supported window rather than interpreting expired history as zero. Open object records remain available for storage accounting within that window.
+
+SFU, TURN, room export, upstream fetch, encoder program and external output are separate service hops. They may carry the same payload and must not be summed as unique traffic.
+
+### Resource drilldowns
+
+Use the same window for a project report and its resource report:
+
+```bash
+curl "$RELAYRTC_API_URL/recordings/recording_example/usage-report?range=24h" \
+  -H "Authorization: Bearer $RELAYRTC_SECRET_KEY"
+```
+
+`usage-report` is available under `streams/{id}`, `broadcasts/{id}`, `recordings/{id}`, `clips/{id}`, `dvr-windows/{id}`, `mixers/{id}` and `restream-sources/{id}`. These routes require `usage:read`. They accept `24h`, `7d`, `14d`, `30d` or rolling `live`, or explicit `startedAt` and `endedAt` boundaries, and optional hour/day granularity. A stream report includes its child resources; a DVR window includes delivery and its shared physical buffer owner. Resource drilldown lists are capped at 100, with `resourcesTruncated`; scope totals include all resources.
+
 ## Streaming source usage (unreleased)
 
 `GET /v1/streams/{id}/usage` and `relay.streams.getUsage(id)` expose observed sourceSeconds, ingressBytes, programBytes, samples and observed/partial coverage. These source-side observations remain distinct from RTC participant minutes, destination egress and HLS audience/CDN billing. Missing observations are partial coverage, not proven zero traffic. Historical usage survives stream retirement. See [streams REST](/reference/api/v1/streams).
