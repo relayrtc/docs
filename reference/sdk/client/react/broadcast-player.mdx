@@ -9,7 +9,7 @@ Unreleased additions to @relayrtc/react 0.1.0 require the matching unreleased @r
 ```tsx
 'use client'
 import Hls from 'hls.js'
-import { BroadcastPlayer } from '@relayrtc/react'
+import { BroadcastPlayer, getHlsPlaybackConfig } from '@relayrtc/react'
 import type { HlsEngineFactory, StreamPlaybackOptions } from '@relayrtc/client'
 
 async function request(path: string, method: string, signal: AbortSignal) {
@@ -24,7 +24,7 @@ const source: StreamPlaybackOptions = {
 }
 const createHlsEngine: HlsEngineFactory = (media, url, onError, onReady) => {
   if (!Hls.isSupported()) throw new Error('HLS unavailable')
-  const hls = new Hls({ lowLatencyMode: true })
+  const hls = new Hls(getHlsPlaybackConfig('live'))
   hls.on(Hls.Events.ERROR, (_event, data) => { if (data.fatal) onError() })
   hls.on(Hls.Events.MANIFEST_PARSED, onReady)
   hls.attachMedia(media)
@@ -37,6 +37,12 @@ export function Viewer() {
 ```
 
 Install hls.js in your application if you need it. It remains optional; native HLS does not load this engine. The adapter follows the [hls.js API](https://github.com/video-dev/hls.js/blob/master/docs/API.md).
+
+`getHlsPlaybackConfig` is exported by both `@relayrtc/react` and `@relayrtc/client`. Pass its result to your hls.js constructor to use the SDK playback defaults. It is not automatically applied to an arbitrary custom engine or native HLS.
+
+For live playback, defaults enable low latency, target 3 seconds behind the playlist edge, set a finite 8-second recovery threshold, allow playback up to 1.1x to catch up, and increase the target by 0.25 seconds after a stall. These are player targets, not a camera-to-viewer latency guarantee or a strict maximum during network stalls. Encoding, composition and delivery add upstream latency. A live viewer may jump forward to recover; use DVR mode for intentional rewind.
+
+Configure another live target with `getHlsPlaybackConfig('live', { liveSyncDuration: 2, liveMaxLatencyDuration: 6, maxLiveSyncPlaybackRate: 1.05 })`. The recovery threshold must exceed the positive target, playback rate must be between 1 and 2, and stall increase must be non-negative; all live values must be finite. Do not combine the returned seconds-based targets with hls.js `liveSyncDurationCount` or `liveMaxLatencyDurationCount` options.
 
 ## Props and lifecycle
 source requires application-authorized getPlayback/getGrant callbacks and optional pollIntervalMs. createHlsEngine is optional. onPlaybackState receives loading/playing/paused/blocked/unavailable/unsupported/error. Standard video props apply except src/srcObject/onError, which are owned by the player. Controls, autoplay and playsInline are enabled by default. Mute preview to avoid delayed host feedback.
@@ -53,4 +59,6 @@ Use mode `vod` and application-backed recording metadata and asset playback-gran
 
 Use mode `dvr` with application-backed DVR metadata and mode=dvr playback grants for the same broadcast. The player exposes native pause, a seek slider, rewind 30 seconds, behind-live status, expired-seek recovery and Go live. Grant renewal preserves an existing rewind or pause for the same window; changed window identity attaches the new run. A retained ended run remains playable until expiry. Stable callbacks may accept the fetched metadata as the optional second getGrant argument to bind the renewal to its broadcastId.
 
-Provide a DVR-specific HLS adapter with lowLatencyMode false and no finite liveMaxLatencyDuration, so intentional rewinds are not forced forward. DVR delivery uses full segments, separate from the original live LL-HLS endpoint. See [live DVR](/guides/live-dvr) and [useDvrPlayback](/reference/sdk/client/react/use-dvr-playback).
+Provide a DVR-specific HLS adapter using `new Hls(getHlsPlaybackConfig('dvr'))`: lowLatencyMode is false, liveMaxLatencyDuration is infinite, and maximum catch-up playback rate is 1. Intentional rewinds are not forced forward. Use `getHlsPlaybackConfig('vod')` for recordings and clips; it also disables catch-up. Live-option overrides are ignored in DVR/VOD modes. DVR delivery uses full segments, separate from the original live LL-HLS endpoint. See [live DVR](/guides/live-dvr) and [useDvrPlayback](/reference/sdk/client/react/use-dvr-playback).
+
+The HLS defaults include `liveSyncMode: "buffered"` for hls.js 1.7+: recovery uses downloaded media rather than repeatedly seeking ahead of the buffer. Use hls.js 1.7.3 or newer for this behavior. Conservative targets reduce edge starvation but do not eliminate network or delivery stalls.
