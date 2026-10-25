@@ -23,8 +23,8 @@ A connected room and `screen:publish` permission. Start from a click or another 
 | --- | --- | --- |
 | start(options?) | `Promise<RoomScreenSnapshot>` | Open the display picker and publish its tracks. |
 | stop() | `Promise<void>` | Stop capture and unpublish video/audio. |
-| mute() | void | Pause local screen video and audio senders. |
-| unmute() | void | Resume local senders. |
+| mute() | `Promise<void>` | Pause screen video and audio publications and await server confirmation. |
+| unmute() | `Promise<void>` | Resume publications after server confirmation. |
 | subscribe(listener) | `() => void` | Observe screen snapshots outside React. |
 
 ## Options
@@ -63,5 +63,5 @@ await local?.screen.stop()
 
 ## Behavior
 
-The SDK handles the browser’s capture-ended event and removes publications. Local mute does not signal remote pause/resume in the current server. To remove a shared screen from other participants, stop sharing.
+The SDK handles the browser’s capture-ended event and removes publications. Await mute/unmute for server confirmation and matching remote publication states. Ending shared audio removes only the audio publication; screen video continues. To remove a shared screen from other participants, stop sharing.
 

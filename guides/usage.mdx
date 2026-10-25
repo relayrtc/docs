@@ -45,7 +45,7 @@ Windows use UTC. The end boundary is exclusive. Buckets align to UTC calendar ho
 
 ## Media and traffic
 
-Audio, video and screen durations reflect observed lifecycle intervals. Traffic values use bytes. TURN traffic can be unavailable, partial or authoritative.
+Audio, video and screen durations reflect observed active publication intervals. Paused publications and disconnected send transports do not accrue active-media duration. Microphone and screen audio overlap counts once per participant for audio; camera and screen video overlap counts once per participant for video. Screen duration is also reported separately. Screen traffic is a breakdown of SFU traffic, so do not add it to SFU totals again. Connected participant minutes are a separate measure and continue while a participant remains connected, including when media is muted. Traffic values use bytes. TURN traffic can be unavailable, partial or authoritative.
 
 Check `dataQuality` before interpreting missing or partial usage as zero. The response’s `metricDefinitions` supplies each metric’s unit, source and aggregation.
 

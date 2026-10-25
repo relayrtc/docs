@@ -53,6 +53,17 @@ await room.microphone.enable()
 
 Your application implements the authenticated /api/join endpoint. Joining alone does not open devices.
 
+## Pause and resume publications
+
+```ts
+await room.microphone.mute()
+await room.microphone.unmute()
+await room.camera.mute()
+await room.camera.unmute()
+```
+
+Mute/unmute return promises that confirm the server publication state. Catch failures in your controls. Capture remains open, and remote tracks receive paused/resumed state updates. Use `disable()` to stop capture and remove a microphone or camera publication; use `screen.stop()` for screen sharing. Starting a screen requires a user gesture and `screen:publish` permission. See [capture controls](/guides/camera-and-microphone) and [screen sharing](/guides/screen-sharing).
+
 ## Subscribe to events
 
 ```ts

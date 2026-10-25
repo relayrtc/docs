@@ -68,17 +68,17 @@ return cameras[0]
 `RemoteCamera` is your component using [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack).
 
 <Callout type="warning" title="Mute and camera-off behave differently">
-`camera.mute()` pauses the local sender. Remote publication pause/resume is not implemented by the current server, so mute alone can leave a frozen remote frame. Use disable/enable for camera-off controls.
+`await camera.mute()` pauses sending and waits for the server to confirm the paused publication. Other participants receive its paused state. Capture stays open; use disable/enable for camera-off controls that release the device.
 </Callout>
 
 ## Microphone mute
 
 ```ts
-local?.microphone.mute()
-local?.microphone.unmute()
+await local?.microphone.mute()
+await local?.microphone.unmute()
 ```
 
-Mute keeps the capture device open and stops sending its media. Use `microphone.disable()` to release capture.
+Mute keeps the capture device open and stops sending its media. Await mute/unmute to handle server confirmation or failure. Muted publications do not accrue active audio/video duration; connected participant time is measured separately. Use `microphone.disable()` to release capture.
 
 ## Device selection
 
