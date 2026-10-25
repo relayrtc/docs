@@ -1,0 +1,44 @@
+---
+title: "Node streaming methods"
+description: "Typed stream management and retry-safe operations on an application backend."
+section: "Node SDK"
+---
+## Availability
+Unreleased additions to local @relayrtc/node 0.1.0 with the Phase 0 core API. Instantiate `RelayServer` with a secret API key. Management methods belong on your backend.
+
+```ts
+const stream = await relay.streams.create({
+  name: 'Town hall',
+  source: { kind: 'room', roomId },
+  profile: { audioOnly: false },
+}, { idempotencyKey: applicationCommandId })
+const page = await relay.streams.list({ limit: 30 })
+const detail = await relay.streams.get(stream.id)
+const updated = await relay.streams.update(stream.id, { version: detail.version, name: 'Updated' })
+const pending = await relay.streams.start(stream.id)
+const status = await relay.streamingOperations.get(pending.id)
+```
+
+| Method | Result |
+| --- | --- |
+| streams.create(input, options?) | StreamResource |
+| `streams.list({ cursor?, limit? }?, options?)` | StreamPage: data, nextCursor |
+| streams.get(id, options?) | StreamDetail: configuration and sessions |
+| `streams.update(id, { version, ...changes }, options?)` | StreamResource |
+| streams.delete(id, options?) | StreamingOperation |
+| streams.start(id, options?) | StreamingOperation, room source only |
+| streams.stop(id, options?) | StreamingOperation |
+| `streams.createIngestCredentials(id, { ttlSeconds? }?, options?)` | IngestCredential, secret returned explicitly |
+| `streams.rotateIngestCredentials(id, credentialId, { ttlSeconds? }?, options?)` | Replacement IngestCredential |
+| streams.getPlayback(id, options?) | StreamPlayback |
+| `streams.createPlaybackGrant(id, { ttlSeconds? }?, options?)` | PlaybackGrant |
+| streams.revokePlaybackGrants(id, options?) | `{ revoked: true }` |
+| streams.getUsage(id, options?) | StreamingUsage |
+| streamingOperations.get(operationId, options?) | StreamingOperation |
+
+All listed methods return promises. Typed configuration/profile/source/session/grant/operation/usage contracts are exported. Request options support AbortSignal, timeoutMs, retry:false and idempotencyKey. Retryable streaming commands generate a UUID if omitted; reuse an explicit application command ID when retrying the same call yourself. Mutations are not retried automatically. GET uses existing bounded transport retries.
+
+List pagination differs from RTC room lists: iterate `page.data`, then supply `page.nextCursor` until null. Do not assume nodes/pageInfo. Retirement/stop return durable operations, not completed RTC cleanup results. Poll until completed or failed. An operation failure includes errorCode.
+
+Authenticate and authorize your own caller before returning participant tokens or viewer grants. Ordinary reads do not reveal stored secrets. Do not log credential/grant responses or raw playback URLs. [REST reference](/reference/api/v1/streams) documents scopes, limits, statuses and errors.
+

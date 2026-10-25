@@ -1,0 +1,21 @@
+---
+title: "useDvrPlayback"
+description: "Reusable seek, behind-live and return-live state for a media element."
+section: "React SDK"
+---
+
+```tsx
+const media = useRef<HTMLVideoElement>(null)
+const dvr = useDvrPlayback(media, true)
+// Bind authenticated HLS to the same element separately.
+return <>
+  <video ref={media} controls playsInline />
+  <p role="status">{dvr.isLive ? 'Live' : `${Math.round(dvr.behindLiveSeconds)} seconds behind`}</p>
+  <button onClick={() => dvr.rewind(30)}>Rewind</button>
+  <button onClick={() => dvr.goLive()}>Go live</button>
+</>
+```
+
+The matching unreleased React SDK exposes useDvrPlayback(mediaRef, enabled, optionalOnExpired). It observes the browser's actual seekable ranges and returns start, end, position, behindLiveSeconds, isLive, paused, available, recoveredExpiredSeek, seek(seconds), rewind(seconds=30) and goLive(). Positions are browser media times, not REST run-buffer seconds. Gaps/out-of-window requests clamp to a safe available position; the optional expiry callback can refresh application state. Go live moves near the seekable edge; applications choose whether to resume a user pause.
+
+The hook owns event listeners and a bounded one-second clock, and removes both on cleanup. It does not fetch grants, create a player or authorize viewers. The browser SDK exports the same DvrPlaybackController for applications without React. [BroadcastPlayer](/reference/sdk/client/react/broadcast-player) integrates these controls with grant renewal and HLS recovery in mode=dvr. [Live DVR](/guides/live-dvr) explains expired windows and retention.

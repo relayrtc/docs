@@ -48,6 +48,8 @@ section: "REST API v1"
 
 Lifecycle boundary is `observed` or `lease_bound`. A lease-bound event uses the service lease boundary when an exact disconnect time is unavailable.
 
+The unreleased streaming foundation also emits stream.created, stream.starting, stream.live, stream.reconnecting, stream.ended and stream.failed through this signed delivery envelope. Their data contains stream/session/version/correlation fields; see [streams REST](/reference/api/v1/streams). Existing room/participant payloads remain unchanged.
+
 ## Track fields
 
 The track object contains id, roomId, participantId, sessionId, type, state, priority, metadata, publishedAt and unpublishedAt. The last field is null until the track is unpublished.

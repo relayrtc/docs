@@ -1,0 +1,59 @@
+---
+title: "Scheduled broadcasts REST API"
+description: "Manage UTC event timing, execution operations and bounded publisher/viewer access."
+section: "API reference"
+---
+
+## Authentication and commands
+Reads require streams:read on a scoped secret key or console membership. Management requires streams:write or console owner/admin membership. Event grants require streams:playback; ingest issuance requires streams:publish. Automatic recording also requires recordings:create. All resources are scoped to their project/environment. Console mutations require trusted Origin. Every mutation requires Idempotency-Key; retry an uncertain command with the same key and body. Use a new key for grant renewal.
+
+| Method | Route | Success |
+| --- | --- | --- |
+| POST | `/v1/scheduled-broadcasts` | 201 ScheduledBroadcast |
+| GET | `/v1/scheduled-broadcasts` | 200 data, nextCursor, limits |
+| GET | `/v1/scheduled-broadcasts/{scheduleId}` | 200 ScheduledBroadcast |
+| PATCH | `/v1/scheduled-broadcasts/{scheduleId}` | 200 ScheduledBroadcast |
+| POST | `/v1/scheduled-broadcasts/{scheduleId}/cancel` | 200 cancelled resource |
+| POST | `/v1/scheduled-broadcasts/{scheduleId}/start-now` | 202 resource with operationId |
+| GET | `/v1/schedule-operations/{operationId}` | 200 ScheduleOperation |
+| GET | `/v1/scheduled-broadcasts/{scheduleId}/playback` | 200 bounded waiting/live metadata |
+| POST | `/v1/scheduled-broadcasts/{scheduleId}/playback-grants` | 200 live playback grant |
+| POST | `/v1/scheduled-broadcasts/{scheduleId}/ingest-credentials` | 201 bounded external credential |
+
+List accepts cursor, limit (1-100; default 30), state and projectId/environmentId. Secret keys default to their own scope; console sessions must select scope.
+
+## Create
+```json
+{
+  "broadcast": { "streamId": "stream_selected", "name": "Weekly event", "destinationIds": [] },
+  "timing": {
+    "startsAt": "2026-11-01T18:00:00Z",
+    "endsAt": "2026-11-01T19:00:00Z",
+    "timeZone": "Africa/Casablanca",
+    "sourceWaitSeconds": 120,
+    "catchUpSeconds": 300,
+    "publisherEarlySeconds": 900,
+    "viewerEarlySeconds": 900,
+    "viewerAfterSeconds": 0,
+    "notifyBeforeSeconds": null
+  }
+}
+```
+
+Start must be at least ten seconds and no more than one year ahead. End must be later by at least one minute, within 24 hours and within the saved broadcast/stream maximum duration. Broadcast configuration follows the existing create-broadcast contract. UTC Z timestamps are mandatory; timeZone is an IANA display zone. Defaults match the example above.
+
+sourceWaitSeconds is 10-600; catchUpSeconds is 0-3600; publisherEarlySeconds is 0-3600; viewerEarlySeconds is 0-86400; viewerAfterSeconds is 0-3600. notifyBeforeSeconds is null or 30-86400 and requires the enabled webhook provider. Same-stream publisher windows must not overlap.
+
+## Update, cancel and start-now
+Update takes `{ "version": 1, "timing": { ... } }` with the complete timing configuration. It cannot change the saved stream/run/output snapshot. Only scheduled events may be edited or started now. Cancel and start-now take `{ "version": 1 }`. SCHEDULE_VERSION_CONFLICT means reload before issuing a new command; do not automatically overwrite another operator's edit.
+
+Start-now moves start to now and preserves duration, shifts end, revokes previous access and removes old reminders. Its 202 response contains a durable operationId. Get operation returns pending/completed/failed/cancelled, errorCode and broadcastOperationId when admission has started the saved run. Completed means the run reached observed live state; get the schedule for subsequent end/cancellation. Cancel updates the same event, revokes access and drains the run. Repeating cancellation is safe; terminal events cannot be restarted.
+
+Resources include streamId, broadcastId, operationId, scope, name, state, version, timing, access-window instants, readinessDeadline, safe lastError and timestamps. States are scheduled, starting, running, ending, completed, missed, failed and cancelled. New events keep one intended broadcast identity across claims/retries. Historical metadata remains after completion and owner deletion; management access still requires active ownership.
+
+## Publisher and viewer APIs
+getPlayback returns startsAt/endsAt/serverTime/countdownSeconds, scheduleState, streamId, broadcastId, sourceSessionId, generation and player state. It is available only inside the viewer metadata window. Before live, it returns ready/starting and no source identity; it is not a public playlist.
+
+Playback-grant input is `{ "ttlSeconds": 300 }` (30-3600). The result has token, url and expiresAt. Actual TTL is capped by event end. Grants bind this event's active run and are revoked by event changes; all media paths check them. Ingest issuance takes an empty object and returns id, scheduleId, protocol, url, secret, notBefore and expiresAt. It supports WHIP/RTMP streams, not room-token issuance. Store credentials securely; existing source-session limits and publisher conflict rules still apply.
+
+Errors include SCHEDULE_CAPACITY, SCHEDULE_WINDOW_OVERLAP, SCHEDULE_NOT_EDITABLE, SCHEDULE_VERSION_CONFLICT, SCHEDULE_VIEWER_WINDOW_CLOSED, SCHEDULE_PLAYBACK_NOT_LIVE, SCHEDULE_START_MISSED, SCHEDULE_SOURCE_MISSED and creator/source configuration errors. See [deployment and recovery policy](/guides/scheduled-broadcasts).

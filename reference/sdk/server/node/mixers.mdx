@@ -1,0 +1,34 @@
+---
+title: "Mixer APIs"
+description: "Manage server-rendered scenes with optimistic concurrency and durable operations."
+section: "Node SDK"
+---
+
+The Node SDK exports typed MixerScene, MixerResource, MixerSceneResource, MixerOperation, MixerCommandResult and overlay/source/input contracts. All management calls stay on your backend.
+
+| Method | Behavior |
+| --- | --- |
+| broadcasts.mixers.create(broadcastId, input) | Create source registry; primary is implicit |
+| broadcasts.mixers.list(broadcastId) | Bounded definition history |
+| mixers.get(mixerId) | Authoritative desired/applied state and usage |
+| mixers.listScenes(mixerId) | Saved versioned scene resources |
+| mixers.putScene(mixerId, sceneId, input) | Create/update using current scene version |
+| mixers.activateScene(mixerId, input) | Queue immutable snapshot activation |
+| mixers.addOverlay(mixerId, input) | Admit a private PNG image |
+| mixers.removeOverlay(mixerId, overlayId) | Schedule unused asset deletion |
+| mixers.stop(mixerId, input) | Drain and return to primary program |
+| mixers.getOperation(operationId) | Observe pending/completed/failed |
+
+All accept the normal RequestOptions. Commands generate idempotency keys; provide a stable application key when retrying across backend requests. Keep the original versioned payload while its response is uncertain. An API-level conflict requires re-reading and explicitly deciding on a new command, not silently replacing the fingerprint under an old key.
+
+```ts
+const saved = await relay.mixers.putScene(mixerId, sceneId, { version, scene })
+const mixer = await relay.mixers.get(mixerId)
+const command = await relay.mixers.activateScene(mixerId, {
+  version: mixer.version, sceneId: saved.id, sceneVersion: saved.version,
+}, { idempotencyKey: applicationRequestId })
+const observed = await relay.mixers.getOperation(command.operation.id)
+// Wait for completed and reconcile mixer.appliedVersion with command.operation.revision.
+```
+
+For PNG admission read the file on your backend, encode base64 and send name, contentType: image/png and dataBase64. Do not send public image URLs, shell fragments or internal FFmpeg options. Use existing streams.getPlayback/createPlaybackGrant for the composited program and existing recording APIs to capture it. See the [full studio example and deployment](/guides/cloud-video-mixer).

@@ -242,12 +242,12 @@ export interface ListParticipantsQuery {
 
 ## CreateTurnCredentialsInput
 
-Optional allocation scope. Provide roomId and sessionId together.
+Optional allocation scope. Provide roomId and sessionId together. Include participantId to require that session's participant to match a trusted backend identity. See [turn.createCredentials](/reference/sdk/server/node/turn/createCredentials).
 
 ```ts
 export type CreateTurnCredentialsInput =
-  | { readonly roomId: string; readonly sessionId: string }
-  | { readonly roomId?: never; readonly sessionId?: never }
+  | { readonly roomId: string; readonly sessionId: string; readonly participantId?: string }
+  | { readonly roomId?: never; readonly sessionId?: never; readonly participantId?: never }
 ```
 
 ## TurnCredentials

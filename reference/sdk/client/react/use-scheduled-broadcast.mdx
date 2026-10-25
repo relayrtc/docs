@@ -1,0 +1,31 @@
+---
+title: "useScheduledBroadcast"
+description: "Show an event countdown, waiting state and authorized playback through your application."
+section: "React SDK"
+---
+
+The hook works without joining an RTC room. All callbacks call your application's authenticated backend; never place management credentials in React.
+
+```tsx
+const event = useScheduledBroadcast({
+  getSchedule: app.getSchedule,
+  getPlayback: app.getScheduledPlayback,
+  cancel: app.cancelSchedule,
+  startNow: app.startScheduleNow,
+  update: app.updateSchedule,
+  pollIntervalMs: 2500,
+})
+return <>
+  <p>{event.isWaiting ? 'Waiting for the publisher' : event.schedule?.state}</p>
+  <p>{event.countdownSeconds} seconds until start</p>
+  {event.isLive && <BroadcastPlayer source={scheduledSource} createHlsEngine={createHlsEngine} />}
+</>
+```
+
+getSchedule/getPlayback receive AbortSignal. The optional update callback receives `{version, timing, idempotencyKey}` and AbortSignal; cancel/startNow receive `{version, idempotencyKey}` and AbortSignal. They return the observed ScheduledBroadcast. Forward the key and expected version through your backend. Command identities persist after uncertain responses and stale poll results cannot overwrite a newer command result. Recreate callbacks when changing the selected event. Browser consumers may use ScheduledBroadcastClient directly with the same options.
+
+The hook returns schedule, playback, pending, error, countdownSeconds, isWaiting, isLive, update, cancel, startNow and refresh. Countdown uses serverTime when authorized playback metadata is available, and does not control execution. Polling and the countdown timer stop on unmount. Missing playback metadata, including a closed access window, does not enable the player.
+
+scheduledSource is a normal StreamPlaybackOptions object whose callbacks call your backend's schedules.getPlayback and schedules.createPlaybackGrant. The player is mounted when the event becomes live and uses only event-scoped grants. Reschedule/cancellation clears playback and revokes media access. Use explicit device controls in a separate host stage; this hook never starts a camera or OBS.
+
+See the [guide and runnable example](/guides/scheduled-broadcasts) for local-time conversion, source deadlines, reminders, window policies and cancellation handling.

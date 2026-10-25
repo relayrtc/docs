@@ -1,0 +1,44 @@
+---
+title: "Destination REST API"
+description: "Manage private external outputs and retry individual broadcast jobs."
+section: "API reference"
+---
+
+## Authorization
+Use a scoped secret API key or console session. Reads require streams:read; mutations require streams:write or an organization owner/admin session. Project/environment scope must match the parent stream. Session mutations require the trusted console Origin. Browser applications call their own authorized backend, not these routes with a management key.
+
+## Routes
+| Method | Path | Success |
+| --- | --- | --- |
+| POST | `/v1/streams/{streamId}/destinations` | 201 destination |
+| GET | `/v1/streams/{streamId}/destinations` | 200 data/nextCursor |
+| GET | `/v1/streams/{streamId}/destinations/{destinationId}` | 200 destination |
+| PATCH | `/v1/streams/{streamId}/destinations/{destinationId}` | 200 destination |
+| DELETE | `/v1/streams/{streamId}/destinations/{destinationId}` | 200 id/deleted=true |
+| POST | `/v1/streams/{streamId}/destinations/{destinationId}/rotate-secret` | 200 destination |
+| POST | `/v1/broadcasts/{broadcastId}/outputs/{outputId}/retry` | 202 streaming operation |
+
+Mutations require Idempotency-Key, retained for 24 hours with actor/method/URL/payload identity. Lists accept cursor and limit 1..100 (default 30), ordered by ID. Deleted destinations are excluded. Create accepts:
+
+```json
+{
+  "name": "External platform",
+  "endpoint": "rtmps://ingest.example.com/live",
+  "streamKey": "platform-key-supplied-by-operator",
+  "profile": "remux",
+  "enabled": true
+}
+```
+
+Profiles are remux/720p/1080p. endpoint and streamKey are write-only. Resource fields are id, streamId, name, host, protocol, port, profile, enabled, version, credentialVersion, secretConfigured, createdAt and updatedAt. Neither reads nor mutations return stored endpoint paths or keys.
+
+PATCH accepts version plus optional name/endpoint/profile/enabled. Rotate accepts version and streamKey. A stale version returns DESTINATION_VERSION_CONFLICT. Every update creates a new encrypted credential version; existing output copies remain immutable. DELETE soft-deletes and clears the current credential while preserving live output snapshots and history.
+
+## Run selection and retry
+Create a broadcast with destinationIds: an array of zero to eight unique IDs. Each must be enabled, undeleted and owned by the selected stream. The run includes one HLS output plus the selected destination snapshots. Changes after creation apply to new runs only. A configured bitrate quota is checked at creation.
+
+Retry accepts an optional run version and returns StreamingOperation with kind broadcast.output.retry, broadcastId and outputId. Only unleased failed/retry jobs in an active run qualify. There is a ten-second cooldown after the last heartbeat and five manual retry cycles per output. Poll the ordinary streaming operation endpoint. Successful output readiness completes the operation; exhausted attempts or run stop fail it. No new source or duplicate output is created.
+
+Output status adds destinationId, destinationName, outputSeconds, bytes, bitrate, droppedFrames and transcodeSeconds. Run usage adds bytes/transcodeSeconds and distinguishes runSeconds from summed outputSeconds. See [usage and restrictions](/guides/multistreaming).
+
+Errors use code/description/requestId. Additional codes include DESTINATION_LIMIT, DESTINATION_RATE_LIMIT, DESTINATION_ADDRESS_REJECTED, DESTINATION_UNAVAILABLE, DESTINATION_ENCRYPTION_UNAVAILABLE, EGRESS_BITRATE_LIMIT, EGRESS_BYTE_LIMIT, OUTPUT_NOT_RETRYABLE and OUTPUT_RETRY_LIMIT. Public destinations only; ports are restricted to 1935, 1936 and 443. Platform account OAuth and platform lifecycle APIs are separate scope.

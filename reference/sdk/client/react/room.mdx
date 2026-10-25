@@ -35,6 +35,7 @@ const { room } = useRoom()
 | --- | --- |
 | `on(event, listener)` | Subscribe to a room event; returns cleanup. |
 | `refreshCredentials()` | Run configured credential refresh callbacks. Returns Promise of void. |
+| `getMediaConnectionStats()` | Read local media transport states, routes, protocols and byte counters. Returns Promise of MediaConnectionStats. |
 | `leave()` | Leave this participant’s call. Returns Promise of void. |
 
 ## Example
@@ -49,6 +50,62 @@ useEffect(() => {
 ```
 
 Import `useEffect` from React and clean up listeners when the room changes.
+
+## Media connection stats
+
+Call `room.getMediaConnectionStats()` while the room is active to inspect the actual selected route for each send/receive transport. The method is implemented by the browser SDK and is also available through React's `useRoom().room`. Use matching SDK builds that include the method and the [MediaConnectionStats and MediaTransportStats types](/reference/sdk/client/react/types#mediaconnectionstats).
+
+```tsx
+import { useState } from 'react'
+import { useRoom } from '@relayrtc/react'
+import type { MediaConnectionStats } from '@relayrtc/react'
+
+function MediaConnectionDetails() {
+  const { room } = useRoom()
+  const [snapshot, setSnapshot] = useState<MediaConnectionStats | null>(null)
+  const [error, setError] = useState('')
+
+  async function refresh() {
+    if (!room) return
+    try {
+      setError('')
+      setSnapshot(await room.getMediaConnectionStats())
+    } catch {
+      setSnapshot(null)
+      setError('Media connection details are unavailable.')
+    }
+  }
+
+  return (
+    <section>
+      <button disabled={!room} onClick={() => void refresh()}>Refresh media details</button>
+      {error && <p role="alert">{error}</p>}
+      {room && snapshot?.transports.map((transport) => (
+        <p key={transport.direction}>
+          {transport.direction}: {transport.state} · {transport.route}
+          {' · '}{transport.bytesSent} B sent / {transport.bytesReceived} B received
+        </p>
+      ))}
+    </section>
+  )
+}
+```
+
+Render this component inside your `RelayProvider` and active `RelayRoom`. The example reads on demand; the SDK does not automatically poll this method.
+
+| Field | Meaning |
+| --- | --- |
+| observedAt | ISO timestamp when the SDK completed the snapshot. |
+| direction | `send` or `receive`, relative to this browser. |
+| state | Browser peer connection state, including `new`, `connecting`, `connected`, `disconnected`, `failed` or `closed`. An unused transport can remain `new`. |
+| route | `direct`, `relay` or `unknown`. A connected transport can still be unknown if candidate details are unavailable. |
+| protocol | Selected local candidate protocol, such as `udp` or `tcp`, or null. |
+| relayProtocol | Browser-to-TURN protocol when available, or null. |
+| bytesSent, bytesReceived | Selected ICE pair counters in bytes. Zero is returned when no selected pair is available. |
+
+Send and receive routes can differ in Automatic mode. Relay detection also recognizes TURN protocol metadata on peer-reflexive candidates; a `prflx` candidate type alone does not rule out TURN.
+
+Snapshots do not expose candidate addresses or credentials. These browser counters have different scope and update times from server [usage](/guides/usage); do not use them as billing totals. Counters may reset when the selected pair or transport changes. Requests can reject after leaving or when transport statistics are unavailable.
 
 ## Events
 

@@ -1,0 +1,26 @@
+---
+title: "Restream sources REST API"
+description: "Register, probe and control authorized external streaming sources."
+section: "API reference"
+---
+
+Reads require streams:read. Management requires streams:write; start additionally requires streams:publish. Console members can read; owners/admins can manage. Scope every request with the matching project/environment or a scoped secret API key. Console mutations require the trusted Origin. Every mutation requires Idempotency-Key. Retry an uncertain command with its original key/body. Use a new key for a new operation after the previous session ends.
+
+| Method | Route | Success |
+| --- | --- | --- |
+| POST | /v1/restream-sources | 201 masked Source |
+| GET | /v1/restream-sources | 200 data, nextCursor |
+| GET | /v1/restream-sources/:sourceId | 200 SourceDetail |
+| PATCH | /v1/restream-sources/:sourceId | 200 masked Source |
+| DELETE | /v1/restream-sources/:sourceId | 200 id, deleted |
+| POST | /v1/restream-sources/:sourceId/probe | 202 SourceDetail |
+| POST | /v1/restream-sources/:sourceId/start | 202 SourceDetail |
+| POST | /v1/restream-sources/:sourceId/stop | 200 SourceDetail |
+
+Create fields are streamId, name, protocol, redistributionAuthorized:true, and optional reconnectBudget (0-5, default 3), maxDurationSeconds (60-86400, default 14400), maxBytes (1048576-20000000000, default 2000000000). hls_pull requires endpoint and accepts an optional Authorization header value in authorization; push sources reject those fields and reuse stream ingest credentials. Profile is h264_aac. Protocol and attachment cannot be patched. Only compatible stream kinds in the same environment are accepted.
+
+PATCH requires version and accepts name, endpoint, authorization, reconnectBudget, maxDurationSeconds, maxBytes and redistributionAuthorized:true. It requires an idle source. Blank authorization removes its header; omitted values are preserved. Endpoint and authorization are never returned.
+
+List accepts cursor and limit (1-100, default 30). Source includes id, streamId, projectId, environmentId, name, protocol, host, profile, redistributionAuthorized, version, secretConfigured, limits, state, lastError and timestamps. SourceDetail also includes the latest session, up to 50 health transitions and cumulative observed usage. Poll GET after an accepted probe/start. Session IDs are durable; no private worker calls are needed. Repeating start while the same source kind is active returns its existing session. A probe while ingest is active returns SOURCE_BUSY.
+
+Stop is asynchronous for an active leased worker. Wait for a terminal session before changing configuration. DELETE stops dependent broadcasts and masks/removes credentials; GET then returns 404. Historical usage remains stored. See [supported inputs and examples](/guides/external-ingest) and [deployment restrictions](/guides/restreaming).

@@ -1,0 +1,38 @@
+---
+title: "DVR REST API"
+description: "Versioned DVR policies, run-bound seek windows and existing playback grants."
+section: "REST API"
+---
+
+All management routes use /v1 and existing project/environment authentication. Read requires streams:read; configure/update requires streams:write; grants require streams:playback. Optional projectId/environmentId query values must match the resource. The schema-generated OpenAPI document is GET /v1/dvr/openapi. DVR disabled by the operator rejects enable commands with DVR_DISABLED.
+
+| Method | Route | Behavior |
+| --- | --- | --- |
+| POST | `/streams/{streamId}/dvr-policy` | Create once, 201; body policy |
+| GET | `/streams/{streamId}/dvr-policy` | policy or null, version, effective-run semantics |
+| PATCH | `/streams/{streamId}/dvr-policy` | Replace policy using current positive version |
+| GET | `/streams/{streamId}/dvr-playback?broadcastId=...` | Actual retained range for this run |
+| POST | `/streams/{streamId}/playback-grants` | Existing grant endpoint; mode=dvr and broadcastId |
+| POST | `/streams/{streamId}/playback-grants/revoke` | Revoke live and DVR stream grants |
+
+```json
+{
+  "policy": {
+    "enabled": true,
+    "durationSeconds": 300,
+    "maxBytes": 134217728,
+    "endedRetentionSeconds": 300,
+    "consentAcknowledged": true
+  }
+}
+```
+
+PATCH adds version beside policy. Send Idempotency-Key with mutations and reuse the exact body/key when retrying uncertain results. DVR_VERSION_CONFLICT requires reading the latest version; DVR_STORAGE_LIMIT means the requested cap exceeds operator limits. Policy admission does not reserve an active worker: capacity can leave the window starting until a capture slot is free.
+
+Playback includes streamId, broadcastId, windowId, sourceSessionId (the DVR window identity), generation (saved policy version), state starting/live/ended/unavailable, startSeconds/endSeconds, wallStart/wallEnd, discontinuities, expiresAt, policyVersion, storedBytes, storageByteSeconds, deliveredBytes, limits and grantRequired. Stored values are shared-buffer usage already counted by recording. Metadata does not contain private object keys or grant URLs. No window returns unavailable with null bounds.
+
+```json
+{"mode":"dvr","broadcastId":"broadcast_example","ttlSeconds":300}
+```
+
+The existing grant response contains url, token and expiresAt. The URL binds one DVR window and stream epoch. Public delivery uses `/v1/dvr/{streamId}/{windowId}/{name}?token=...`; follow the returned manifest rather than constructing storage URLs. Every object request is authorized. Grants last 30–3600 seconds, capped by draining window expiry. DVR_WINDOW_UNAVAILABLE rejects missing media at issuance; DVR_MEDIA_PENDING means a window has no segments yet. DVR_RANGE_EXPIRED and DVR_WINDOW_EXPIRED return 410; PLAYBACK_GRANT_REQUIRED returns 401. Private no-store cache headers prohibit shared CDN caching. See [live DVR](/guides/live-dvr) for retention, disabling and events.

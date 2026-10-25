@@ -146,6 +146,12 @@ Decide speaker promotions on your backend. Creating another participant token cr
 
 A speaker token does not grant moderation powers. Keep room management actions behind authenticated backend endpoints with your own host and moderator authorization checks.
 
+## Live guest grants
+
+The initial-token role guidance above still applies to ordinary room participants. The matching streaming guest implementation adds a separate run-scoped, versioned authority for approved guests. Audio-only invitations grant audio publication and omit camera/screen permissions. Server mute/removal changes the live guest version, denies stale tokens at signaling/media and closes the old participant through existing cleanup. A permitted guest must explicitly rejoin and enable devices; granting permission never turns a microphone on. Local mute keeps capture open and is distinct from this server fence. Host/co-host/moderator control delegation is independent of permission to publish audio.
+
+See [live guests and co-hosting](/guides/live-guests-and-cohosting) for subject binding, guest reconnect, capacity and consent. These additions require the matching unreleased API/signaling/media/browser/React builds and migration 0041; they do not make immutable ordinary participant tokens dynamically mutable.
+
 ## Audio-only receiving preference
 
 The `audio-only` option in [video quality controls](/guides/video-quality) is a receiving preference for a video subscription. It does not change publishing permissions or enforce an audio-only room. Use token permissions for the room policy and receiving preferences for each participant's bandwidth needs.

@@ -1,0 +1,73 @@
+---
+title: "Streams REST API"
+description: "Phase 0 scoped configuration, source lifecycle and private playback contracts."
+section: "API reference"
+---
+## Availability and authorization
+Unreleased Phase 0 API, feature gated by `RELAYRTC_STREAMING_ENABLED=true`. Authenticate using a scoped secret API key. Console sessions use the same Fastify policies; session mutations require the trusted console Origin. Secret keys derive project/environment from the verified key. Console requests supply both `projectId` and `environmentId` query fields. Cross-scope references are rejected.
+
+| Scope | Operations |
+| --- | --- |
+| streams:read | List/detail, playback metadata, source usage, operations |
+| streams:write | Create, update, stop, retire |
+| streams:publish | Start room source; issue/rotate ingest credentials |
+| streams:playback | Issue/revoke viewer grants |
+
+## Routes
+| Method and path | Body | Success |
+| --- | --- | --- |
+| POST /v1/streams | Create configuration | 201 StreamResource |
+| GET /v1/streams | Query: limit 1..100 (default 30), cursor | `200 { data: StreamResource[], nextCursor: string or null }` |
+| `GET /v1/streams/{id}` | None | 200 StreamResource plus latest ten sessions |
+| `PATCH /v1/streams/{id}` | version plus changed configuration | 200 StreamResource |
+| `DELETE /v1/streams/{id}` | Empty | 202 StreamingOperation |
+| `POST /v1/streams/{id}/source-sessions` | `{}` | 202 StreamingOperation, RTC room source only |
+| `POST /v1/streams/{id}/stop` | `{}` | 202 StreamingOperation |
+| `POST /v1/streams/{id}/ingest-credentials` | `{ ttlSeconds?: number }` | `201 { id, protocol, url, secret, expiresAt }` |
+| `POST /v1/streams/{id}/ingest-credentials/{credentialId}/rotate` | `{ ttlSeconds?: number }` | 201 replacement credential |
+| `GET /v1/streams/{id}/playback` | None | 200 playback metadata |
+| `POST /v1/streams/{id}/playback-grants` | `{ ttlSeconds?: number }` | `200 { token, url, expiresAt }` |
+| `POST /v1/streams/{id}/playback-grants/revoke` | `{}` | `200 { revoked: true }` |
+| `GET /v1/streams/{id}/usage` | None | `200 { streamId, sourceSeconds, ingressBytes, programBytes, samples, coverage }` |
+| `GET /v1/streaming-operations/{operationId}` | None | 200 StreamingOperation |
+
+List ordering is ascending stream ID within the selected environment. The cursor is the last returned ID. No status/name filters are implemented; retired configurations remain visible with their status. Reads of ordinary stream/session resources contain no ingest secret or worker authority.
+
+## Configuration
+```json
+{
+  "name": "Town hall",
+  "source": { "kind": "room", "roomId": "room_example", "videoTrackIds": [], "audioTrackIds": [] },
+  "profile": { "audioOnly": false, "width": 1280, "height": 720, "fps": 30, "videoBitrate": 2500000, "audioBitrate": 128000, "layout": "single" },
+  "maxDurationSeconds": 14400,
+  "retentionSeconds": 300
+}
+```
+Other sources are `{ "kind": "whip" }` and `{ "kind": "rtmp" }`. Profile fields are optional at creation and take defaults. Configuration includes ID, organization/project/environment ownership, active/deleting/deleted status, version, playbackEpoch and ISO UTC createdAt/updatedAt. PATCH requires the current positive version; stop the source before editing. A provided profile is normalized using defaults, so send the complete desired profile when updating selected fields.
+
+## Commands and operations
+Create, source start, stop, delete and credential issue/rotate require `Idempotency-Key`: 1..128 letters, digits, dots, underscores, colons or hyphens. Identity is bound to actor, method and URL; payload fingerprint conflicts return 409. Results are retained for 24 hours, including encrypted credential responses. Retry with the same key and payload to avoid duplicate commands. Updates use optimistic versioning instead.
+
+An operation contains `id, streamId, sessionId, kind, status, errorCode, createdAt, completedAt`. Kinds: start/stop/delete. States: pending/completed/failed. A 202 response means queued work; poll operation status before claiming completion. Source sessions have starting/live/reconnecting/stopping/ended/failed states, generation, attempts, safe sourceInfo, bitrate observations and safe lastError. Playback additionally reports ready before a source exists.
+
+Unreleased Phase 1 reuses this operation endpoint with nullable broadcastId and additional broadcast.start/broadcast.stop kinds. Existing stream operation behavior remains unchanged; see [broadcast REST](/reference/api/v1/broadcasts).
+
+## Playback metadata
+```json
+{
+  "streamId": "stream_example", "sourceSessionId": "source_example", "generation": 1, "state": "live",
+  "profile": { "audioOnly": false, "width": 1280, "height": 720, "fps": 30, "videoBitrate": 2500000, "audioBitrate": 128000, "layout": "single" },
+  "protocols": ["hls", "ll-hls"], "grantRequired": true, "grantTtlSeconds": 300,
+  "renewal": "POST /v1/streams/{streamId}/playback-grants",
+  "delivery": "single-rendition-fmp4", "latencyTargetSeconds": null
+}
+```
+Grants expire in 30..3600 seconds (default 300). Ingest TTL is 60..86400 seconds (default 3600). Scope and source readiness are checked before issuance. Playback object routes under `/v1/playback/{streamId}/{sessionId}/{name}` require a viewer grant on every request.
+
+## Errors and events
+Errors follow existing `{ code, description, requestId }` conventions. Relevant statuses: 400 invalid input/missing idempotency key, 401 invalid key/grant, 403 scope/role/Origin failure, 404 inaccessible resource, 409 version conflict/running configuration/source unavailable/idempotency conflict, 429 admission limit and 5xx unavailable dependencies. Inspect codes, not diagnostic URLs.
+
+Signed durable webhooks emit stream.created/starting/live/reconnecting/ended/failed. Existing envelopes carry stable event ID, UTC occurrence, ownership scope and data with stream/session/version/correlation. Delivery is at least once; deduplicate by event ID and reconcile state with REST.
+
+Canonical machine-readable contracts are in core `specs/streaming/openapi.json`; they describe the unreleased API. [Node methods](/reference/sdk/server/node/streams) and [ingest protocols](/guides/streaming-ingest) use the same routes.
+

@@ -1,0 +1,25 @@
+---
+title: "Mixer scene schema"
+description: "Versioned canvas layers, source bindings, overlays and audio policies."
+section: "Streaming"
+---
+
+MixerScene contains name, layout, background, layers, overlays, texts, audio, ducking and transition. Source IDs refer to the mixer's immutable registry; primary always means the original broadcast stream source. Additional bindings use an opaque ID and an authorized independent streamId in the same project/environment. Participant/guest IDs alone do not grant media access.
+
+| Field | Rules |
+| --- | --- |
+| name | Trimmed, 1–100 characters |
+| layout | single, grid, pip or custom |
+| background | Six-digit hexadecimal color |
+| video layer | sourceId, x/y, width/height, z, fit (contain/cover), opacity |
+| image layer | overlayId and canvas box/z/opacity; asset must be ready and mixer-owned |
+| text layer | id, text, box/z/opacity, fontSize and color; fixed DejaVu Sans |
+| audio | Unique sourceId, gainDb (-60 to +12), muted |
+| ducking | Null, or sourceId from audio, threshold (0.01–1) and attenuationDb (0–30) |
+| transition | cut |
+
+Boxes use integer coordinates on a 640×360 canvas. Width/height are at least two pixels, boxes cannot leave the canvas and z must be unique across all layers (0–15). Opacity is 0–1. Single permits at most one video; picture-in-picture two; grid/custom four. Preset layouts deterministically assign video boxes; custom honors supplied boxes. Image and text boxes always use their explicit positions. Four image and four text layers are allowed. Text is at most 120 non-control characters, size 10–48. Unknown JSON properties, source IDs, overlays and unsupported transitions are rejected.
+
+PUT scene requires its current version, using zero for creation. The API increments that scene version and preserves active snapshots. Activation separately requires the current mixer version, scene ID and saved scene version; it increments the mixer's desired program revision and stores an immutable snapshot. appliedVersion is a program revision, not the scene editor's version number. Editing a saved scene does not silently change a pending or applied revision. Re-read state after a version conflict and decide whether to apply the new draft.
+
+Draft browser layout is not authoritative program composition. Use the [mixer guide](/guides/cloud-video-mixer) for timing, loss, resources and deployment.

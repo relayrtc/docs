@@ -1,0 +1,36 @@
+---
+title: "Live guest REST API"
+description: "Run-scoped stage configuration, identity, invitations, requests and moderation."
+section: "REST API"
+---
+
+All routes use /v1. Every stream route requires broadcastId in the query; optional projectId/environmentId must match. Management reads require streams:read and mutations streams:write. Stage configuration, audience credential issuance and backend RTC grant issuance also require streams:publish and tokens:create. Narrow audience credentials permit only bound-subject actions and current delegated controls. HLS and ordinary participant tokens are rejected for management/audience actions.
+
+| Method | Stream route suffix | Contract |
+| --- | --- | --- |
+| GET / PUT | `/guest-stage` | Stage limits/layout, enabled, occupied, version; PUT requires version |
+| POST | `/audience-grants` | Management-only subject/name/role/delegations/ttlSeconds; 201 credential |
+| POST / GET | `/invites` | Invite recipientSubject with media/ttlSeconds; list authorized invitations |
+| POST | `/invites/{inviteId}/accept`, `/decline`, `/cancel` | Versioned own decision or authorized cancellation |
+| POST / GET | `/guest-requests` | Own media request or authorized/filtered request list |
+| POST | `/guest-requests/{requestId}/approve`, `/reject` | Delegated operator decision, version |
+| GET | `/guests` | Accepted/approved/joined roster with slot occupancy |
+| GET | `/guest-status` | Caller-owned reconciliation; management must supply subject query |
+| POST | `/guests/{guestId}/join-grant` | Bound guest/authorized backend, version; 201 RTC grant |
+| POST | `/guests/{guestId}/leave`, `/remove`, `/mute` | Own leave or authorized moderation |
+
+```json
+{
+  "recipientSubject": "application-user-42",
+  "media": {"audio": true, "video": false, "screen": false},
+  "ttlSeconds": 300
+}
+```
+
+Decisions carry version; management own actions also carry subject, derived from the application's authenticated user. Mute additionally carries audio/video booleans where true means moderator-muted. It fences the old RTC connection and requires a deliberate rejoin. False permits publication but never enables a device. Approval, decisions and moderation return 200 updated authoritative resources; physical RTC cleanup is asynchronous through existing participant-removal operations. These statuses replace illustrative proposed statuses in the broad source specification.
+
+Lists accept limit 1–50 (default 25) and cursor; ordering is descending createdAt/id. Viewer invitations/requests/status are subject-filtered; viewer roster contains joined peers and its own eligible row with private subjects/actor IDs omitted. Requests and invitations preserve terminal outcomes. Roster rows expose id, kind, state, version, name, media, moderator mutes, server-assigned participantId, createdAt and expiresAt. Stage metadata returns roomId, enabled, version, maxGuests, occupied and layout.
+
+Send Idempotency-Key for state mutations, reusing it with the identical body when retrying an uncertain command. Audience/RTC credential issuance can renew credentials for the same bound identity/version; it does not add another reservation. RTC grant expiry is nominally 300 seconds and at most 310 seconds for monotonic burst renewals. Join grants return token, participantId, roomId, expiresAt, version, effective media and signalingUrl. No media-engine addresses or management secrets are returned.
+
+GET /v1/guests/openapi derives schemas from shared validators. Important errors include GUEST_VERSION_CONFLICT, GUEST_STAGE_FULL, GUEST_DECISION_EXPIRED, GUEST_GRANT_REVOKED, GUEST_REJOIN_REQUIRED, GUEST_CONTROL_FORBIDDEN, GUEST_SUBJECT_REQUIRED, GUEST_PROGRAM_RESERVED, GUEST_ROOM_CAPACITY and rate-limit errors. Refresh status after conflicts; do not blindly retry an approval for another subject. [Live guests](/guides/live-guests-and-cohosting) documents capacity, expiry, revocation and consent.

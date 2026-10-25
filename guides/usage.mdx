@@ -53,3 +53,12 @@ Check `dataQuality` before interpreting missing or partial usage as zero. The re
 
 A key reads usage from its own project environment. Supplying another project or environment does not expand access.
 
+## Streaming source usage (unreleased)
+
+`GET /v1/streams/{id}/usage` and `relay.streams.getUsage(id)` expose observed sourceSeconds, ingressBytes, programBytes, samples and observed/partial coverage. These source-side observations remain distinct from RTC participant minutes, destination egress and HLS audience/CDN billing. Missing observations are partial coverage, not proven zero traffic. Historical usage survives stream retirement. See [streams REST](/reference/api/v1/streams).
+
+Phase 1 [broadcast detail](/reference/api/v1/broadcasts) adds observed runSeconds/outputSeconds and separately accounted reservationSeconds. Waiting and retry gaps are excluded from live duration. Samples deduplicate by job/fence/sequence; atomic retained totals avoid rescanning the observation ledger. Missing live observations mark partial coverage. These operational units do not introduce a new billing product or infer viewer traffic.
+
+
+## Multistream output observations
+Phase 2 run detail distinguishes canonical HLS runSeconds from summed outputSeconds. It adds observed outbound bytes and transcodeSeconds; the latter is live output wall time under a transcoding profile, not CPU-seconds. Per-output bitrate and dropped frames are diagnostic observations. Job/fence/sequence identities deduplicate samples across attempts; missing observations remain partial. These operational measurements do not establish new viewer billing.

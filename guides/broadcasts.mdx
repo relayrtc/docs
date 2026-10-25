@@ -1,0 +1,67 @@
+---
+title: "Broadcast runs"
+description: "Coordinate source readiness, output jobs, cancellation and recovery."
+section: "Streaming"
+---
+
+## Availability
+Phase 1 is an unreleased addition to the local streaming foundation. Use matching core/browser 0.0.0 and Node/React 0.1.0 development builds. Apply migration 0033 through an intentional deployment; this guide does not claim the code or images have been published.
+
+A stream is reusable configuration. A broadcast is one immutable execution with a new ID, snapshotted source/profile/output configuration and durable start/stop operations. A completed or failed run cannot restart. Create another run using the same stream.
+
+## Console workspace
+
+Open Streams, choose a stream, then use Overview to connect its encoder or RTC source. Broadcasts creates runs using that stream automatically; destinations appear by name. The stream sidebar keeps its environment and selected broadcast across guests, recordings, clips, schedule and mixer studio. Automatic broadcast selection prefers the newest active run, falling back to the newest saved run. Select an older run explicitly to inspect its history. Settings contains source/encoding, DVR and retirement controls. Old project-wide streaming pages redirect to Streams.
+
+## Create and start
+Publish into the existing RTC/WHIP/RTMP source first. Room sources still use `relay.streams.start(streamId)`; broadcast start does not create or terminate the RTC room.
+
+```ts
+const run = await relay.broadcasts.create({
+  streamId, name: 'Town hall',
+  waitTimeoutSeconds: 120,
+  maxDurationSeconds: 14400,
+})
+const pending = await relay.broadcasts.start(run.id, {}, {
+  idempotencyKey: applicationCommandId,
+})
+const operation = await relay.streamingOperations.get(pending.id)
+const detail = await relay.broadcasts.get(run.id)
+const outputs = await relay.broadcasts.getOutputs(run.id)
+```
+
+The run waits for a live, leased source before allocating an output worker. It then enters starting and live after an authoritative output readiness observation. Source loss enters reconnecting, with bounded waiting. Retried/failed outputs produce degraded state; healthy independent jobs are preserved. Exhausted retries fail the run when no configured output remains viable.
+
+Each run includes exactly one HLS output and can select external RTMP/RTMPS destinations through Phase 2. It attaches to the existing canonical program's protected HLS output; it does not encode another program or duplicate packaging. A run stop releases its attachment. Stream playback remains a source capability and can continue until the source itself is stopped. See [multistreaming](/guides/multistreaming) for destination snapshots, profiles and independent retries. Recording belongs to a later phase.
+
+## Stop and operations
+```ts
+const stopping = await relay.broadcasts.stop(run.id, {}, {
+  idempotencyKey: applicationStopId,
+})
+const progress = await relay.streamingOperations.get(stopping.id)
+```
+
+Stop works while waiting, starting or live. It sets durable cancellation, fences work, waits for worker acknowledgement or lease expiry and then completes the stop operation. It preserves the source room/session. A pending start operation fails with BROADCAST_STOPPED when cancellation wins. A 202 response means queued work, not confirmed media completion.
+
+API keys use existing streams:read/streams:write scopes; console sessions follow the same Fastify policies. Optional command version checks reject stale state. Idempotency keys are actor/method/URL/payload scoped and retained for 24 hours. The Node SDK generates a UUID unless supplied; reuse a stable application command ID after a lost response.
+
+## Deployment and quotas
+The existing streaming Compose override adds `streaming-outputs`, running the same streaming image with the output-worker entrypoint. It has no RTP receiver IP and can execute independent async HLS attachments with bounded reads. Source encoding remains in the separate source worker. Keep output health/metrics port 8091 private.
+
+Defaults are 16 active runs globally, four per environment, 16 reserved output jobs globally and four per output worker. Configure STREAMING_MAX_BROADCASTS, STREAMING_MAX_BROADCASTS_PER_ENVIRONMENT, STREAMING_MAX_OUTPUT_JOBS, STREAMING_MAX_OUTPUT_JOBS_PER_WORKER and STREAMING_OUTPUT_CONCURRENCY. Run admission and output slot reservation are separate transactional limits. No slot is allocated while waiting for a source.
+
+Each attempt has a monotonically increasing fence, short-lived job grant, heartbeat sequence and exclusive reservation. Leases last fifteen seconds, heartbeat every four seconds, and the worker aborts locally after twelve seconds without renewal. Attempts retry at most three times with bounded backoff. Expired owners cannot report readiness, renew, fetch the program or release another attempt's reservation. Generation changes retain the old attempt's slot until acknowledged teardown or expiry before retrying. Worker shutdown releases its attempt and retries a still-running run; requested run shutdown cancels it. Abandoned attempts are reconciled from PostgreSQL.
+
+## Emergency drain and deletion
+Set STREAMING_BROADCASTS_ENABLED=false on the API and restart it to reject new runs/start commands and durably drain existing runs. Keep RELAYRTC_STREAMING_ENABLED=true while draining so cleanup remains active. Read/stop/status and worker cancellation remain available. This switch preserves source streams.
+
+Source retirement and project/environment/organization deletion cancel dependent runs. Parent deletion waits for terminal run cleanup. Existing durable webhook delivery emits broadcast.created/starting/live/reconnecting/output_degraded/stopped/failed with stable event identity, scope, run/source IDs, version and correlation. Audit attribution records the verified operator or SYSTEM runtime. Deduplicate event IDs and reconcile current REST state after reconnect.
+
+## Usage and recovery
+Run detail returns observed live run/output seconds, reserved-slot seconds, samples and observed/partial coverage. Waiting/backoff is not live output time. Reservations are accounted separately up to their authoritative lease boundary. Run seconds follow the HLS attachment, while output seconds sum independently observed outputs. Destination bytes and transcode duration are recorded separately. These are operational measurements, not a new billable product or viewer traffic estimate. Historical records remain after configuration removal.
+
+Use the Broadcast orchestration Grafana dashboard and alerts for queue age, reservations, lease expiry, worker saturation and output failures. For waiting runs, check source publication and health. For stalled jobs, check output-worker readiness, gateway/storage access and admission limits. For source configuration changes, create a new run rather than attaching the old snapshot to new media. For expired ownership, allow maintenance to reconcile; do not manually mark operations complete. Restored deployments must leave workers stopped until stale leases are reconciled.
+
+The local streaming-foundation example includes application-authorized create/start/stop/status endpoints and a React control panel. [REST](/reference/api/v1/broadcasts), [Node methods](/reference/sdk/server/node/broadcasts) and [useBroadcast](/reference/sdk/client/react/use-broadcast) describe the same contracts. Compilation/configuration validation does not establish live media interoperability.
+

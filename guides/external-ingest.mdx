@@ -1,0 +1,52 @@
+---
+title: "External ingest"
+description: "Register an authorized HLS source or an external RTMP/WHIP encoder."
+section: "Streaming"
+---
+
+## Availability and supported inputs
+Use matching local core, Node, browser and React SDK builds with migration 0037 after 0036. Published packages and images may contain an earlier release. Live external media and recovery still need operator verification.
+
+| Source protocol | Attachment | Input profile |
+| --- | --- | --- |
+| hls_pull | Existing RTMP stream | Public HTTP/HTTPS HLS, unencrypted H.264 video and/or AAC audio, MPEG-TS or fMP4 independent segments |
+| rtmp_push | Existing RTMP stream | Existing RTMP/RTMPS publisher admission |
+| whip_push | Existing WHIP stream | Existing WHIP publisher admission |
+
+SRT, RTMP pull, arbitrary HTTP files, encrypted HLS, byte-range playlists, low-latency partial segments and content-steering/variable playlists are unsupported. Pull input is remuxed into the protected ingest gateway; the normal source worker produces the configured H.264/AAC program. This reuses existing private playback, broadcast destinations and recordings. No RTC room is needed for these external sources.
+
+## HLS pull
+First ask your operator to allow every exact playlist and segment hostname through STREAMING_SOURCE_ALLOWED_HOSTS. Empty configuration disables pulls. Confirm your right to redistribute the source, then create an RTMP stream and register it from your backend:
+
+```ts
+const stream = await relay.streams.create({ name: 'Authorized external feed', source: { kind: 'rtmp' } })
+const source = await relay.restreamSources.create({
+  streamId: stream.id, name: 'Event feed', protocol: 'hls_pull',
+  endpoint: process.env.APPROVED_HLS_URL!,
+  authorization: process.env.APPROVED_HLS_AUTHORIZATION ?? '',
+  redistributionAuthorized: true,
+})
+await relay.restreamSources.probe(source.id)
+let status = await relay.restreamSources.get(source.id)
+for (let attempt = 0; status.session && !status.session.endedAt && attempt < 35; attempt++) {
+  await new Promise(resolve => setTimeout(resolve, 2000))
+  status = await relay.restreamSources.get(source.id)
+}
+if (status.state !== 'ready') throw new Error('Source probe did not become ready')
+await relay.restreamSources.start(source.id)
+```
+
+Probe and start return an accepted source detail with a durable session ID. Poll the source until ready/live/failed. Start can also probe as part of admission. Play through the stream's normal application-backed playback and grant endpoints; the upstream URL never becomes a viewer URL.
+
+## External encoder
+Register an rtmp_push or whip_push source against a compatible stream. Create credentials using streams.createIngestCredentials(streamId), then start the registry source to monitor its publisher. The encoder must connect within 60 seconds. Registry start does not launch OBS or a browser publisher for you. Push probes check the registered attachment; live readiness requires actual media from the encoder.
+
+For RTMP, use the returned credential URL with `?pass=` followed by the credential secret. In OBS, put the RTMP origin in Server and the ingest path plus credential query in Stream Key. Existing RTMPS deployment settings still apply. A backend FFmpeg example uses the same issued URL:
+
+```sh
+ffmpeg -re -i authorized-input.mp4 -c:v libx264 -preset veryfast -pix_fmt yuv420p -g 60 -c:a aac -f flv "$RELAYRTC_ISSUED_RTMP_URL"
+```
+
+The issued URL contains a secret. Deliver it only through authenticated encoder setup. For WHIP, use the existing [WHIP publisher instructions](/guides/streaming-ingest). Stop revokes the registry session's attached publisher credential; issue a new credential before reconnecting. Source definitions can be reused with later credentials. Do not register several logical publishers for the same active stream.
+
+The local streaming-foundation example includes source-setup.mjs for backend setup and restream-panel.tsx for application-backed status and player integration. See [restreaming operations](/guides/restreaming) for limits and deployment.

@@ -1,0 +1,32 @@
+---
+title: "Node DVR methods"
+description: "Configure retention and authorize a specific live or ended broadcast window."
+section: "Node SDK"
+---
+
+The matching unreleased Node build exports DvrPolicy, DvrPolicyResource and DvrPlayback. Keep RelayServer and its secret key on your backend.
+
+| Method | Arguments | Result |
+| --- | --- | --- |
+| `streams.dvr.configure` | streamId, policy wrapper, request options | DvrPolicyResource |
+| `streams.dvr.getPolicy` | streamId, request options | DvrPolicyResource |
+| `streams.dvr.updatePolicy` | streamId, policy + version, request options | DvrPolicyResource |
+| `streams.dvr.getPlayback` | streamId, optional broadcastId query, request options | DvrPlayback |
+| `streams.createPlaybackGrant` | streamId, mode=dvr + broadcastId + ttlSeconds, request options | PlaybackGrant |
+
+```ts
+const current = await relay.streams.dvr.getPolicy(streamId, { signal })
+if (current.policy) {
+  await relay.streams.dvr.updatePolicy(streamId, {
+    version: current.version,
+    policy: { ...current.policy, durationSeconds: 600 },
+  }, { signal, idempotencyKey })
+}
+const metadata = await relay.streams.dvr.getPlayback(streamId, { broadcastId }, { signal })
+// First authorize your application's viewer for broadcastId.
+const grant = await relay.streams.createPlaybackGrant(streamId, {
+  mode: 'dvr', broadcastId, ttlSeconds: 300,
+}, { signal })
+```
+
+Request options support AbortSignal and stable mutation idempotency keys. Existing RelayApiError exposes safe typed API failures. Pick a broadcast explicitly for a viewer; omitted broadcastId selects the latest DVR run, not whichever older run still has media. Update changes apply to the next run; disabling drains the saved current window. See [DVR REST](/reference/api/v1/dvr) and [live DVR](/guides/live-dvr).

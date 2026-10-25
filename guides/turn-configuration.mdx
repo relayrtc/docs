@@ -22,6 +22,87 @@ Use `turn:` for a TURN endpoint or `turns:` for TURN over TLS. Use the URL, port
 
 The URL must be reachable from the participant's browser. `localhost` points to that participant's machine, so use a public hostname for remote participants.
 
+## Choose a mode for each participant
+
+Connection mode applies to each participant's browser client, not to the whole room. Each `RelayClient` or React `RelayProvider` has its own ICE configuration. Participants in the same room can use different modes.
+
+| Mode | Configuration | Behavior |
+| --- | --- | --- |
+| Automatic | `iceTransportPolicy: 'all'`, with TURN credentials available | WebRTC can select a direct connection to the SFU or a TURN relay. This is the default policy. |
+| Force TURN | `iceTransportPolicy: 'relay'`, with valid TURN credentials | Media requires a TURN relay. It cannot fall back to a direct connection. |
+| TURN disabled | `iceTransportPolicy: 'all'`, with no TURN servers or credential providers | Media must connect directly to the SFU. Restrictive networks may prevent it from connecting. |
+
+For example, Alice can join a room with Automatic while Bob joins the same room with Force TURN. Bob's setting does not force Alice to use TURN. Your application can choose the policy for each client or offer a selector before joining.
+
+To disable TURN completely, pass `iceServers: []` and omit `turnCredentials` and `refreshTurnCredentials`. Setting the policy to `'all'` alone does not disable TURN.
+
+Choose the mode before creating the client or joining through the provider. To change it during a call, leave and create a client with the new settings, or leave and rejoin through a provider configured with the new settings.
+
+The policy describes the permitted routes, not the route currently in use. In Automatic mode, sending and receiving media can use different routes. See [Check the connection](#check-the-connection) to verify each transport.
+
+### Browser example
+
+Create a client using the mode chosen for the current participant. The `refreshTurnCredentials` callback fetches temporary credentials from your authenticated backend, as shown in [Issue temporary credentials](#issue-temporary-credentials).
+
+```ts
+import { RelayClient } from '@relayrtc/client'
+import type { RelayClientOptions } from '@relayrtc/client'
+
+type ConnectionMode = 'automatic' | 'force-turn' | 'turn-disabled'
+
+function createParticipantClient(
+  mode: ConnectionMode,
+  refreshTurnCredentials: NonNullable<RelayClientOptions['refreshTurnCredentials']>,
+) {
+  return new RelayClient({
+    signalingUrl: 'wss://signaling.example.com/v1/connect',
+    iceTransportPolicy: mode === 'force-turn' ? 'relay' : 'all',
+    ...(mode === 'turn-disabled'
+      ? { iceServers: [] }
+      : { refreshTurnCredentials }),
+  })
+}
+```
+
+Alice's browser calls `createParticipantClient('automatic', refreshTurnCredentials)`. Bob's browser calls `createParticipantClient('force-turn', refreshTurnCredentials)`. Each then calls `client.join(token)` with its own participant token for the same room. The backend must authorize each caller and issue credentials for that caller's session.
+
+### React example
+
+Pass the selected mode to the provider rendered for the current participant. `children` contains your call UI and room hooks.
+
+```tsx
+import type { ReactNode } from 'react'
+import { RelayProvider, RelayRoom } from '@relayrtc/react'
+import type { RelayClientOptions } from '@relayrtc/react'
+
+type ConnectionMode = 'automatic' | 'force-turn' | 'turn-disabled'
+
+type ParticipantCallProps = {
+  token: string
+  mode: ConnectionMode
+  refreshTurnCredentials: NonNullable<RelayClientOptions['refreshTurnCredentials']>
+  children: ReactNode
+}
+
+function ParticipantCall({ token, mode, refreshTurnCredentials, children }: ParticipantCallProps) {
+  return (
+    <RelayProvider
+      signalingUrl="wss://signaling.example.com/v1/connect"
+      iceTransportPolicy={mode === 'force-turn' ? 'relay' : 'all'}
+      {...(mode === 'turn-disabled'
+        ? { iceServers: [] }
+        : { refreshTurnCredentials })}
+    >
+      <RelayRoom token={token}>{children}</RelayRoom>
+    </RelayProvider>
+  )
+}
+```
+
+Render `ParticipantCall` with `mode="automatic"` in Alice's browser and `mode="force-turn"` in Bob's browser. Use a separate token and authenticated credential callback for each participant. In Next.js, place the component in a client module.
+
+These examples configure the mode before joining. Changing a variable or prop alone does not switch an active client's policy; leave and recreate the client or provider with the new mode before rejoining.
+
 ## Configure RelayClient
 
 ```ts
@@ -96,6 +177,8 @@ const credentials = await relay.turn.createCredentials()
 
 Calling without room/session IDs creates environment-scoped credentials for initial setup. Supply both `roomId` and `sessionId` for session-bound credentials. The response includes `iceServers` and `expiresAt`.
 
+For an additional participant ownership check, your backend can supply `participantId` alongside both IDs. Resolve it from the authenticated caller's trusted application session or record. The API rejects a session belonging to another participant. See the [Node SDK parameters](/reference/sdk/server/node/turn/createCredentials#parameters) or [REST request body](/reference/api/v1/turn/create-credentials#request-body) for the optional field and its errors.
+
 For a self-hosted deployment, the issued URLs come from `TURN_URLS`. `TURN_SHARED_SECRET` must match the TURN server's shared-secret authentication configuration. An external provider with another credential mechanism needs its own backend integration.
 
 You can pass an initial response as `turnCredentials`. For automatic renewal, supply a server-backed `refreshTurnCredentials` callback:
@@ -129,6 +212,10 @@ The callback supplies initial credentials when none were provided and renews the
 To verify TURN usage, inspect the selected ICE candidate pair in your browser's WebRTC diagnostics. In Chromium browsers, open `chrome://webrtc-internals` before starting a call. A local candidate with type `relay` indicates that the browser is using a TURN allocation for that transport.
 
 Check each media transport. A successful WebSocket connection or room join alone does not prove that media is using TURN.
+
+SDK builds exposing `room.getMediaConnectionStats()` provide the selected route, state, protocols and byte counters for each local send/receive transport. See the [browser example](/reference/sdk/client/javascript/overview#inspect-media-connections), [React example](/reference/sdk/client/react/room#media-connection-stats) and [stats types](/reference/sdk/client/react/types#mediaconnectionstats).
+
+A peer-reflexive (`prflx`) candidate can retain TURN protocol metadata. The method recognizes that metadata when reporting a relay route. These local diagnostic counters are separate from server usage and billing totals.
 
 ## Troubleshooting
 
