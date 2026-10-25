@@ -64,6 +64,10 @@ Unreleased Phase 1 reuses this operation endpoint with nullable broadcastId and 
 ```
 Grants expire in 30..3600 seconds (default 300). Ingest TTL is 60..86400 seconds (default 3600). Scope and source readiness are checked before issuance. Playback object routes under `/v1/playback/{streamId}/{sessionId}/{name}` require a viewer grant on every request.
 
+## Windowed usage (Phase 7, unreleased)
+
+`GET /v1/streams/{id}/usage-report` requires `usage:read` and returns the unified stream and child-resource report. Select a range or explicit UTC boundaries. This is separate from the existing lifetime source usage endpoint. Recording, clip, DVR window, broadcast, mixer and external-source resources also expose scoped `usage-report` routes. See [resource drilldowns](/guides/usage#resource-drilldowns).
+
 ## Errors and events
 Errors follow existing `{ code, description, requestId }` conventions. Relevant statuses: 400 invalid input/missing idempotency key, 401 invalid key/grant, 403 scope/role/Origin failure, 404 inaccessible resource, 409 version conflict/running configuration/source unavailable/idempotency conflict, 429 admission limit and 5xx unavailable dependencies. Inspect codes, not diagnostic URLs.
 

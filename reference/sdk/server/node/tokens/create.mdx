@@ -46,7 +46,7 @@ const result = await relay.tokens.create(roomId, { participantName: 'Alice', per
 
 Permissions are `room:join`, `audio:publish`, `video:publish`, `screen:publish`, `messages:send` and `metadata:update`.
 
-Every call creates a new participant identity. This is not an identity-preserving renewal endpoint. Authenticate your own user and check room access before issuing a token.
+Every call creates a new participant identity. Use [`tokens.renew`](/reference/sdk/server/node/tokens/renew) for an ongoing session. Authenticate your own user and check room access before issuing or renewing a token.
 
 ## REST equivalent
 

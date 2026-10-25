@@ -36,6 +36,8 @@ curl -X GET "$RELAYRTC_API_URL/usage?range=7d&granularity=day" \
 
 Included metrics: All public category metrics.
 
+The Phase 7 API adds `serviceUsage` for streaming and retained assets while preserving the RTC fields. `GET /v1/usage/streaming` returns this service report with an empty RTC summary. This addition requires the matching database migration and is unreleased. See [streaming and asset usage](/guides/usage#streaming-and-assets-unreleased) for metrics, coverage and REST examples.
+
 ## Notes
 
 Explicit windows must be positive, at most 30 days, and within retained history. Times and calendar buckets use UTC; the end boundary is exclusive.

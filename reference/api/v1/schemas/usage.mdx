@@ -9,13 +9,22 @@ section: "REST API v1"
 | Field | Meaning |
 | --- | --- |
 | scope | organizationId, projectId and environmentId. |
-| category | all, rooms, participants, sfu, turn, signaling or screen-share. |
+| category | all, rooms, participants, sfu, turn, signaling, screen-share or streaming (Phase 7, unreleased). |
 | window | range, startedAt, endedAt, timezone: UTC and endExclusive: true. |
 | bucketDefinition | granularity, alignment, partialEdges, durations and events definitions. |
 | metricDefinitions | Definition per returned metric: unit, aggregation, integer, definition and source. |
 | summary | Metric values for the complete requested window. |
 | buckets | Each bucket contains startedAt, endedAt and metrics. |
 | dataQuality | History completeness and TURN attribution quality. |
+| serviceUsage | Additive Phase 7 service report for all/streaming requests; separate from RTC summary and buckets. |
+
+## Streaming service report (unreleased)
+
+`serviceUsage` contains `window`, `summary`, `buckets`, per-metric `coverage`, `metricDefinitions`, `rules`, `journalStartedAt`, `historicalCoverage`, `resources`, `projects`, `resourceLimit`, `resourcesTruncated`, `deliveryAuthority: 'origin'` and `pricing: 'unpriced'`. Resource and project entries include their own metrics and metric coverage; project and organization viewer peaks are recomputed rather than added.
+
+Definitions include category, unit, source, aggregation and attribution. Units include seconds, bytes, byte-seconds, frames, counts and viewers. Durations are clipped across UTC half-open buckets; byte/frame/count events belong to occurrence time. Retained bytes are end-of-window gauges, while storage byte-seconds integrate physical object lifetimes. Coverage is observed, estimated, partial or unavailable. Inspect coverage before treating a numeric zero as measured inactivity.
+
+Viewer seconds estimate recent successful media requests, not proven watched time. Completed origin responses and incomplete transport attempts are separate metrics. Shared buffer storage counts once. These measurements do not define charges or plan allowances. See [usage semantics and resource reports](/guides/usage#streaming-and-assets-unreleased).
 
 ## Metric names
 

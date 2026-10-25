@@ -115,6 +115,10 @@
           {
             "label": "Issue a participant token",
             "href": "/reference/api/v1/tokens/create"
+          },
+          {
+            "label": "Renew a participant token",
+            "href": "/reference/api/v1/tokens/renew"
           }
         ]
       },
@@ -457,6 +461,10 @@
           {
             "label": "tokens.create",
             "href": "/reference/sdk/server/node/tokens/create"
+          },
+          {
+            "label": "tokens.renew",
+            "href": "/reference/sdk/server/node/tokens/renew"
           }
         ]
       },

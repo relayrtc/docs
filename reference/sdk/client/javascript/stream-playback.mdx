@@ -39,3 +39,22 @@ start is idempotent. refresh() reconciles metadata; refresh(true) also requests 
 
 attachBroadcastPlayback subscribes to this client, uses native HLS when available and otherwise an optional engine adapter, renews source URLs, preserves a paused viewer during renewal and returns complete teardown. It does not start/stop the shared client; the owner controls that lifetime. The adapter signature is `(media, url, onError, onReady) => teardown`. Notify on fatal media errors and destroy all engine resources in teardown. Attachments should not compete for one video element.
 
+## HLS playback defaults
+
+`getHlsPlaybackConfig` supplies reusable hls.js settings without adding an hls.js dependency to the SDK:
+
+```ts
+import Hls from 'hls.js'
+import { getHlsPlaybackConfig } from '@relayrtc/client'
+
+// Choose the mode for the engine created by your playback adapter:
+const hls = new Hls(getHlsPlaybackConfig('live'))
+// Use 'dvr' or 'vod' instead for retained media.
+```
+
+Use the matching configuration inside your engine factory, and destroy the engine during teardown. Live mode defaults to a 3-second sync target, 8-second maximum-latency recovery threshold, up to 1.1x playback for catch-up, and a 0.25-second target increase after a stall. An optional second argument overrides these four live settings: `liveSyncDuration`, `liveMaxLatencyDuration`, `maxLiveSyncPlaybackRate`, `liveSyncOnStallIncrease`. The maximum latency must exceed the positive sync target, rate must be between 1 and 2, and stall increase must be non-negative; all must be finite. Avoid mixing these seconds-based settings with hls.js duration-count settings.
+
+The targets describe distance from the HLS playlist edge, not total capture-to-viewer delay or a guarantee during stalls. DVR and VOD disable catch-up regardless of live overrides, preserving pause and intentional rewind. Use mode `dvr` for retained viewing instead of seeking backward in live mode. Native HLS and other custom engines retain their own behavior; this helper configures an hls.js engine only when used by the application. The React SDK re-exports the same helper and types `HlsPlaybackConfig` and `LivePlaybackOptions`.
+
+
+The HLS defaults include `liveSyncMode: "buffered"` for hls.js 1.7+: recovery uses downloaded media rather than repeatedly seeking ahead of the buffer. Use hls.js 1.7.3 or newer for this behavior. Conservative targets reduce edge starvation but do not eliminate network or delivery stalls.

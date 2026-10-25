@@ -1,0 +1,29 @@
+---
+title: "Renew participant token"
+description: "Extend an active participant's credentials without leaving the room."
+section: "REST API v1"
+---
+
+`POST /v1/rooms/{roomId}/tokens/renew` requires a secret API key with `tokens:create` in the room's project/environment.
+
+```json
+{
+  "participantToken": "<current unexpired participant JWT>",
+  "sessionId": "session_example",
+  "ttlSeconds": 600
+}
+```
+
+`ttlSeconds` defaults to 600 and must be 60–3600. No identity, permission, name or metadata overrides are accepted. The response is HTTP 201 with the same `ParticipantToken` shape as creation: `token`, `participantId`, `tokenId`, `expiresAt`. The participant ID is preserved; the token ID is new. Responses are `Cache-Control: no-store`.
+
+Renew before expiry. The API verifies the current JWT signature, issuer, audience, key ID, expiration and grant. It checks the token scope against the API key and room, and checks an active connected/reconnecting session with the same participant. Removed/left participants, ended rooms, inactive tenants and expired signaling owners cannot renew. Eligibility checks and signing share database locks; signaling checks eligibility again when applying the replacement. Expired tokens cannot revive sessions.
+
+The new expiration must be later than the old one. Renewing too early with an equal/shorter lifetime returns `TOKEN_EXPIRATION_NOT_EXTENDED` (409). Use the same configured lifetime and renew near expiry. The endpoint does not create a participant/session, alter current participant metadata, restart media, or apply the credential to signaling by itself.
+
+Return the token through an authorized application backend to the browser SDK's `refreshToken` callback. The SDK applies it through `session.refresh` on the existing socket and uses it for later recovery. Your backend must bind the caller to the participant/session and recheck application access on every renewal. An API key authorizes management of its scope; it does not establish your application's end-user identity.
+
+Streaming `guestp_` participants must use the existing guest join-grant flow; generic renewal returns `GUEST_TOKEN_RENEWAL_REQUIRED` (403).
+
+Other renewal errors include `INVALID_PARTICIPANT_TOKEN` (401), `TOKEN_SCOPE_MISMATCH` (403), and `PARTICIPANT_SESSION_NOT_ACTIVE` (403), plus normal API-key authentication/scope errors. No automatic REST mutation retry is assumed. Temporary client retries must stop when authorization is denied or the current token expires.
+
+Use matching local API/SDK builds containing this endpoint; earlier deployed images do not provide it. No database migration is required.
