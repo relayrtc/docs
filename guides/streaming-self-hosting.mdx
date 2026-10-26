@@ -1,71 +1,90 @@
 ---
-title: "Self-host streaming"
-description: "Opt-in private gateway, encoder, storage and operational configuration."
-section: "Streaming"
+title: "Streaming configuration"
+description: "Check the streaming services, public addresses and playback included with RelayRTC."
+section: "Self-hosting"
 ---
 
-## Availability
-Unreleased Phase 0 deployment files live in core `docker-compose.streaming.yml` and `infrastructure/streaming/README.md`. Use matching local SDK builds until the additions are released. No services start as a result of installing an SDK.
+Streaming is included in the standard [RelayRTC installation](/self-hosting). The normal `pnpm docker:up` source command starts calls, streaming workers, the ingest gateway and private storage together. Release installations start the same services with prebuilt images.
 
-## Setup
-Configure the [base stack](/self-hosting), then fill streaming variables in core `.env.example`. Generate three distinct base64url secrets for signing, worker bootstrap and gateway callback authentication. Configure private storage administrator credentials and a separate restricted API storage user. Run from the core repository:
+Use this page to check addresses and media flow after installation. There is no separate streaming installation or enablement step.
+
+## Download streaming configuration
+
+The [v0.1.2 release ZIP](https://github.com/relayrtc/relayrtc/archive/refs/tags/v0.1.2.zip) already includes the complete configuration. The installation guide uses `docker-compose.yml`, `docker-compose.streaming.yml` and both release image overrides.
+
+Keep these files together with `.env`, `.streaming` and the `infrastructure` directory.
+
+## Prepare credentials and monitoring
+
+The [standard settings preparation](/self-hosting#4-create-your-settings-file) generates all call and streaming credentials and prepares `.streaming` automatically. `pnpm env:configure` and `pnpm docker:up` do the same from a source checkout.
+
+Preparation keeps configured provider credentials, signing/encryption keys and public addresses. An older `RELAYRTC_STREAMING_ENABLED=false` value is updated to the standard enabled setting. Keep `.env` and `.streaming` private.
+
+## Review the local addresses
+
+For testing on this computer, generated settings use these addresses:
+
+| Setting | Default |
+| --- | --- |
+| `STREAMING_PUBLIC_ORIGIN` | `http://localhost:8080` |
+| `STREAMING_PUBLIC_RTMP_ORIGIN` | `rtmp://localhost:1935` |
+| `STREAMING_GUEST_SIGNALING_URL` | `ws://localhost:8081/v1/connect` |
+| `STREAMING_INGEST_BIND` | `127.0.0.1`, for an encoder on this computer |
+| `STREAMING_WEBRTC_HOSTS` | `127.0.0.1` |
+
+The API and signaling addresses are derived from the base ports when first prepared. Existing values are preserved, so review them after changing a port or moving to a VPS.
+
+`STREAMING_ALLOWED_ORIGINS` must include your viewing application's exact origin, such as `http://localhost:3005`. Internal worker, gateway and storage addresses remain private Docker addresses. External HLS pulling requires an explicit source-host allowlist.
+
+For encoders or viewers on another device, configure [public streaming access](/guides/streaming-operations#configure-public-access).
+
+## Check the services
+
+For a source checkout:
 
 ```sh
-node --env-file=.env scripts/prepare-streaming.mjs
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml config --quiet
+pnpm docker:status
 ```
 
-The preparation command only writes ignored local monitoring secrets. When the operator is ready to start the deployment, use the same Compose files with `up --build -d`. This starts the base migration service and applies prepared migrations to the configured database. Back up metadata, bucket and signing/encryption secrets first.
+For a release installation, use the same configuration as startup:
 
-The override adds MediaMTX 1.21.2, a worker image with FFmpeg 7.1-compatible codecs and private S3-compatible storage built from pinned MinIO OSS source releases. Storage initialization denies public access and grants the API object-only access under `streaming/*`. Review included upstream licenses before distributing images. An existing private S3 service can replace local storage through an operator override.
+```sh
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml ps -a
+```
 
-## Public and private ports
-Expose the API playback/WHIP routes through trusted HTTPS. Block `/internal/` at the public proxy. Keep gateway control 9997, HLS 8888, WHIP 8889, RTSP 8554, metrics 9998, worker health 8090, S3 9000 and RTP export UDP 20000..20023 private. Forward SDP/trickle content types and allow bounded LL-HLS reload timeouts; avoid query/token access logs and shared caching.
+The standard stack contains 16 services. Long-running services should be running, with healthy results where health checks are configured. `migrate` and `streaming-storage-init` are one-time setup services; `Exited (0)` is expected.
 
-Production RTMPS needs a trusted certificate/key, a returned `rtmps://` public origin and strict/optional encryption. Public WHIP ICE needs reachable advertised addresses and UDP 8189 or configured ICE/TURN. Local defaults bind/advertise loopback. TURN for RTC and HTTP HLS are separate transport concerns.
+## Publish and play a stream
 
-## Capacity and monitoring
-One isolated worker process runs one source at a time. This local recipe uses one fixed private RTP receiver IP; do not scale it with duplicate IPs. Admission limits and available workers are different controls. Watch queue age, live/reconnecting sessions, expired leases, worker busy/memory, control age, encoder failures, storage usage, pending uploads and cleanup. Prometheus and the Streaming foundation Grafana dashboard integrate with existing monitoring. Source usage is measured from server observations and carries observed/partial coverage; it does not bill HLS audiences.
+1. Connect a [room or encoder](/guides/streaming-ingest).
+2. Create and start a [broadcast](/guides/broadcasts).
+3. Wait for playback metadata to report `readiness.viewerReady`.
+4. Authorize a viewer and render [private playback](/guides/streaming-playback).
 
-## Recovery
-Inspect safe source error codes for unsupported codecs, absent tracks, expired credentials and ICE failures. Fix storage before retrying cleanup; keep API maintenance active until durable stop/delete operations complete. Reissue authorized playback grants and reconcile generation after encoder restart. The player may rebuffer.
+Test recordings, clips, DVR and other capabilities separately when using them. A connected encoder or healthy container does not establish playable media.
 
-Stop active sources and wait for operations before shutting down workers/gateway. Keep API and storage running through cleanup. Disabling the feature flag also disables maintenance; drain before disabling. Restore metadata/bucket/secrets with workers and gateway stopped, allow stale leases to reconcile and deliberately re-enable publishing. Never restore a live worker snapshot.
+## Stop or inspect the stack
 
-The core operator README contains exact variables, commands, license notes and rollback details. Compilation/configuration checks do not establish live protocol interoperability. [Ingest setup](/guides/streaming-ingest) and [private playback](/guides/streaming-playback) describe supported behavior.
+Use `pnpm docker:logs` and `pnpm docker:down` in a source checkout. For release images, use all four Compose files as described in [installation](/self-hosting#stop-and-troubleshoot).
 
-## Broadcast orchestration (unreleased Phase 1)
+End active calls, broadcasts and recordings before stopping services. For a deployment serving users, follow the [draining procedure](/guides/streaming-operations#upgrades-and-draining).
 
-The same optional Compose override also supplies the streaming-outputs service. It runs independently of the source encoder and defaults to four concurrent HLS attachment jobs, with private health/metrics on port 8091. Migration 0033 adds run snapshots, jobs, attempts, reservations and usage. Apply it through the existing migrator only when deliberately deploying matching images.
+## Configure public access
 
-Configure the STREAMING_MAX_BROADCASTS, STREAMING_MAX_BROADCASTS_PER_ENVIRONMENT, STREAMING_MAX_OUTPUT_JOBS, STREAMING_MAX_OUTPUT_JOBS_PER_WORKER and STREAMING_OUTPUT_CONCURRENCY limits. To drain broadcasts while keeping source cleanup active, set STREAMING_BROADCASTS_ENABLED=false on the API and restart it; leave RELAYRTC_STREAMING_ENABLED=true. The Broadcast orchestration dashboard exposes queue/lease/output health. See [broadcast runs](/guides/broadcasts) for commands, snapshot behavior, recovery and exact operational limits.
+Follow [public streaming access](/guides/streaming-operations#configure-public-access) for HTTPS, RTMPS, remote encoders and source-host settings.
 
-## External destinations
-Phase 2 adds a separate STREAMING_DESTINATION_ENCRYPTION_KEY and a guarded Linux output worker. The local pnpm docker:up:streaming command generates a missing key. Back up this key with the database and upgrade all components together. See [multistreaming deployment and network requirements](/guides/multistreaming). Migration 0034 must be applied before starting the updated workers.
+## Capacity and private delivery
 
-## Recording worker
-Matching Phase 3 builds add the isolated `streaming-recordings` service and migration 0035. Apply after 0033/0034 with the migration service before starting the upgraded API. The worker uses private API access, the existing FFmpeg guard and bounded temporary storage. Configure STREAMING_MAX_RECORDINGS (default 4), STREAMING_MAX_RECORDINGS_PER_ENVIRONMENT (2), and STREAMING_MAX_RECORDING_BYTES (536870912). Existing signing/S3 credentials are reused. See [Recording and VOD](/guides/recording-and-vod) for retention, consent, region and format limits.
+See [worker capacity and delivery](/guides/streaming-operations#capacity-and-private-delivery) before adjusting quotas or exposing playback publicly.
 
-## Scheduled events
-Migration 0036 and matching API/console/SDK builds add the database-backed scheduler. It runs inside each streaming-enabled API process, with fenced PostgreSQL claims and no browser/cron dependency. Configure STREAMING_MAX_SCHEDULES (1000) and STREAMING_MAX_SCHEDULES_PER_ENVIRONMENT (100). Optional signed-webhook reminders require STREAMING_SCHEDULE_NOTIFICATIONS_ENABLED=true and an enabled schedule.reminder subscription. No email provider is assumed. See [Scheduled broadcasts](/guides/scheduled-broadcasts) for source readiness, access windows and downtime policy.
+## Upgrades and draining
 
-## External source workers
-Migration 0037 adds the source registry and durable probe/pull sessions. Upgrade API, source, composition and output workers together; use the matching local SDK/console builds. The streaming overlay includes streaming-sources. Configure exact STREAMING_SOURCE_ALLOWED_HOSTS before pulling media. Empty disables pulls. See [restreaming deployment](/guides/restreaming) for guarded egress, TLS, limits, credential rotation and observed usage. Before rollback, stop source jobs and wait for leases to drain; preserve the registry/session/usage tables and do not drop historical data.
+Use the [streaming upgrade procedure](/guides/streaming-operations#upgrades-and-draining), which preserves the services needed to finish cleanup.
 
-## Playback origin and private HLS proxy
-STREAMING_PUBLIC_ORIGIN must match the browser-facing API address, including its published port. For example, API_PORT=8082 on a local machine requires STREAMING_PUBLIC_ORIGIN=http://localhost:8082. It differs from the internal Docker address http://api:8080.
+## Backups and restore
 
-MediaMTX 1.21 HLS uses browser-session redirects by default. The streaming overlay configures MTX_HLSCDNSECRET from the existing private STREAMING_GATEWAY_KEY, and only the API uses that credential on upstream HLS requests. This protected reverse-proxy mode emits relative media names without gateway browser sessions. Keep gateway HLS port 8888 private; never send the gateway credential to viewers. Public playback still verifies the scoped viewer grant, current ownership, revocation epoch and session state on every request.
+Save the database, retained objects and original keys together using [streaming backups](/guides/streaming-operations#backups-and-restore).
 
-## Clips and rolling buffers
+## Troubleshooting
 
-Migration 0038 adds clip requests, segment pins and opt-in buffer policies using the recording worker and asset store. Upgrade matching API, recording worker, console and SDK builds. See [clips and replay](/guides/clips-and-replay) for quotas, precise rendering, access and cleanup. No additional service or bucket is required.
-
-## CPU mixer studio
-
-Migration 0039 adds versioned scenes, source bindings, render samples and activation operations. Rebuild the canonical streaming worker (including DejaVu Sans), API and console together; no additional service is needed. See [cloud video mixer](/guides/cloud-video-mixer) for source exclusivity, canvas/delivery limits, continuity, overlay admission, CPU fallback and rollback.
-
-
-## Stream workspace console
-
-Rebuild matching API and console images for the stream workspace navigation. Apply additive migration 0042 through the normal migration service; its indexes support recent-history and active-run selection for each stream. The console keeps one selected environment and broadcast across sections, and old project-wide streaming pages redirect to Streams. No additional service or environment setting is needed.
+Use [streaming troubleshooting](/guides/streaming-operations#troubleshooting) for ingest, storage, playback, DVR and worker failures.
