@@ -26,4 +26,4 @@ Streaming `guestp_` participants must use the existing guest join-grant flow; ge
 
 Other renewal errors include `INVALID_PARTICIPANT_TOKEN` (401), `TOKEN_SCOPE_MISMATCH` (403), and `PARTICIPANT_SESSION_NOT_ACTIVE` (403), plus normal API-key authentication/scope errors. No automatic REST mutation retry is assumed. Temporary client retries must stop when authorization is denied or the current token expires.
 
-Use matching local API/SDK builds containing this endpoint; earlier deployed images do not provide it. No database migration is required.
+Use an API and SDK build containing this endpoint; see [installation](/installation) for package availability.

@@ -27,7 +27,7 @@ A secret API key with `webhooks:write`. Resources are restricted to the key's pr
 
 ## Example
 
-Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8080/v1`.
 
 ```bash
 curl -X POST "$RELAYRTC_API_URL/webhooks" \
@@ -61,7 +61,7 @@ curl -X POST "$RELAYRTC_API_URL/webhooks" \
 
 ## Notes
 
-Events: `room.created`, `room.started`, `room.ended`, `participant.joined`, `participant.left`, `participant.reconnected`, `track.published`, `track.unpublished`, `connection.degraded`, `connection.recovered`.
+Subscribe to supported [event types](/reference/api/v1/schemas/webhook-event), including room/participant lifecycle, connection quality and the streaming resource families supported by your deployed API. Matching Node SDK builds export the [complete subscription literals](/reference/sdk/server/node/constants#webhook-events).
 
 Your endpoint is a receiver in your own backend. [Verify signed requests](/guides/webhooks) before processing them.
 

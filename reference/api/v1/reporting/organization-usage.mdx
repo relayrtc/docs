@@ -29,7 +29,7 @@ RELAYRTC_CONSOLE_SESSION_COOKIE represents your signed console session cookie, n
 
 ## Availability
 
-The unreleased Phase 7 API includes `serviceUsage` across the organization, including a `projects` service breakdown independent of the paginated RTC project list. Service metric units and windows match project reports. Organization viewer peaks are recomputed across activity intervals rather than summed from project peaks. See [usage semantics](/guides/usage#streaming-and-assets-unreleased).
+The API includes `serviceUsage` across the organization, including a `projects` service breakdown independent of the paginated RTC project list. Service metric units and windows match project reports. Organization viewer peaks are recomputed across activity intervals rather than summed from project peaks. See [usage semantics](/guides/usage#streaming-and-assets).
 
 This endpoint is REST-only. The current Node SDK exposes public `usage.get`, but has no wrapper for these reporting endpoints. It is separate from [public scoped usage](/reference/api/v1/usage/all).
 

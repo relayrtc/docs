@@ -9,22 +9,24 @@ section: "REST API v1"
 | Field | Meaning |
 | --- | --- |
 | scope | organizationId, projectId and environmentId. |
-| category | all, rooms, participants, sfu, turn, signaling, screen-share or streaming (Phase 7, unreleased). |
+| category | all, rooms, participants, sfu, turn, signaling, screen-share or streaming; availability depends on the deployed API version. |
 | window | range, startedAt, endedAt, timezone: UTC and endExclusive: true. |
 | bucketDefinition | granularity, alignment, partialEdges, durations and events definitions. |
 | metricDefinitions | Definition per returned metric: unit, aggregation, integer, definition and source. |
 | summary | Metric values for the complete requested window. |
 | buckets | Each bucket contains startedAt, endedAt and metrics. |
 | dataQuality | History completeness and TURN attribution quality. |
-| serviceUsage | Additive Phase 7 service report for all/streaming requests; separate from RTC summary and buckets. |
+| serviceUsage | Optional service report returned for all/streaming requests; separate from RTC summary and buckets. Requires a matching API release. |
 
-## Streaming service report (unreleased)
+## Streaming service report
 
 `serviceUsage` contains `window`, `summary`, `buckets`, per-metric `coverage`, `metricDefinitions`, `rules`, `journalStartedAt`, `historicalCoverage`, `resources`, `projects`, `resourceLimit`, `resourcesTruncated`, `deliveryAuthority: 'origin'` and `pricing: 'unpriced'`. Resource and project entries include their own metrics and metric coverage; project and organization viewer peaks are recomputed rather than added.
 
+For category streaming, top-level RTC `summary` and bucket `metrics` are empty objects; service values live inside `serviceUsage`. RTC-only categories omit the service report. Matching Node SDK releases expose it as `UsageResponse.serviceUsage?: ServiceUsageReport`.
+
 Definitions include category, unit, source, aggregation and attribution. Units include seconds, bytes, byte-seconds, frames, counts and viewers. Durations are clipped across UTC half-open buckets; byte/frame/count events belong to occurrence time. Retained bytes are end-of-window gauges, while storage byte-seconds integrate physical object lifetimes. Coverage is observed, estimated, partial or unavailable. Inspect coverage before treating a numeric zero as measured inactivity.
 
-Viewer seconds estimate recent successful media requests, not proven watched time. Completed origin responses and incomplete transport attempts are separate metrics. Shared buffer storage counts once. These measurements do not define charges or plan allowances. See [usage semantics and resource reports](/guides/usage#streaming-and-assets-unreleased).
+Viewer seconds estimate recent successful media requests, not proven watched time. Completed origin responses and incomplete transport attempts are separate metrics. Shared buffer storage counts once. These measurements do not define charges or plan allowances. See [usage semantics and resource reports](/guides/usage#streaming-and-assets).
 
 ## Metric names
 

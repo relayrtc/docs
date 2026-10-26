@@ -1,7 +1,7 @@
 ---
 title: "Clips"
 description: "Scoped retained intervals, rolling buffer policies and clip assets."
-section: "REST API"
+section: "REST API v1"
 ---
 
 Authenticate with a scoped secret key or console session. Reads require recordings:read; clip creation, deletion and buffer changes require recordings:create. Publishing also requires streams:publish. Project/environment scope is derived from the credential or explicit console query and checked against the stream. Ordinary viewer access uses an application-authorized asset grant, never a management key.
@@ -12,6 +12,7 @@ Authenticate with a scoped secret key or console session. Reads require recordin
 | GET / PUT | /v1/streams/:streamId/buffer-policy | 200 policy, version |
 | POST | /v1/streams/:streamId/clips | 202 ClipResource |
 | GET | /v1/streams/:streamId/clips | 200 data, nextCursor |
+| GET | /v1/clips | 200 data, nextCursor for the selected project/environment |
 | GET | /v1/clips/:clipId | 200 ClipResource |
 | POST | /v1/clips/:clipId/publish | 200 ClipResource |
 | DELETE | /v1/clips/:clipId | 202 ClipResource |
@@ -22,8 +23,8 @@ ClipResource returns id, streamId, broadcastId, sourceRecordingId, recordingId (
 
 PUT buffer-policy accepts `{ version, policy: { enabled, durationSeconds, maxBytes, consentAcknowledged: true } }`. Initial version is zero; a successful mutation increments it. Stale writes return BUFFER_VERSION_CONFLICT. Requests that exceed deployment limits fail with BUFFER_STORAGE_LIMIT. Acknowledged consent is mandatory.
 
-Mutations support Idempotency-Key, scoped to authenticated actor/method/path and checked against the request fingerprint. Repeat the same key and body to obtain the original response; use GET to observe newer state. Conflicting payloads are rejected. Create returns a queued resource, not playable media. Commands that cannot resolve a full interval fail with CLIP_RANGE_EXPIRED, CLIP_RANGE_MISSING, CLIP_RANGE_DISCONTINUOUS or CLIP_WALL_TIME_AMBIGUOUS. CLIP_SOURCE_UNAVAILABLE, CLIP_DURATION_LIMIT and CLIP_CAPACITY describe admission failures. Publication before ready returns CLIP_NOT_READY.
+Clip and buffer-policy mutations require Idempotency-Key, scoped to authenticated actor/method/path and checked against the request fingerprint. Repeat the same key and body to obtain the original response; use GET to observe newer state. Conflicting payloads are rejected. Create returns a queued resource, not playable media. Commands that cannot resolve a full interval fail with CLIP_RANGE_EXPIRED, CLIP_RANGE_MISSING, CLIP_RANGE_DISCONTINUOUS or CLIP_WALL_TIME_AMBIGUOUS. CLIP_SOURCE_UNAVAILABLE, CLIP_DURATION_LIMIT and CLIP_CAPACITY describe admission failures. Publication before ready returns CLIP_NOT_READY.
 
 Use GET /v1/recordings/:recordingId/playback for the clip's backing recording, and POST /v1/assets/:assetId/access-grants for playback/download. Optional audience defaults to viewer and requires a published clip. audience: preview requires recordings:create and can preview a ready unpublished clip. All grants expire and remain scoped to the asset, action and current grant epoch. Publication never exposes S3 URLs. Delete revokes grants immediately and removes media asynchronously after lease drain; deleting the original source recording cannot delete a completed independent clip. See [cuts, limits and cleanup](/guides/clips-and-replay).
 
-GET /v1/clips/openapi returns the OpenAPI 3.1 description for this slice to authenticated management clients. Request and response schemas come from the shared validators used by the API and console. Existing asset access APIs are documented separately.
+GET /v1/clips/openapi returns a partial OpenAPI 3.1 description for this slice to authenticated management clients when streaming is enabled. Request and response schemas come from shared validators. Its `info.version: "v1"` identifies the API contract, independently of server and SDK release versions. Existing asset access APIs are documented separately.

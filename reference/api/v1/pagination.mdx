@@ -20,6 +20,25 @@ Pass `limit` from 1 to 100; the default is 50. Use `pageInfo.endCursor` as the n
 
 Stop when `hasNextPage` is false. Treat cursors as opaque values.
 
+## Streaming collections
+
+Streams, broadcasts, destinations, recordings, clips, scheduled broadcasts and restream sources use `data` and `nextCursor`. Their cursor lists accept `limit` from 1 to 100, default 30.
+
+```json
+{
+  "data": [],
+  "nextCursor": null
+}
+```
+
+Pass the returned `nextCursor` as `cursor` for the next request. Stop when it is null. Ordering differs by resource; preserve the returned cursor rather than constructing one from a timestamp or assuming every list has the same order.
+
+Guest invitations, guest requests and guest rosters use the same `data`/`nextCursor` keys, with `limit` from 1 to 50, default 25. Their responses also include stage metadata, and audience credentials restrict which rows are visible.
+
+## Bounded streaming lists
+
+Some resource lists return `data` without a continuation cursor. Ingest credential history returns the latest 50 summaries; broadcast mixer definitions are bounded to ten and mixer scenes to twelve. Broadcast outputs are also returned as a bounded list. These endpoints do not accept the cursor-list contract. Check the resource reference before adding pagination controls.
+
 ## Webhook and delivery lists
 
 Use `limit` from 1 to 100 and `offset` from 0 to 100,000. Defaults are 50 and 0.

@@ -1,14 +1,14 @@
 ---
 title: "Streams REST API"
-description: "Phase 0 scoped configuration, source lifecycle and private playback contracts."
-section: "API reference"
+description: "Scoped stream configuration, source sessions, credentials and private playback."
+section: "REST API v1"
 ---
 ## Availability and authorization
-Unreleased Phase 0 API, feature gated by `RELAYRTC_STREAMING_ENABLED=true`. Authenticate using a scoped secret API key. Console sessions use the same Fastify policies; session mutations require the trusted console Origin. Secret keys derive project/environment from the verified key. Console requests supply both `projectId` and `environmentId` query fields. Cross-scope references are rejected.
+The standard deployment sets `RELAYRTC_STREAMING_ENABLED=true` automatically. Authenticate using a scoped secret API key. Console sessions use the same Fastify policies; session mutations require the trusted console Origin. Secret keys derive project/environment from the verified key. Console requests supply both `projectId` and `environmentId` query fields. Cross-scope references are rejected.
 
 | Scope | Operations |
 | --- | --- |
-| streams:read | List/detail, playback metadata, source usage, operations |
+| streams:read | List/detail, ingest credential summaries, playback metadata, source usage, operations |
 | streams:write | Create, update, stop, retire |
 | streams:publish | Start room source; issue/rotate ingest credentials |
 | streams:playback | Issue/revoke viewer grants |
@@ -23,15 +23,20 @@ Unreleased Phase 0 API, feature gated by `RELAYRTC_STREAMING_ENABLED=true`. Auth
 | `DELETE /v1/streams/{id}` | Empty | 202 StreamingOperation |
 | `POST /v1/streams/{id}/source-sessions` | `{}` | 202 StreamingOperation, RTC room source only |
 | `POST /v1/streams/{id}/stop` | `{}` | 202 StreamingOperation |
+| `GET /v1/streams/{id}/ingest-credentials` | None | `200 { data: IngestCredentialSummary[] }` |
 | `POST /v1/streams/{id}/ingest-credentials` | `{ ttlSeconds?: number }` | `201 { id, protocol, url, secret, expiresAt }` |
 | `POST /v1/streams/{id}/ingest-credentials/{credentialId}/rotate` | `{ ttlSeconds?: number }` | 201 replacement credential |
 | `GET /v1/streams/{id}/playback` | None | 200 playback metadata |
-| `POST /v1/streams/{id}/playback-grants` | `{ ttlSeconds?: number }` | `200 { token, url, expiresAt }` |
+| `POST /v1/streams/{id}/playback-grants` | `{ ttlSeconds?: number, mode?: "live" or "dvr", broadcastId?: string }` | `200 { token, url, expiresAt }` |
 | `POST /v1/streams/{id}/playback-grants/revoke` | `{}` | `200 { revoked: true }` |
 | `GET /v1/streams/{id}/usage` | None | `200 { streamId, sourceSeconds, ingressBytes, programBytes, samples, coverage }` |
 | `GET /v1/streaming-operations/{operationId}` | None | 200 StreamingOperation |
 
 List ordering is ascending stream ID within the selected environment. The cursor is the last returned ID. No status/name filters are implemented; retired configurations remain visible with their status. Reads of ordinary stream/session resources contain no ingest secret or worker authority.
+
+Credential history returns at most the latest 50 records, newest first, with `id`, `expiresAt`, `revokedAt` and `createdAt`. `revokedAt` is null until revocation. Expired and revoked records can appear. The endpoint has no pagination and never returns a stored secret; save secrets only from credential creation or rotation responses. Ingest bodies accept `ttlSeconds` only; `mode` and `broadcastId` belong to playback-grant requests.
+
+Rotation also returns `handover` with policy `disconnect-and-reconnect`, status `ready` or `pending`, and `retryAfterSeconds`. A pending handover asks the publisher to wait two seconds before reconnecting with the replacement credential; it does not keep the previous credential valid.
 
 ## Configuration
 ```json
@@ -50,28 +55,67 @@ Create, source start, stop, delete and credential issue/rotate require `Idempote
 
 An operation contains `id, streamId, sessionId, kind, status, errorCode, createdAt, completedAt`. Kinds: start/stop/delete. States: pending/completed/failed. A 202 response means queued work; poll operation status before claiming completion. Source sessions have starting/live/reconnecting/stopping/ended/failed states, generation, attempts, safe sourceInfo, bitrate observations and safe lastError. Playback additionally reports ready before a source exists.
 
-Unreleased Phase 1 reuses this operation endpoint with nullable broadcastId and additional broadcast.start/broadcast.stop kinds. Existing stream operation behavior remains unchanged; see [broadcast REST](/reference/api/v1/broadcasts).
+Broadcast commands use the same operation endpoint, with nullable broadcastId/outputId and broadcast.start, broadcast.stop or broadcast.output.retry kinds; see [broadcast REST](/reference/api/v1/broadcasts).
 
 ## Playback metadata
 ```json
 {
-  "streamId": "stream_example", "sourceSessionId": "source_example", "generation": 1, "state": "live",
+  "streamId": "stream_example", "sourceSessionId": "source_example", "generation": 1,
+  "state": "live", "sourceState": "live",
+  "readiness": {
+    "status": "ready",
+    "publisherConnected": true,
+    "sourceProducing": true,
+    "outputStarting": false,
+    "viewerReady": true,
+    "code": null,
+    "checkedAt": "2026-01-01T12:00:00.000Z"
+  },
   "profile": { "audioOnly": false, "width": 1280, "height": 720, "fps": 30, "videoBitrate": 2500000, "audioBitrate": 128000, "layout": "single" },
   "protocols": ["hls", "ll-hls"], "grantRequired": true, "grantTtlSeconds": 300,
   "renewal": "POST /v1/streams/{streamId}/playback-grants",
   "delivery": "single-rendition-fmp4", "latencyTargetSeconds": null
 }
 ```
-Grants expire in 30..3600 seconds (default 300). Ingest TTL is 60..86400 seconds (default 3600). Scope and source readiness are checked before issuance. Playback object routes under `/v1/playback/{streamId}/{sessionId}/{name}` require a viewer grant on every request.
+`sourceState` describes the source lifecycle. `state` can report reconnecting while the source is live but protected playback is not ready. Use `readiness.viewerReady` for observed viewer availability: a connected publisher alone does not prove the encoder is producing media or that the manifest is available.
 
-## Windowed usage (Phase 7, unreleased)
+Readiness status is `waiting`, `starting`, `ready`, `reconnecting`, `degraded`, `failed` or `ended`. `publisherConnected`, `sourceProducing` and `outputStarting` distinguish the pipeline stages; `code` is a safe diagnostic or null, and `checkedAt` records the observation time. A stream without a source has null session/generation, source state ready and readiness status waiting. These fields require a matching API/SDK build.
+
+Grants expire in 30..3600 seconds (default 300). Ingest TTL is 60..86400 seconds (default 3600). Grant issuance checks scope and source lifecycle eligibility; it does not certify viewer-ready media. Playback object routes under `/v1/playback/{streamId}/{sessionId}/{name}` require a viewer grant on every request. Playback grant mode defaults to live. For `mode: "dvr"`, supply the intended `broadcastId` and authorize access to its retained window; see [DVR grants](/reference/api/v1/dvr).
+
+## Windowed usage
 
 `GET /v1/streams/{id}/usage-report` requires `usage:read` and returns the unified stream and child-resource report. Select a range or explicit UTC boundaries. This is separate from the existing lifetime source usage endpoint. Recording, clip, DVR window, broadcast, mixer and external-source resources also expose scoped `usage-report` routes. See [resource drilldowns](/guides/usage#resource-drilldowns).
+
+| GET route | Report scope |
+| --- | --- |
+| `/v1/streams/{id}/usage-report` | Stream and child resources |
+| `/v1/broadcasts/{id}/usage-report` | Broadcast |
+| `/v1/recordings/{id}/usage-report` | Full recording |
+| `/v1/clips/{id}/usage-report` | Clip measurements identified by its backing recording |
+| `/v1/dvr-windows/{id}/usage-report` | DVR window and shared recording |
+| `/v1/mixers/{id}/usage-report` | Mixer |
+| `/v1/restream-sources/{id}/usage-report` | Registered external source |
+
+All return a [service usage report](/reference/api/v1/schemas/usage#streaming-service-report) directly, without the RTC usage wrapper. Query fields are:
+
+| Field | Contract |
+| --- | --- |
+| `range` | `live`, `24h`, `7d`, `14d` or `30d`; defaults to `7d` when no boundaries are supplied |
+| `startedAt`, `endedAt` | Supply both UTC timestamps; end must follow start by no more than 30 days and cannot be in the future |
+| `granularity` | `hour` or `day`; defaults to hour for windows up to 24 hours, otherwise day |
+| `projectId`, `environmentId` | Optional assertions that must match resource ownership |
+
+Do not combine a preset range with explicit boundaries. `live` is a rolling 15-minute window, so its totals can decrease as activity ages out. The current Node SDK has no wrapper for resource usage-report routes; call REST from your backend.
 
 ## Errors and events
 Errors follow existing `{ code, description, requestId }` conventions. Relevant statuses: 400 invalid input/missing idempotency key, 401 invalid key/grant, 403 scope/role/Origin failure, 404 inaccessible resource, 409 version conflict/running configuration/source unavailable/idempotency conflict, 429 admission limit and 5xx unavailable dependencies. Inspect codes, not diagnostic URLs.
 
 Signed durable webhooks emit stream.created/starting/live/reconnecting/ended/failed. Existing envelopes carry stable event ID, UTC occurrence, ownership scope and data with stream/session/version/correlation. Delivery is at least once; deduplicate by event ID and reconcile state with REST.
 
-Canonical machine-readable contracts are in core `specs/streaming/openapi.json`; they describe the unreleased API. [Node methods](/reference/sdk/server/node/streams) and [ingest protocols](/guides/streaming-ingest) use the same routes.
+## OpenAPI coverage
+
+The API exposes four partial OpenAPI 3.1 documents: `GET /v1/clips/openapi`, `GET /v1/mixers/openapi`, `GET /v1/dvr/openapi` and `GET /v1/guests/openapi`. Streaming must be enabled, and these endpoints require authentication. The first three use management API keys or console sessions; the guest document also accepts signed, unexpired audience grants. Actual guest operations still enforce resource, subject and delegation checks. Each document describes its own resource slice; there is no unified streaming specification.
+
+Their `info.version` is `v1`, the API contract version. It is independent of a server release such as `0.1.2` and of SDK package versions. [Node methods](/reference/sdk/server/node/streams) and [ingest protocols](/guides/streaming-ingest) describe stream management and source setup.
 

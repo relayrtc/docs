@@ -48,13 +48,76 @@ section: "REST API v1"
 
 Lifecycle boundary is `observed` or `lease_bound`. A lease-bound event uses the service lease boundary when an exact disconnect time is unavailable.
 
-The unreleased streaming foundation also emits stream.created, stream.starting, stream.live, stream.reconnecting, stream.ended and stream.failed through this signed delivery envelope. Their data contains stream/session/version/correlation fields; see [streams REST](/reference/api/v1/streams). Existing room/participant payloads remain unchanged.
+## Streaming and asset event types
+
+These subscription literals require an API release containing the corresponding resource family and a matching SDK event catalog. The package available from npm may expose an older catalog. Resource-specific lifecycle and access requirements remain in the linked references.
+
+### Stream sources
+
+`stream.created`, `stream.starting`, `stream.live`, `stream.reconnecting`, `stream.ended`, `stream.failed`.
+
+See [stream sources](/reference/api/v1/streams).
+
+### Broadcast runs
+
+`broadcast.created`, `broadcast.starting`, `broadcast.live`, `broadcast.reconnecting`, `broadcast.output_degraded`, `broadcast.stopped`, `broadcast.failed`.
+
+See [broadcast runs](/reference/api/v1/broadcasts).
+
+### Destinations
+
+`destination.created`, `destination.connected`, `destination.disconnected`, `destination.retrying`, `destination.failed`.
+
+See [destinations](/reference/api/v1/destinations).
+
+### Recordings
+
+`recording.started`, `recording.segment_committed`, `recording.finalizing`, `recording.ready`, `recording.failed`, `recording.deleted`.
+
+See [recordings](/reference/api/v1/recordings).
+
+### Scheduled broadcasts
+
+`schedule.created`, `schedule.updated`, `schedule.starting`, `schedule.started`, `schedule.missed`, `schedule.cancelled`, `schedule.failed`, `schedule.completed`, `schedule.reminder`.
+
+See [scheduled broadcasts](/reference/api/v1/scheduled-broadcasts).
+
+### External sources
+
+`restream.probing`, `restream.source_connected`, `restream.source_lost`, `restream.recovering`, `restream.stopped`, `restream.failed`.
+
+See [external sources](/reference/api/v1/restream-sources).
+
+### Clips
+
+`clip.requested`, `clip.rendering`, `clip.ready`, `clip.failed`, `clip.deleted`.
+
+See [clips](/reference/api/v1/clips).
+
+### Mixers
+
+`mixer.started`, `mixer.scene_activated`, `mixer.source_lost`, `mixer.overloaded`, `mixer.stopped`, `mixer.failed`.
+
+See [mixers](/reference/api/v1/mixers).
+
+### DVR
+
+`dvr.enabled`, `dvr.window_changed`, `dvr.segment_evicted`, `dvr.disabled`.
+
+See [dvr](/reference/api/v1/dvr).
+
+### Stream guests
+
+`stream.guest.invited`, `stream.guest.invite_accepted`, `stream.guest.invite_declined`, `stream.guest.requested`, `stream.guest.request_approved`, `stream.guest.request_rejected`, `stream.guest.joined`, `stream.guest.left`, `stream.guest.removed`, `stream.guest.muted`, `stream.guest.invite_expired`, `stream.guest.invite_cancelled`, `stream.guest.grant_revoked`.
+
+See [stream guests](/reference/api/v1/guests).
+
 
 ## Track fields
 
 The track object contains id, roomId, participantId, sessionId, type, state, priority, metadata, publishedAt and unpublishedAt. The last field is null until the track is unpublished.
 
-Supported room media types are audio, camera_video, screen_video and screen_audio. Track states are published, paused, resumed and unpublished. Pause/resume is represented in the protocol types but is not currently signaled by room mute controls.
+Supported room media types are audio, camera_video, screen_video and screen_audio. Track states are published, paused, resumed and unpublished. Room mute/unmute controls request server publication pause/resume and remote subscribers receive the resulting signaling track updates. These signaling updates are distinct from webhook subscriptions: the webhook event catalog includes track.published and track.unpublished, not track.paused or track.resumed.
 
 ## Delivery and replay
 

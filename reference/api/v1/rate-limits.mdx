@@ -6,7 +6,7 @@ section: "REST API v1"
 
 ## Limits
 
-The API limits requests by instance, IP address, key, project and room. Defaults are deployment settings, not guaranteed cloud quotas.
+The API limits management requests by instance, IP address, key, project and room. Counters are local to each API process. Defaults are deployment settings, not guaranteed cloud quotas.
 
 | Scope | Default requests per minute |
 | --- | --- |
@@ -16,6 +16,17 @@ The API limits requests by instance, IP address, key, project and room. Defaults
 | Project | 3,000 |
 | Room | 1,200 |
 
+## Media delivery limits
+
+Public playback, DVR and asset-object delivery use separate instance and client-IP budgets for `GET`, `HEAD` and `OPTIONS` requests. Management metadata and grant issuance use the management budgets above.
+
+| Scope | Default requests per minute | Deployment setting |
+| --- | --- | --- |
+| Media delivery instance | 100,000 | `API_MEDIA_REQUESTS_PER_NODE_PER_MINUTE` |
+| Media delivery client IP | 12,000 | `API_MEDIA_REQUESTS_PER_IP_PER_MINUTE` |
+
+These limits cover paths under `/v1/playback/{streamId}/{sessionId}/{name}`, `/v1/dvr/{streamId}/{windowId}/{name}` and `/v1/assets/{assetId}/{name}`. An HLS viewer fetches multiple manifests and segments; do not estimate request usage from grant issuance alone.
+
 ## Response
 
 A limit returns HTTP `429`, `code: 'RATE_LIMITED'` and a `retry-after` header in seconds.
@@ -23,6 +34,8 @@ A limit returns HTTP `429`, `code: 'RATE_LIMITED'` and a `retry-after` header in
 ## Retry behavior
 
 Wait for Retry-After before another request. The Node SDK retries eligible GET requests within the configured deadline. It does not automatically retry writes.
+
+Matching SDK builds expose the parsed delay as `RelayApiError.retryAfterMs`. If the cooldown cannot fit within the remaining request deadline, the original HTTP error is returned immediately. Forward its status and cooldown to your application's caller. [Error handling](/reference/sdk/server/node/RelayApiError) describes these fields.
 
 Do not poll runtime cleanup or usage endpoints in a tight loop.
 

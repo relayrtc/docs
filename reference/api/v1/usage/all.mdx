@@ -23,7 +23,7 @@ A secret API key with `usage:read`. Resources are restricted to the key's projec
 
 ## Example
 
-Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8080/v1`.
 
 ```bash
 curl -X GET "$RELAYRTC_API_URL/usage?range=7d&granularity=day" \
@@ -36,7 +36,7 @@ curl -X GET "$RELAYRTC_API_URL/usage?range=7d&granularity=day" \
 
 Included metrics: All public category metrics.
 
-The Phase 7 API adds `serviceUsage` for streaming and retained assets while preserving the RTC fields. `GET /v1/usage/streaming` returns this service report with an empty RTC summary. This addition requires the matching database migration and is unreleased. See [streaming and asset usage](/guides/usage#streaming-and-assets-unreleased) for metrics, coverage and REST examples.
+The API includes `serviceUsage` for streaming and retained assets while preserving the RTC fields. `GET /v1/usage/streaming` returns this service report with an empty RTC summary. Use a compatible API deployment with service-usage reporting enabled. See [streaming and asset usage](/guides/usage#streaming-and-assets) for metrics, coverage and REST examples.
 
 ## Notes
 
