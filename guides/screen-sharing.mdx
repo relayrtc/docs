@@ -1,69 +1,80 @@
 ---
 title: "Screen sharing"
-description: "Share a display and receive another participant’s screen."
+description: "Publish a display, render its preview and receive screen video and audio."
 section: "Build calls"
 ---
 
-## Imports
-
-```tsx
-import { MediaLoader, useLocalMedia, useLocalParticipant, useMediaTrack, useTracks } from '@relayrtc/react'
-```
+Screen sharing publishes a display chosen in the browser's picker. The token needs `screen:publish`. Call `screen.start` directly from a user interaction in a connected room; the browser controls which surfaces and audio options are available.
 
 ## Requirements
 
-The token needs `screen:publish`. Start sharing from a user gesture so the browser can open its display picker.
+Use HTTPS or localhost and render the component inside `RelayProvider` and `RelayRoom`. Do not enable sharing automatically on page load. Requesting `audio: true` does not guarantee that the chosen tab, window or display supplies audio.
 
 ## Start sharing
 
+This component handles the picker, local preview and stopping the share:
+
 ```tsx
-function ShareScreenButton() {
+'use client'
+
+import { useState } from 'react'
+import { MediaLoader, useLocalMedia, useLocalParticipant, useMediaTrack, useRoom } from '@relayrtc/react'
+
+export function ScreenShare() {
   const local = useLocalParticipant()
+  const { connectionState } = useRoom()
+  const { screen } = useLocalMedia()
+  const preview = useMediaTrack(screen?.videoTrack, { paused: screen?.muted ?? false })
+  const [error, setError] = useState<string | null>(null)
+
+  async function toggle() {
+    if (!local) return
+    setError(null)
+    try {
+      if (screen?.videoTrack) await local.screen.stop()
+      else await local.screen.start({ video: true, audio: true })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to share this screen')
+    }
+  }
 
   return (
-    <button onClick={() => void local?.screen.start({ video: true, audio: true }).catch(console.error)}>
-      Share screen
-    </button>
+    <div>
+      <button disabled={!local || screen?.pending || connectionState !== 'connected'}
+        onClick={() => void toggle()}>{screen?.videoTrack ? 'Stop sharing' : 'Share screen'}</button>
+      <video ref={preview.ref} autoPlay muted playsInline
+        hidden={!screen?.videoTrack} style={{ width: '100%', objectFit: 'contain' }} />
+      {(screen?.pending || preview.isLoading) && <MediaLoader label="Starting screen share" />}
+      {error && <p role="alert">{error}</p>}
+    </div>
   )
 }
 ```
 
-Screen audio is optional. The browser, operating system and selected capture surface decide whether an audio track is available. If shared audio ends, the SDK removes its audio publication and keeps screen video running. Permission denial and picker cancellation reject the start promise; capture stays inactive. Stopping or leaving while a picker is open discards and stops any tracks it returns later.
+Picker cancellation or denied permission rejects the start promise. Capture remains inactive. If the application stops or leaves while the picker is open, tracks returned later are discarded and stopped.
 
 ## Show loading and local preview
 
-```tsx
-const { screen } = useLocalMedia()
-const preview = useMediaTrack(screen?.videoTrack, { paused: screen?.muted })
-
-return (
-  <div>
-    <video ref={preview.ref} autoPlay muted playsInline />
-    {(screen?.pending || preview.isLoading) && <MediaLoader label="Starting screen share" />}
-  </div>
-)
-```
-
-Use `object-fit: contain` for screen video so the content remains visible.
+The component above uses the screen's local video track. Keep its preview muted. Use `object-fit: contain` to avoid cropping the shared content, and reserve space for the preview while media is loading.
 
 ## Receive screens
 
+Remote screen video has type `screen_video`; display audio has type `screen_audio`. They are separate from camera video and microphone audio. Add these track types to the quickstart's renderer:
+
 ```tsx
-const screens = useTracks({ types: ['screen_video'] })
-const screenAudio = useTracks({ types: ['screen_audio'] })
+import { useTracks } from '@relayrtc/react'
+
+export function useScreenTracks() {
+  return useTracks({ types: ['screen_video', 'screen_audio'] })
+}
 ```
 
-Render each track with [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack). Screen audio needs a separate `audio` element. It is not automatically mixed with a participant’s microphone.
+Render each returned track with `useMediaTrack`, using a video element for screen video and an audio element for screen audio. The [quickstart's RemoteMedia component](/quickstart#connect-from-react) already distinguishes these element types. Supply screen tracks to that component and keep its blocked-autoplay button for sound.
+
+If the browser does not supply display audio, no screen-audio publication appears. If display audio ends independently, the SDK removes that audio publication while keeping screen video active.
 
 ## Stop sharing
 
-```ts
-await local?.screen.stop()
-```
+`await local.screen.stop()` releases the capture and removes its publications. The SDK also handles the browser's Stop sharing control. Use `mute()`/`unmute()` to pause and resume publications while keeping capture open; await their server confirmation.
 
-The SDK also stops the publication when the user ends capture from the browser’s sharing controls.
-
-Use `await local?.screen.mute()` and `await local?.screen.unmute()` to pause/resume the screen publications while keeping capture open. These calls wait for server confirmation.
-
-See [screen controls and options](/reference/sdk/client/react/media/screen).
-
+See [screen controls](/reference/sdk/client/react/media/screen) for supported options and snapshots.

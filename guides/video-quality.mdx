@@ -1,74 +1,77 @@
 ---
 title: "Video quality"
-description: "Choose capture constraints and remote quality preferences."
+description: "Control capture, sending layers and receiving preferences without confusing them with network quality."
 section: "Build calls"
 ---
 
-## Imports
-
-```tsx
-import { useConnectionQuality, useLocalParticipant, useTracks } from '@relayrtc/react'
-```
+Capture settings determine the source the camera produces. Simulcast determines which sending layers are offered. A remote track's quality preference determines what a subscriber asks to receive. These are separate controls.
 
 ## Capture resolution
 
-The camera captures according to browser constraints.
+Pass browser `MediaTrackConstraints` to `camera.enable` from an async user-action handler. For example, `width: { ideal: 1920 }`, `height: { ideal: 1080 }` and `frameRate: { ideal: 30 }` request a 1080p source with fallback.
 
-Get the local participant inside your connected call. Run capture and quality changes from async handlers and catch failures.
-
-```tsx
-const local = useLocalParticipant()
-```
-
-```ts
-await local?.camera.enable({
-  width: { ideal: 1920 },
-  height: { ideal: 1080 },
-  frameRate: { ideal: 30 },
-})
-```
-
-`ideal` permits fallback. An `exact` constraint can reject capture when the device cannot satisfy it.
+`ideal` permits the browser to choose another supported value. `exact` can reject capture. Enabling an already active camera is not a general-purpose reconfiguration command; configure the desired capture when starting it. See [camera controls](/reference/sdk/client/react/media/camera).
 
 ## Receiving quality
 
-```tsx
-function Receive720pButton() {
-  const track = useTracks({ types: ['camera_video'] })[0]
+Call `setQuality` on a remote video track. This component changes the first remote camera subscription; repeat the control per tile if your interface displays several cameras.
 
-  return (
-    <button disabled={!track} onClick={() => void track?.setQuality('720p').catch(console.error)}>
-      Receive 720p
-    </button>
-  )
+```tsx
+'use client'
+
+import { useState } from 'react'
+import { useTracks } from '@relayrtc/react'
+
+export function ReceiveQuality() {
+  const track = useTracks({ types: ['camera_video'] })[0]
+  const [error, setError] = useState<string | null>(null)
+
+  async function select(quality: 'auto' | '1080p' | '720p' | '360p' | 'audio-only') {
+    if (!track) return
+    setError(null)
+    try { await track.setQuality(quality) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Quality change failed') }
+  }
+
+  return <div>
+    {(['auto', '1080p', '720p', '360p', 'audio-only'] as const).map(quality => (
+      <button key={quality} disabled={!track} onClick={() => void select(quality)}>{quality}</button>
+    ))}
+    {error && <p role="alert">{error}</p>}
+  </div>
 }
 ```
 
-| Preference | Meaning |
+| Preference | Result |
 | --- | --- |
-| `auto` | Let the server choose the layer. |
-| `1080p` | Prefer the highest available layer up to this level. |
-| `720p` | Prefer the middle quality level when available. |
-| `360p` | Prefer a lower video layer. |
-| `audio-only` | Stop receiving video for that subscription. |
+| `auto` | Let the server select an available layer. |
+| `1080p`, `720p`, `360p` | Prefer the corresponding available quality level within bandwidth limits. |
+| `audio-only` | Stop receiving video for this subscription. |
 
-Receive preferences apply immediately within the subscriber bandwidth budget. Automatic upgrades require three fresh observations; downgrades and audio-only fallback take effect without that delay. Stale observations cannot justify an upgrade.
-
-Quality selection applies to camera and screen video. It does not change microphone audio or your camera capture settings. A request for 1080p cannot create a 1080p source from a 720p capture.
+Preferences apply to camera or screen video, not microphone audio. Selecting `audio-only` does not change the participant's publishing permissions or enforce an audio-only room. A request for 1080p cannot turn a lower-resolution capture into a 1080p source.
 
 ## Sending layers
 
-The current room client publishes three simulcast encodings. Their upper bitrate limits are 150 kbps, 1.5 Mbps and 4 Mbps, with resolution scale factors of 3, 1.5 and 1. These are SDK defaults, not configurable React provider props.
+The current client enables video simulcast by default. It offers three encodings with resolution scale-down factors of 3, 1.5 and 1 and maximum bitrates of 150,000, 1,500,000 and 4,000,000 bits per second. These are encoding ceilings, not guaranteed traffic or output resolution.
 
-Available bandwidth and the source dimensions determine the actual received layer. Use capture constraints for your source and setQuality for remote video.
+`videoSimulcast: false` selects one full-resolution encoding. Set this on the client or provider before joining; changing a prop does not reconfigure an active publication. This option requires a client build exposing `videoSimulcast`; see [package compatibility](/installation#package-and-server-compatibility). Retain the default for ordinary calls unless your workflow specifically needs a single-layer source.
 
 ## Connection quality
 
+Use `useConnectionQuality` to inspect network observations separately from requested resolution:
+
 ```tsx
-const { quality, stats, participantQualities } = useConnectionQuality()
+'use client'
+
+import { useConnectionQuality } from '@relayrtc/react'
+
+export function NetworkStatus() {
+  const { stats } = useConnectionQuality()
+  return <dl>
+    <dt>Incoming bitrate</dt><dd>{stats?.incomingBitrate == null ? 'Unavailable' : `${Math.round(stats.incomingBitrate)} bit/s`}</dd>
+    <dt>Packet loss</dt><dd>{stats?.packetLossRatio == null ? 'Unavailable' : `${(stats.packetLossRatio * 100).toFixed(1)}%`}</dd>
+  </dl>
+}
 ```
 
-Connection quality describes network health. Video resolution is a separate setting. Use [quality statistics](/reference/sdk/client/react/hooks/useConnectionQuality) to inspect bitrate, packet loss, jitter and selected ICE candidates.
-
-
-Subscriber adaptation uses receive-transport observations; fresh upload statistics cannot make an old download sample current. Bitrate and packet-loss deltas reset after counter resets or observation gaps. Expired quality observations are removed rather than displayed indefinitely.
+Missing or stale measurements are not proof of zero loss or unlimited bandwidth. Inspect per-stream dimensions, selected ICE candidates and packet statistics when diagnosing a mismatch. See [quality statistics](/reference/sdk/client/react/hooks/useConnectionQuality) for units and fields.

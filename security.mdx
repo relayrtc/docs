@@ -1,51 +1,68 @@
 ---
 title: "Keys and permissions"
-description: "Keep management credentials on the server and grant only the permissions a call needs."
+description: "Separate backend administration, room access and viewer playback authority."
 section: "Get started"
 ---
 
+Your backend holds management credentials and decides what a user may do. Browsers receive limited participant tokens or playback grants for the specific action your application authorizes.
+
 ## API keys
 
-Secret API keys authorize REST administration. Their project and environment define the resource scope. A publishable key cannot create rooms, issue tokens or administer participants.
+Secret API keys authorize REST administration within one project environment. Grant only the scopes your backend needs, such as `rooms:create` and `tokens:create` for the first-call workflow. The Node SDK accepts secret keys with the `rk_sk_` prefix.
 
-The Node SDK accepts secret keys only. Its key format starts with `rk_sk_`.
+A publishable key can read its API context; it cannot create rooms, issue participant tokens or administer participants. See the [API scope reference](/reference/api/v1/authentication) for the complete catalog.
+
+Store secret keys in backend configuration. Do not put them in public environment variables, browser bundles, query strings or join responses.
 
 ## Participant permissions
 
+Participant tokens authorize a room identity, not REST administration.
+
 | Permission | Allows |
 | --- | --- |
-| `room:join` | Join the room. Required in every token. |
+| `room:join` | Join the specified room; required in every token. |
 | `audio:publish` | Publish microphone audio. |
 | `video:publish` | Publish camera video. |
-| `screen:publish` | Publish screen video and screen audio. |
+| `screen:publish` | Publish shared display video and supported display audio. |
 | `messages:send` | Send text messages and custom events. |
-| `metadata:update` | Update participant metadata. |
+| `metadata:update` | Update the participant's metadata. |
 
-The token endpoint defaults to `['room:join']`. Grant media permissions explicitly.
+The token endpoint defaults to `['room:join']`. Grant publication permissions explicitly. Hiding a button does not enforce a permission; the token does.
 
 ## Your token endpoint
 
-Authenticate the caller with your own user session. Check their right to join the requested room. Derive their name and permissions on the server.
+Before issuing a token:
 
-<Callout type="danger" title="Do not expose an unrestricted token endpoint">
-A public endpoint that signs arbitrary room IDs, names or permissions lets callers impersonate users and access calls. A participant token is a bearer credential.
+1. Authenticate the application user.
+2. Look up the room from your application's call record.
+3. Verify that the user may join that call.
+4. Derive their display name and permitted actions from trusted application data.
+5. Issue a token for that caller and return only the data needed to join.
+
+<Callout type="danger" title="Do not expose an unrestricted token issuer">
+An endpoint that signs arbitrary room IDs or permission arrays lets callers bypass your application policy. Participant tokens are bearer credentials: anyone holding one can attempt to use its authority.
 </Callout>
+
+Creating a replacement token does not revoke an existing one or update an active participant's permissions. Use authorized [renewal](/guides/connection-recovery) to preserve identity, and server-side removal/end operations for administrative teardown.
 
 ## Webhooks
 
-Verify the original request body before parsing JSON. Reject old signatures and store event IDs atomically with your processing result to avoid duplicate work.
+Verify the signature against the original request bytes before parsing JSON. Check timestamp validity and atomically deduplicate the event ID with your processing result. A valid signature does not imply the event has not already been delivered.
 
-Use [verifyWebhookRequest](/reference/sdk/server/node/verifyWebhookRequest). Keep the endpoint signing secret on your backend.
+The endpoint signing secret is separate from your API key. Keep both on the server. See [webhook integration](/guides/webhooks).
 
 ## Camera access
 
-Use HTTPS in production. Provide clear controls for camera, microphone and screen sharing. To turn a camera off completely, call `camera.disable()`. Local mute pauses sending but does not release the device.
+Use HTTPS in production and offer clear capture controls. `camera.disable()` releases capture and removes its publication. `camera.mute()` keeps capture open and pauses sending after server confirmation. The same distinction applies to the microphone.
+
+Browser permission to capture does not grant permission to publish into a room. Both browser permission and the participant token's publication permission must allow the action.
+
+## Streaming authority
+
+Encoder credentials, participant tokens and viewer grants serve different purposes. Keep `streams:write`, `streams:publish` and `streams:playback` management operations on the backend. Authenticate each publisher or viewer and check access to the intended stream or run before returning a credential or grant.
+
+Playback grants expire. Issuing a grant does not prove the media is ready, and a playback URL is not a public asset URL. See [private playback](/guides/streaming-playback) for delivery authorization and readiness.
 
 ## Logs and errors
 
-Log request IDs and error codes. Keep tokens, API keys and webhook signing secrets out of logs.
-
-## Streaming authority (unreleased)
-
-Keep streams:write/publish/playback management keys on your application backend. Authenticate viewers and verify their entitlement before issuing a narrow expiring grant. Ingest credentials, RTC participant tokens, worker grants and playback grants are separate capabilities. Stop/delete revoke viewing; every child manifest/segment is protected. Avoid token-bearing URL logs and public buckets. See [private playback](/guides/streaming-playback).
-
+Record safe error codes and request IDs for diagnosis. Avoid logging API keys, participant tokens, webhook secrets, encoder credentials, signed playback URLs or full credential responses. Return useful application errors without exposing backend secrets or raw provider responses.

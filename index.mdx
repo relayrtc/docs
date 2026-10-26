@@ -1,6 +1,6 @@
 ---
 title: "Overview"
-description: "Audio, video and screen sharing for your application."
+description: "Build interactive calls and streaming workflows with RelayRTC."
 section: "Get started"
 ---
 
@@ -10,33 +10,31 @@ section: "Get started"
 
 <ReferenceCards />
 
-Run your own RelayRTC stack with the [self-hosting guide](/self-hosting).
+Use [installation](/installation) to choose your SDKs. To run the services yourself, start with [self-hosting](/self-hosting).
 
 ## Your first room
 
-Your server creates a room and issues a participant token. The browser uses that token to connect, publish media and receive other participants.
+Your backend creates a room and issues one participant token per caller. Each browser joins with its token, then enables devices and receives the other participants' media.
 
-1. Create a secret API key in your project environment.
-2. Create a room with the REST API or Node SDK.
-3. Issue a token for each participant.
-4. Join from React and enable camera or microphone access.
+The [first-call guide](/quickstart) covers that complete flow, including capture controls, local preview, remote video/audio and blocked autoplay.
 
-Start with the [quickstart](/quickstart). It connects the server and browser in one flow.
+## Build calls
 
-## Find what you need
+- [Camera and microphone](/guides/camera-and-microphone): capture, preview, mute and change devices.
+- [Screen sharing](/guides/screen-sharing): publish a display and optional display audio.
+- [Audio-only roles](/guides/audio-only-rooms): distinguish speaker and listener authority.
+- [Messages and events](/guides/messages-and-events): chat, reactions and participant metadata.
+- [Connection recovery](/guides/connection-recovery): reconnect and renew authorized sessions.
+- [Video quality](/guides/video-quality) and [TURN](/guides/turn-configuration): adapt media and inspect connectivity.
 
-- [Camera and microphone](/guides/camera-and-microphone): capture, mute and switch devices.
-- [Screen sharing](/guides/screen-sharing): publish a display and optional screen audio.
-- [Messages and raised hands](/guides/messages-and-events): send chat and update participant state.
-- [Webhooks](/guides/webhooks): receive signed events on your server.
-- [Connection recovery](/guides/connection-recovery): handle reconnects and expired credentials.
-- [Usage](/guides/usage): read participant minutes and media traffic.
+## Live streaming
 
-## Streaming foundation (unreleased)
+[Streaming guides](/guides/live-streaming) cover ROOM, WHIP and RTMP sources, broadcast runs, private playback, recordings, clips, DVR and composition. Follow each feature's package and deployment requirements; current source interfaces can be newer than the published SDK baseline.
 
-[Live streaming](/guides/live-streaming) adds RTC/WHIP/RTMP sources and private HLS viewing. Use matching local SDK builds; these additions are not claimed to be published. See [ingest](/guides/streaming-ingest), [playback](/guides/streaming-playback) and [streaming deployment](/guides/streaming-self-hosting).
+## Integrate your backend
+
+Use [webhooks](/guides/webhooks) to receive signed resource events and [usage reports](/guides/usage) to inspect participant time and service traffic. Keep management keys on your server and authorize application users before issuing room tokens or playback grants.
 
 ## Self-hosting
 
-Follow the [self-hosting guide](/self-hosting) to run RelayRTC with Docker Compose and prebuilt container images.
-
+The [deployment guide](/self-hosting) covers the service topology and configuration. For connection or playback problems, start with [troubleshooting calls](/guides/troubleshooting).

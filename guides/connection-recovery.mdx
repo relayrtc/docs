@@ -1,89 +1,111 @@
 ---
 title: "Connection recovery"
-description: "Show reconnecting state and handle credential expiry."
+description: "Keep call state visible during reconnects and renew credentials through your backend."
 section: "Build calls"
 ---
 
+A network interruption, an expired participant token and an expired TURN credential require different recovery actions. Show the SDK's connection state and keep your media components mounted while automatic recovery is in progress.
+
 ## Room state
 
-```tsx
-import { MediaLoader, RelayProvider, RelayRoom, useRoom } from '@relayrtc/react'
-```
+Render this status component inside your room:
 
 ```tsx
-const { connectionState, error } = useRoom()
+'use client'
 
-if (connectionState === 'reconnecting') return <MediaLoader label="Reconnecting to the call" />
-if (connectionState === 'failed') return <p role="alert">{error?.message}</p>
+import { MediaLoader, useRoom } from '@relayrtc/react'
+
+export function ConnectionStatus() {
+  const { connectionState, error } = useRoom()
+  if (connectionState === 'reconnecting') return <MediaLoader label="Reconnecting to the call" />
+  if (connectionState === 'failed') return <p role="alert">{error?.message ?? 'The call could not reconnect'}</p>
+  return <p role="status">{connectionState}</p>
+}
 ```
 
-The default reconnect policy allows 6 attempts within 25 seconds. It restores the existing session and repairs media transport when possible.
+The default reconnect policy allows up to six attempts within 25 seconds. It attempts to restore the existing session and repair media transport. This does not guarantee recovery after the room ends, the participant is removed or the services lose the session's state.
 
 ## Playback loading
 
-`useMediaTrack` reports loading while a remote track is starting or its room is reconnecting. Keep the media element mounted so the hook can attach it after recovery.
+`useMediaTrack` reports loading while a remote publication starts or its room reconnects. Keep the media element mounted so the hook can reattach it. A successful subscription is not proof that a decodable frame has arrived.
 
-If recovery fails, offer a deliberate rejoin flow. A room that ended or a participant that was removed cannot be restored by retrying indefinitely.
-
-## TURN renewal
-
-Provide a server-backed callback when issuing TURN credentials:
-
-```tsx
-<RelayProvider
-  signalingUrl={signalingUrl}
-  refreshTurnCredentials={async ({ roomId, sessionId, signal }) => {
-    const response = await fetch('/api/turn', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ roomId, sessionId }),
-      signal,
-    })
-    if (!response.ok) throw new Error('TURN renewal failed')
-    return response.json()
-  }}
->
-  <RelayRoom token={token}><YourCall /></RelayRoom>
-</RelayProvider>
-```
-
-`YourCall` is your call component. Authenticate `/api/turn` on your server and check that the caller owns the requested session. Your server uses [turn.createCredentials](/reference/sdk/server/node/turn/createCredentials).
+If recovery reaches a terminal failure, offer a deliberate rejoin action that asks your backend to authorize access again. Do not continuously issue new identities in a retry loop.
 
 ## Participant token expiry
 
-The creation endpoint issues a new participant identity. For an ongoing call, use [`tokens.renew`](/reference/sdk/server/node/tokens/renew) on your backend and provide `refreshToken` to the browser SDK or React `RelayProvider`. Matching local API/SDK builds are required; older deployments do not expose the renewal endpoint.
+For longer meetings, configure `refreshToken` and use backend [`tokens.renew`](/reference/sdk/server/node/tokens/renew). This preserves the participant and session; `tokens.create` creates another identity instead.
 
-```tsx
-import { RoomError } from '@relayrtc/react'
+<Callout type="note" title="Check the installed SDK and server">
+The published Node 0.1.0 baseline does not expose `tokens.renew`. Use this integration only with matching API and SDK builds that provide renewal. See [package compatibility](/installation#package-and-server-compatibility).
+</Callout>
 
-<RelayProvider
-  signalingUrl={signalingUrl}
-  refreshToken={async ({ roomId, participantId, sessionId, signal }) => {
-    const response = await fetch('/api/renew-participant', {
-      method: 'POST', signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomId, participantId, sessionId }),
-    })
-    if ([401, 403, 404].includes(response.status)) return null
-    if (!response.ok) throw new RoomError('TOKEN_REFRESH_FAILED', 'Renewal unavailable', response.status >= 500 || [408, 429].includes(response.status))
-    return (await response.json()).token
-  }}
->
-  <RelayRoom token={token}><YourCall /></RelayRoom>
-</RelayProvider>
+Your backend should retain the current participant credential in a server-side record tied to the authenticated user and call. On every renewal, check that the user still has room access and that the requested room, participant and session belong to that record.
+
+This server helper uses `relay.ts` from the quickstart. Its input is the trusted record selected after those checks, not an arbitrary browser-supplied token. Save the replacement before returning it so the next renewal uses the latest credential.
+
+```ts
+import { relay } from './relay.js'
+
+type StoredCall = { roomId: string; sessionId: string; participantToken: string }
+
+export async function renewCall(
+  call: StoredCall,
+  saveToken: (token: string) => Promise<void>,
+) {
+  const issued = await relay.tokens.renew(call.roomId, {
+    participantToken: call.participantToken,
+    sessionId: call.sessionId,
+    ttlSeconds: 3600,
+  })
+  await saveToken(issued.token)
+  return { token: issued.token }
+}
 ```
 
-Your `/api/renew-participant` endpoint authenticates the caller, looks up their current participant token in server-side session storage, verifies room access and calls `relay.tokens.renew(roomId, { participantToken: storedToken, sessionId, ttlSeconds: 600 })`. Save the replacement token for subsequent renewals. Use the same configured lifetime as initial issuance; do not silently shorten a one-hour token to the ten-minute default.
+Expose the result through your authenticated `/api/renew-participant` endpoint. Use the intended lifetime consistently: the default renewal lifetime is not necessarily the lifetime you chose for initial issuance.
 
-The callback runs before expiry. The SDK applies the new credential through `session.refresh`, preserves the room/participant/session and existing media, and uses the replacement token for later reconnects. Each token remains limited to 60–3600 seconds; repeated authorized renewal supports longer meetings.
+The frontend sends identifiers for validation, not permission choices:
 
-Returning `null` denies renewal. Changed identity/permissions and explicit authorization errors terminate the call. Retryable `RoomError` failures and ordinary callback exceptions receive bounded-backoff retries while the current token remains valid; expiry still ends the session. Mark permanent application failures non-retryable. Without a callback, expiry requires a deliberate rejoin. `autoSubscribe` only controls receiving media and does not configure renewal.
+```tsx
+'use client'
 
-Streaming guest grants use their existing guest-specific renewal flow.
+import { RelayProvider, RelayRoom, RoomError } from '@relayrtc/react'
+import type { CredentialRefreshContext } from '@relayrtc/react'
+import type { ReactNode } from 'react'
+
+async function refreshToken({ roomId, participantId, sessionId, signal }: CredentialRefreshContext) {
+  const response = await fetch('/api/renew-participant', {
+    method: 'POST', signal, headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ roomId, participantId, sessionId }),
+  })
+  if ([401, 403, 404].includes(response.status)) return null
+  if (!response.ok) {
+    throw new RoomError('TOKEN_REFRESH_FAILED', 'Participant renewal is unavailable',
+      response.status >= 500 || response.status === 408 || response.status === 429)
+  }
+  const result: { token: string } = await response.json()
+  return result.token
+}
+
+export function RenewingCall({ token, signalingUrl, children }: {
+  token: string; signalingUrl: string; children: ReactNode
+}) {
+  return <RelayProvider signalingUrl={signalingUrl} refreshToken={refreshToken} autoSubscribe>
+    <RelayRoom token={token}>{children}</RelayRoom>
+  </RelayProvider>
+}
+```
+
+The SDK applies renewed credentials before expiry and uses the replacement for later reconnects. Each token remains limited to 60–3600 seconds; repeated authorized renewals support longer meetings.
+
+Returning `null` denies renewal. Permanent authorization or identity/permission failures terminate the session. Retryable `RoomError` failures and ordinary callback exceptions receive bounded retries while the existing token remains valid; expiry still ends the session. Mark permanent application failures non-retryable.
+
+## TURN renewal
+
+TURN credentials expire independently of participant tokens. Supply `refreshTurnCredentials` when creating the client/provider. Your backend must authorize the room/session before issuing temporary relay credentials. The SDK can obtain initial credentials and refresh them before expiry, updating the ICE servers and restarting ICE as needed.
+
+See [TURN configuration](/guides/turn-configuration#issue-temporary-credentials) for the complete callback and backend boundary. `autoSubscribe` configures neither token nor TURN renewal.
 
 ## Startup delays
 
-Capture, publication, subscription, ICE negotiation and the first decodable frame all take time. Subscription success does not mean the video has started playing.
-
-Use playback state to show waiting and measure connection stages when investigating a slow start. A loader does not change transport setup time.
-
+Capture, publication, subscription, ICE negotiation and the first frame are separate stages. A loading indicator communicates progress; it does not shorten transport setup. When startup is consistently slow, inspect those stages and the selected media route rather than repeatedly recreating the room.

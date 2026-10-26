@@ -1,49 +1,59 @@
 ---
 title: "Troubleshooting calls"
-description: "Find signaling, media, permission and playback problems."
-section: "Build calls"
+description: "Identify the failing connection stage before changing media or retry settings."
+section: "Troubleshooting"
 ---
+
+Start with the visible symptom, SDK state and safe error code. REST administration, signaling, capture, media connectivity, subscription and playback are separate stages. Avoid recreating the room while investigating a later stage.
 
 ## Signaling fails
 
-Check that the signaling URL points to the WebSocket service, not the REST API. Use `ws://localhost:8081/v1/connect` for the local deployment.
+Use the WebSocket signaling URL, not the REST API address. The default local address is `ws://localhost:8081/v1/connect`; remote browsers need a reachable host, and HTTPS frontends should use secure WebSockets.
 
-A browser origin must be allowed by signaling. Changing your app's port changes its origin. Check the signaling logs for rejected origins, invalid tokens or missing room permissions.
+Check signaling's allowed origins. A different scheme, hostname or port is a different origin. Then check token expiry, room identity and `room:join` permission. Log request/error identifiers without logging the token.
 
 ## Participants appear but media does not
 
-Room membership and media transport are separate. Inspect:
+Check these in order:
 
-1. Whether the publisher has a local track and the required token permission.
-2. The remote track’s subscriptionState and useMediaTrack error.
-3. ICE candidate connectivity and the announced media address.
-4. Whether the media and TURN services are reachable by the browser.
+1. Is the publisher connected, with a captured track and the required publication permission?
+2. Does the receiver see the remote publication in `useTracks`?
+3. What is the remote track's subscription state and `useMediaTrack` playback state?
+4. Can each browser reach the announced media address and, if needed, the TURN service?
+5. Does browser WebRTC diagnostics show a selected ICE pair and received bytes?
 
-For a local Docker deployment, a container-only address may be unreachable from the browser. A stale LAN address after restarting the host can break connectivity even while REST room creation works.
+A container-only address or stale host LAN address can break media while REST and signaling remain healthy. Use [TURN diagnostics](/guides/turn-configuration#check-the-connection) for restrictive networks.
 
 ## Autoplay is blocked
 
-`useMediaTrack` returns `state: 'blocked'`. Render a play button and call `media.play()` from that click. Do not treat an attached stream as proof that audio is playing.
+When `useMediaTrack` reports `blocked`, render a play button and call its `play()` method from that click. Keep the element attached and show subsequent failures. Repeating automatic play calls cannot substitute for a required user gesture. See the [quickstart renderer](/quickstart#connect-from-react).
 
 ## Camera remains frozen after camera-off
 
-Use `camera.disable()` for camera-off. Local mute currently does not notify a remote publication pause. Show a placeholder when the participant has no camera track.
+Use `camera.disable()` to release capture and remove its publication. Use `mute()` to keep capture open and pause sending; current mute/unmute calls wait for server confirmation and signal the remote publication state.
+
+A remote tile should show a placeholder when `useMediaTrack(...).isPaused` is true or when no camera publication exists. Do not keep a frozen frame visible as if the camera were still live.
+
+## Capture is denied or a device disappears
+
+Confirm HTTPS or localhost, browser site permissions, operating-system device access and the presence of a usable device. An `exact` capture constraint can fail even when a different resolution works. Show the rejection near the control and let the user change permissions or devices before retrying.
 
 ## Screen audio is missing
 
-Display audio support depends on browser, operating system and selected screen/tab. Check `screen.audioTrack` before assuming it was captured. Render remote screen_audio separately from microphone audio.
+Display audio depends on browser, operating system and selected surface. Inspect `screen.audioTrack`; `audio: true` is a request, not a guarantee. Render remote `screen_audio` in a separate audio element rather than assuming it is mixed into microphone audio.
 
 ## Media takes several seconds to appear
 
-Capture, negotiation, subscription and a decodable video frame all happen before rendering. Use SDK loaders and measure each stage when a consistent startup delay needs investigation.
+Measure capture, negotiation, subscription and first-frame arrival separately. Loading state describes those stages; it is not evidence that the server has finished delivery. Check network conditions, selected route, available source layers and actual received dimensions.
 
 ## Recovery fails
 
-Look at RoomError.code and the connection state. Expired tokens, ended rooms, removed participants and lost media runtime cannot always be recovered automatically.
+Inspect `RoomError.code`, connection state and credential expiry. An ended room, removed participant or lost runtime state may require a fresh authorized join. A token for another participant cannot renew the active identity.
 
-If a new token has a different participant identity, leave and rejoin. It cannot renew the active session.
+For long-running calls, verify both participant-token and TURN renewal paths. Returning an authorization denial must end access rather than trigger an endless retry. See [connection recovery](/guides/connection-recovery).
 
-## Streaming playback (unreleased)
+## Streaming playback
 
-For unavailable media, inspect source health and pending operation status before retrying. Check selected publications, encoder codecs, ICE reachability, worker capacity and private storage. A revoked/expired viewer grant must be reissued through an authenticated application endpoint. Reconcile session/generation after worker restart; rebuffering can occur. See [private playback](/guides/streaming-playback) and [operator recovery](/guides/streaming-self-hosting).
+RTC tracks and HLS playback use different delivery paths. For streaming, inspect source state, viewer readiness and the pending operation. A connected publisher or newly issued grant does not prove the manifest is ready.
 
+Reissue expired/revoked grants through an authenticated application endpoint. Inspect codecs, selected source tracks and deployment health before retrying a start operation. See [private playback](/guides/streaming-playback) and [streaming deployment](/guides/streaming-self-hosting).

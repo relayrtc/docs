@@ -1,166 +1,112 @@
 ---
 title: "Audio-only rooms and participant roles"
-description: "Build audio-only calls with speaker and listener permissions enforced by your backend."
+description: "Grant speakers microphone authority while listeners receive audio without capture permission."
 section: "Build calls"
 ---
 
+Use the ordinary room model for audio-only calls. Your backend controls publishing authority through participant token permissions; there is no separate audio-only room flag.
+
 ## How audio-only rooms work
 
-RelayRTC uses the same room model for audio and video calls. There is no separate audio-only room setting. Your backend controls what each participant can publish through their participant token.
+Issue all participants tokens without `video:publish` or `screen:publish`. Speakers receive `audio:publish`; listeners only need `room:join` to receive published audio. Hiding camera buttons matches the interface to the room policy, but the token enforces it.
 
-For an audio-only room, issue every participant a token without `video:publish` or `screen:publish`. Speakers receive `audio:publish`; listeners only need `room:join` to join and receive audio.
-
-Hiding camera and screen buttons helps the interface match the room, but token permissions enforce the restriction on the server.
+A listener token does not prevent receiving video if another participant is allowed to publish it. Apply the audio-only policy to every token issuer for the room.
 
 ## Requirements
 
-- A room and a backend management key with the `tokens:create` scope.
-- An authenticated application endpoint that checks access before issuing participant tokens.
-- A reachable signaling URL for the browser or React SDK.
-- HTTPS or localhost and browser microphone permission for speakers.
-
-Listeners do not need microphone access when your application does not start local capture. Keep management API keys on your backend.
+Create a room and use a server key with `tokens:create`. Authenticate callers, check room membership and derive their speaker/listener role from trusted application data. Speakers need microphone permission and HTTPS or localhost. Listeners need no microphone permission if your UI does not start capture.
 
 ## Choose participant permissions
 
-| Application role | Token permissions | Behavior |
-| --- | --- | --- |
-| Listener | `room:join` | Joins and receives published media without publishing. |
-| Speaker | `room:join`, `audio:publish` | Joins, receives media and publishes microphone audio. |
+| Application role | Token permissions |
+| --- | --- |
+| Listener | `room:join` |
+| Speaker | `room:join`, `audio:publish` |
 
-Speaker and listener are roles your application assigns. They are not built-in role fields on a room or participant token. Add `messages:send` or `metadata:update` only if the participant needs those capabilities.
-
-A listener token does not prevent receiving video if another participant has permission to publish it. Apply the audio-only policy to every token issuer for that room, including reconnect and renewal paths. Previously issued tokens keep their original permissions; changing your issuer does not revoke them.
+These are application roles, not token fields. Add `messages:send` or `metadata:update` only where the application needs them. Previously issued tokens keep their authority; changing the token issuer does not revoke old tokens.
 
 ## Issue tokens on your backend
 
-Use the [Node server SDK](/reference/sdk/server/node/tokens/create) after authenticating the caller and checking their room access. Derive their name and allowed role from your application data.
+This helper uses the quickstart's `relay.ts`. Call it only after authorizing the requested role on your backend.
 
 ```ts
-import { RelayServer } from '@relayrtc/node'
+import { relay } from './relay.js'
 
-const relay = new RelayServer({
-  apiUrl: process.env.RELAYRTC_API_URL!,
-  apiKey: process.env.RELAYRTC_SECRET_KEY!,
-})
-
-const speaker = await relay.tokens.create(roomId, {
-  participantName: 'Alice',
-  permissions: ['room:join', 'audio:publish'],
-  ttlSeconds: 3600,
-})
-
-const listener = await relay.tokens.create(roomId, {
-  participantName: 'Bob',
-  permissions: ['room:join'],
-  ttlSeconds: 3600,
-})
+export async function issueAudioToken(roomId: string, name: string, role: 'speaker' | 'listener') {
+  return relay.tokens.create(roomId, {
+    participantName: name,
+    ttlSeconds: 3600,
+    permissions: role === 'speaker' ? ['room:join', 'audio:publish'] : ['room:join'],
+  })
+}
 ```
 
-Here `roomId` is a room in the key's project and environment. These are separate examples for two participants. Return only the appropriate participant's token to their browser. Do not let the caller choose an arbitrary permission array or grant themselves the speaker role.
-
-You can also use the [participant token REST endpoint](/reference/api/v1/tokens/create), `POST /v1/rooms/{roomId}/tokens`, with the same permissions.
+Return the appropriate caller's token, not the management key. Do not let request parameters grant the caller a speaker role without authorization.
 
 ## Join with the browser SDK
 
-```ts
-import { RelayClient } from '@relayrtc/client'
-
-const client = new RelayClient({
-  signalingUrl: 'wss://signaling.example.com/v1/connect',
-  autoSubscribe: true,
-})
-
-const response = await fetch('/api/join', { method: 'POST' })
-if (!response.ok) throw new Error('Unable to join the audio room')
-
-const { token } = await response.json()
-const room = await client.join(token)
-```
-
-Your application implements `/api/join` and returns the backend-issued token. Joining does not start microphone or camera capture. For a speaker, call this from a microphone button after joining and handle any rejected promise:
-
-```ts
-await room.microphone.enable({
-  echoCancellation: true,
-  noiseSuppression: true,
-  autoGainControl: true,
-})
-```
-
-Listeners skip this call. Attach received audio tracks to audio elements so participants can hear each other. See the [browser client guide](/reference/sdk/client/javascript/overview) for the client lifecycle.
+Joining does not start capture. Speakers explicitly call `room.microphone.enable()` from their microphone button; listeners skip that action. Both roles attach received microphone tracks to audio elements. See the [browser lifecycle reference](/reference/sdk/client/javascript/overview).
 
 ## Build the React audio interface
 
-Render your audio interface inside [RelayRoom](/reference/sdk/client/react/RelayRoom) and [RelayProvider](/reference/sdk/client/react/RelayProvider). Both speakers and listeners need remote audio playback.
+Render this component inside the provider and room from the quickstart. `canSpeak` reflects the server-authorized role; it controls visibility rather than granting permission.
 
 ```tsx
-import { useLocalParticipant, useMediaTrack, useTracks } from '@relayrtc/react'
+'use client'
+
+import { useState } from 'react'
+import { useLocalParticipant, useMediaTrack, useRoom, useTracks } from '@relayrtc/react'
 import type { RoomRemoteTrack } from '@relayrtc/react'
 
 function RemoteAudio({ track }: { track: RoomRemoteTrack }) {
   const media = useMediaTrack(track)
-
-  return (
-    <div>
-      <audio ref={media.ref} autoPlay />
-      {media.state === 'blocked' && (
-        <button onClick={() => void media.play().catch(console.error)}>
-          Play audio
-        </button>
-      )}
-      {media.state === 'failed' && <p role="alert">{media.error?.message}</p>}
-    </div>
-  )
+  return <div>
+    <audio ref={media.ref} autoPlay />
+    {media.state === 'blocked' && (
+      <button onClick={() => void media.play().catch(() => undefined)}>Play audio</button>
+    )}
+    {media.state === 'failed' && <p role="alert">{media.error?.message}</p>}
+  </div>
 }
 
-function AudioRoom({ canSpeak }: { canSpeak: boolean }) {
+export function AudioRoom({ canSpeak }: { canSpeak: boolean }) {
   const local = useLocalParticipant()
+  const { connectionState } = useRoom()
   const tracks = useTracks({ types: ['audio'] })
+  const [error, setError] = useState<string | null>(null)
 
-  return (
-    <div>
-      {canSpeak && (
-        <button
-          disabled={!local}
-          onClick={() => void local?.microphone.enable().catch(console.error)}
-        >
-          Enable microphone
-        </button>
-      )}
-      {tracks.map(track => <RemoteAudio key={track.id} track={track} />)}
-    </div>
-  )
+  async function enable() {
+    if (!local) return
+    setError(null)
+    try { await local.microphone.enable({ echoCancellation: true, noiseSuppression: true }) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Microphone could not start') }
+  }
+
+  return <section>
+    {canSpeak && <button disabled={!local || connectionState !== 'connected'}
+      onClick={() => void enable()}>Enable microphone</button>}
+    {error && <p role="alert">{error}</p>}
+    {tracks.map(track => <RemoteAudio key={track.id} track={track} />)}
+  </section>
 }
 ```
 
-In Next.js, place these components in a client module. `canSpeak` reflects the role your backend granted and controls the button's visibility. The token permission remains the authority if someone changes the UI. Display microphone errors in your application UI; the example logs them for brevity.
-
-The playback hook attaches and subscribes to each remote microphone track. If browser autoplay is blocked, the Play audio button retries playback from a user gesture. See [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack) for playback states.
-
-Use `local.microphone.mute()` and `unmute()` to pause and resume sending while keeping capture open. Use `await local.microphone.disable()` to stop capture and remove the publication. See [microphone controls](/reference/sdk/client/react/media/microphone).
+The playback button handles browser autoplay restrictions. Add mute/unmute controls using [microphone controls](/reference/sdk/client/react/media/microphone); use `disable()` when you want to release capture.
 
 ## Role changes and moderation
 
-Decide speaker promotions on your backend. Creating another participant token creates a new participant identity; it does not update the permissions of an existing connection. Plan a controlled leave and rejoin if your application changes a participant's role this way. Issuing a listener token does not remove an already connected speaker's publishing permission.
+Creating another token creates another participant identity; it does not edit permissions on an existing connection. Use a controlled leave/rejoin flow when changing an ordinary participant's role this way. Issuing a listener token does not remove a connected speaker's publishing permission.
 
-A speaker token does not grant moderation powers. Keep room management actions behind authenticated backend endpoints with your own host and moderator authorization checks.
+Keep administrative removal and room-ending actions behind backend moderator authorization. Publishing microphone audio does not grant moderation authority.
 
 ## Live guest grants
 
-The initial-token role guidance above still applies to ordinary room participants. The matching streaming guest implementation adds a separate run-scoped, versioned authority for approved guests. Audio-only invitations grant audio publication and omit camera/screen permissions. Server mute/removal changes the live guest version, denies stale tokens at signaling/media and closes the old participant through existing cleanup. A permitted guest must explicitly rejoin and enable devices; granting permission never turns a microphone on. Local mute keeps capture open and is distinct from this server fence. Host/co-host/moderator control delegation is independent of permission to publish audio.
-
-See [live guests and co-hosting](/guides/live-guests-and-cohosting) for subject binding, guest reconnect, capacity and consent. These additions require the matching unreleased API/signaling/media/browser/React builds and migration 0041; they do not make immutable ordinary participant tokens dynamically mutable.
+Streaming guests use a separate run-scoped authority and lifecycle. Their moderation and rejoin behavior must not be assumed to apply to ordinary room tokens. See [guests and co-hosting](/guides/live-guests-and-cohosting) and its matching-build requirements.
 
 ## Audio-only receiving preference
 
-The `audio-only` option in [video quality controls](/guides/video-quality) is a receiving preference for a video subscription. It does not change publishing permissions or enforce an audio-only room. Use token permissions for the room policy and receiving preferences for each participant's bandwidth needs.
+`setQuality('audio-only')` is a receiving preference for one video subscription. It does not change publishing authority or enforce an audio-only room. Use [token permissions](/security) for policy and [quality preferences](/guides/video-quality) for subscriber bandwidth decisions.
 
 ## Check your implementation
 
-- Speakers can enable their microphones and hear other speakers.
-- Listeners can hear speakers without granting browser microphone permission.
-- A listener cannot publish microphone audio, even when calling the SDK directly.
-- Neither role can publish camera video or screen media because those permissions are absent.
-- Blocked autoplay offers a playback button, and denied microphone access shows a useful error.
-- Every backend token issuance path applies the same room policy.
+Confirm that listeners hear audio without granting microphone access, cannot publish even through direct SDK calls, and cannot publish video or screens. Test the same restrictions on every join and renewal endpoint, and show useful feedback for denied capture or blocked playback.

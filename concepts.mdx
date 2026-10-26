@@ -1,49 +1,67 @@
 ---
 title: "Rooms, participants and tracks"
-description: "Understand the objects used throughout the API and SDKs."
+description: "Understand resource scope, participant identity and how media moves through a call."
 section: "Get started"
 ---
 
+RelayRTC separates call administration from realtime connections. Your backend creates resources and grants access; browsers join with participant tokens and publish or receive media.
+
 ## Room
 
-A room belongs to one project environment. Create it on your server. A room can contain many participants and remains a server resource after a browser leaves.
+A room belongs to one project environment. Save its ID in your application so everyone joining the same call uses the same resource. Creating a room does not connect a participant or start device capture.
 
-The room lifecycle is `created`, `active`, `ending`, `ended` or `failed`. Joining through the SDK and creating through REST are separate operations.
+Rooms use `created`, `active`, `ending`, `ended` and `failed` states. A room remains a server resource after a browser leaves. See [room creation](/reference/api/v1/rooms/create) for configuration and limits.
 
 ## Participant and session
 
-A participant is a person joining a room with a participant token. A session represents their active connection. Each participant token has its own participant identity.
+A participant represents an identity inside a room. Issuing a participant token allocates that identity. A session represents its connection to signaling and media services.
 
-A successful reconnect restores the existing session when the services still own its state. Issuing a fresh token is not the same as renewing that session.
+Use a separately issued token for each caller. Reconnecting an existing session, renewing its token and issuing a new participant token are different operations. Successful session recovery preserves identity when its runtime state is still available; a new token creates another participant identity.
+
+Your application maps its own users to room membership and decides who may join. An API key's scope does not replace those application authorization checks.
 
 ## Track
 
-A track is a published source:
+A publication describes a media source other participants can receive:
 
-| Type | Source |
+| Track type | Source |
 | --- | --- |
 | `audio` | Microphone |
 | `camera_video` | Camera |
 | `screen_video` | Shared display |
-| `screen_audio` | Audio included with the display |
+| `screen_audio` | Optional audio captured with the display |
 
-Data tracks are present in shared types but are not supported for publishing in the current room runtime. Use [messages and custom events](/guides/messages-and-events).
+Mute pauses a publication while keeping capture open. Disable stops capture and removes the publication. Use the publication's paused state or absence to render the appropriate UI.
+
+Data tracks appear in shared types but are not supported for publishing by the current room runtime. Use [messages and custom events](/guides/messages-and-events) for application data.
 
 ## Publish and subscribe
 
-Publishing sends local media to the media server. Subscribing receives a remote publication. A successful subscription still needs a playable frame before the browser can show video.
+Publishing sends local media to the SFU. Subscribing receives a remote publication. Attaching a subscribed track to an element still requires a decodable frame and browser playback permission before the user sees or hears it.
 
-The server can select a lower video layer to fit network conditions. A requested quality is a preference, not a guarantee of resolution.
+React's `useMediaTrack` manages attachment and playback state. `autoSubscribe` controls receiving remote publications; it does not enable the camera, microphone or credential renewal.
+
+The media server can select a lower video layer when bandwidth is limited. A quality preference cannot create a higher-resolution source than the publisher captured.
 
 ## Signaling and media
 
-The API handles room administration and tokens. The WebSocket signaling service handles room membership, messages and media negotiation. Audio and video flow through the media service, with TURN when relay connectivity is needed.
+| Service | Responsibility |
+| --- | --- |
+| REST API | Resources, participant tokens and administrative operations. |
+| WebSocket signaling | Membership, messages, state updates and media negotiation. |
+| Media service/SFU | Published audio/video and remote subscriptions. |
+| TURN | Relays media when the browser cannot connect directly to the media service, or when relay-only policy is selected. |
 
-REST room creation alone does not establish an audio or video connection.
+A successful REST request or WebSocket connection does not prove that media connectivity works. Each browser must reach the configured public media addresses.
 
 ## Leave and end
 
-`room.leave()` leaves the current browser participant. `relay.rooms.end(roomId)` ends the room for everyone.
+`room.leave()` leaves the current browser session. `relay.rooms.end(roomId)` is a server-side administrative action that ends the room for everyone. Removing a participant is another scoped server operation, not a frontend role change.
 
-[Destructive operations](/reference/api/v1/rooms/end) can return pending cleanup. Check their runtime operation before treating cleanup as complete.
+Destructive operations can return pending cleanup. Inspect their [runtime operation](/reference/api/v1/schemas/runtime-operation) before treating resource cleanup as complete.
 
+## Rooms and streaming
+
+A stream is reusable streaming configuration; a broadcast is a run with its own lifecycle and outputs. A room can supply media to a ROOM stream, but the stream is not the room. HLS viewers use playback grants and do not join as RTC participants.
+
+See [live streaming](/guides/live-streaming) for that workflow. For an interactive call, continue with the [quickstart](/quickstart).
