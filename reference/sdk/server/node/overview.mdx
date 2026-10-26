@@ -41,12 +41,22 @@ Send `issued.token` to that authenticated user. The browser joins with the React
 | --- | --- |
 | `context()` | Read API key context. |
 | `rooms` | Create, list, read and end rooms; inspect cleanup. |
-| `tokens` | Issue participant tokens. |
+| `tokens` | Issue and renew participant tokens. |
 | `participants` | List, read, remove and inspect cleanup. |
 | `turn` | Create temporary TURN credentials. |
 | `usage` | Read public usage categories. |
 | `webhooks` | Manage endpoints and signing secrets. |
 | `webhooks.deliveries` | Read delivery logs and replay. |
+| [streams](/reference/sdk/server/node/streams) | Configure sources, ingest credentials, playback grants and source operations. |
+| [broadcasts](/reference/sdk/server/node/broadcasts) | Create runs, inspect outputs and retry failed destinations. |
+| [destinations](/reference/sdk/server/node/destinations) | Save external platform settings and rotate stream keys. |
+| [recordings and assets](/reference/sdk/server/node/recordings) | Capture programs and issue private playback/download grants. |
+| [schedules](/reference/sdk/server/node/schedules) | Plan events and issue event-scoped access. |
+| [external sources](/reference/sdk/server/node/restream-sources) | Probe and control approved upstream inputs. |
+| [clips](/reference/sdk/server/node/clips) | Configure buffers, render intervals and publish highlights. |
+| [DVR](/reference/sdk/server/node/dvr) | Manage rolling retention and inspect run windows. |
+| [mixers](/reference/sdk/server/node/mixers) | Save and activate server-rendered scenes. |
+| [guest stages](/reference/sdk/server/node/guests) | Manage invitations, moderation and scoped stage grants. |
 
 The Node SDK does not capture a camera or join a media call. It wraps the public management REST API.
 
@@ -58,7 +68,7 @@ Only GET requests retry automatically. Create, update, delete, secret rotation a
 
 See [RelayServer options](/reference/sdk/server/node/RelayServer) and [request options](/reference/sdk/server/node/request-options).
 
-## Streaming foundation (unreleased)
+## Streaming resources
 
-[Stream management and operation methods](/reference/sdk/server/node/streams) add typed source configuration, encoder credentials and private playback grants. Use matching local Phase 0 core/SDK builds. Streaming commands generate idempotency keys unless an explicit application command ID is supplied.
+[Stream management and operation methods](/reference/sdk/server/node/streams) add typed source configuration, encoder credentials and private playback grants. Use compatible API/SDK builds; see [installation](/installation). Streaming commands generate idempotency keys unless an explicit application command ID is supplied.
 

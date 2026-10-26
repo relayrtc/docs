@@ -57,7 +57,20 @@ Use [MediaLoader](/reference/sdk/client/react/MediaLoader) to show loading. The 
 
 Create rooms, issue tokens and administer participants with the [Node SDK](/reference/sdk/server/node/overview) or [REST API](/reference/api/v1/overview). Keep secret API keys out of this package.
 
-## Streaming player (unreleased)
+## Streaming playback
 
-[BroadcastPlayer and useStreamPlayback](/reference/sdk/client/react/broadcast-player) provide private HTTP viewing independently of the RTC provider/room. They require matching local Phase 0 SDK builds and application-authorized status/grant callbacks.
+[BroadcastPlayer and useStreamPlayback](/reference/sdk/client/react/broadcast-player) provide private HTTP viewing independently of the RTC provider/room. Supply application-authorized metadata and grant callbacks. Use compatible React/browser builds as described in [installation](/installation).
+
+| Hook | Purpose |
+| --- | --- |
+| [useBroadcast](/reference/sdk/client/react/use-broadcast) | Run/output status and asynchronous controls |
+| [useRecording](/reference/sdk/client/react/use-recording) | Capture state, finalization and recording indicators |
+| [useScheduledBroadcast](/reference/sdk/client/react/use-scheduled-broadcast) | Event status, countdown and schedule commands |
+| [useRestreamSource](/reference/sdk/client/react/use-restream-source) | External source health and controls |
+| [useClip](/reference/sdk/client/react/use-clip) | Highlight rendering and publication |
+| [useMixer](/reference/sdk/client/react/use-mixer) | Requested and observed scene revisions |
+| [useDvrPlayback](/reference/sdk/client/react/use-dvr-playback) | Seekable ranges, rewind and Go live |
+| [useStreamGuests and useGuestSession](/reference/sdk/client/react/stream-guests) | Stage moderation and caller-bound RTC participation |
+
+These hooks use application callbacks rather than a management key in the browser. The status hooks do not require an RTC provider. `useDvrPlayback` observes an already attached media element; `useGuestSession` owns its separate guest room. Use provider hooks for the room owned by that provider.
 

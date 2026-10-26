@@ -4,20 +4,36 @@ description: "Typed stream management and retry-safe operations on an applicatio
 section: "Node SDK"
 ---
 ## Availability
-Unreleased additions to local @relayrtc/node 0.1.0 with the Phase 0 core API. Instantiate `RelayServer` with a secret API key. Management methods belong on your backend.
+Use a compatible API and SDK build; see [installation](/installation) for package availability. Management methods belong on your backend.
+
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-const stream = await relay.streams.create({
-  name: 'Town hall',
-  source: { kind: 'room', roomId },
-  profile: { audioOnly: false },
-}, { idempotencyKey: applicationCommandId })
-const page = await relay.streams.list({ limit: 30 })
-const detail = await relay.streams.get(stream.id)
-const updated = await relay.streams.update(stream.id, { version: detail.version, name: 'Updated' })
-const pending = await relay.streams.start(stream.id)
-const status = await relay.streamingOperations.get(pending.id)
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
 ```
+
+## Example
+
+```ts
+export async function startRoomExport(roomId: string, applicationCommandId: string) {
+  const stream = await relay.streams.create({
+    name: 'Town hall', source: { kind: 'room', roomId },
+  }, { idempotencyKey: applicationCommandId + ':create' })
+  const operation = await relay.streams.start(stream.id, {
+    idempotencyKey: applicationCommandId + ':start',
+  })
+  return { stream, operation }
+}
+```
+
+## Methods
 
 | Method | Result |
 | --- | --- |
@@ -28,17 +44,43 @@ const status = await relay.streamingOperations.get(pending.id)
 | streams.delete(id, options?) | StreamingOperation |
 | streams.start(id, options?) | StreamingOperation, room source only |
 | streams.stop(id, options?) | StreamingOperation |
-| `streams.createIngestCredentials(id, { ttlSeconds? }?, options?)` | IngestCredential, secret returned explicitly |
-| `streams.rotateIngestCredentials(id, credentialId, { ttlSeconds? }?, options?)` | Replacement IngestCredential |
+| streams.listIngestCredentials(id, options?) | IngestCredentialList: data of safe summaries |
+| streams.createIngestCredentials(id, input?, options?) | IngestCredential, secret returned explicitly |
+| streams.rotateIngestCredentials(id, credentialId, input?, options?) | RotatedIngestCredential with handover status |
 | streams.getPlayback(id, options?) | StreamPlayback |
-| `streams.createPlaybackGrant(id, { ttlSeconds? }?, options?)` | PlaybackGrant |
+| streams.createPlaybackGrant(id, input?, options?) | PlaybackGrant |
 | streams.revokePlaybackGrants(id, options?) | `{ revoked: true }` |
 | streams.getUsage(id, options?) | StreamingUsage |
 | streamingOperations.get(operationId, options?) | StreamingOperation |
 
-All listed methods return promises. Typed configuration/profile/source/session/grant/operation/usage contracts are exported. Request options support AbortSignal, timeoutMs, retry:false and idempotencyKey. Retryable streaming commands generate a UUID if omitted; reuse an explicit application command ID when retrying the same call yourself. Mutations are not retried automatically. GET uses existing bounded transport retries.
+All listed methods return promises. These method signatures and exported contracts require a matching Node SDK release; an older published package may not include them. Request options support AbortSignal, timeoutMs, retry:false and idempotencyKey. Create/start/stop/delete and ingest-credential issue/rotation generate a UUID idempotency key when omitted. Reuse an explicit application command ID when retrying the same command yourself. Configuration updates and live/DVR viewer-grant methods do not use that command mechanism. Mutations are not retried automatically. GET uses existing bounded transport retries.
+
+## Ingest credentials
+
+`CreateIngestCredentialInput` accepts optional `ttlSeconds` only, from 60 to 86400, default 3600. Ingest credentials do not accept viewer `mode` or `broadcastId` options. Creation reveals the encoder secret. Rotation returns `RotatedIngestCredential`, which adds `handover: { policy: 'disconnect-and-reconnect', status: 'ready' or 'pending', retryAfterSeconds: number }`. Reconnect the publisher with the replacement credential after the indicated delay; rotation revokes the old credential.
+
+`streams.listIngestCredentials` returns `{ data: IngestCredentialSummary[] }`, at most 50 rows ordered newest first, without pagination. A summary contains `id`, `expiresAt`, `revokedAt` and `createdAt`. The history can include expired or revoked credentials, but never contains their secrets.
+
+## Playback grants and readiness
+
+`CreatePlaybackGrantInput` accepts `ttlSeconds` (30 to 3600, default 300), optional `mode: 'live' or 'dvr'` (default live), and optional `broadcastId`. For DVR viewing, authorize the intended run and pass its broadcast ID. See [DVR methods](/reference/sdk/server/node/dvr).
+
+`StreamPlayback` contains `sourceState` and `readiness` alongside `state`. `sourceState` is the source lifecycle; viewer-facing state may report reconnecting while the source is live but playback is unavailable. `StreamPlaybackReadiness` has these fields:
+
+| Field | Meaning |
+| --- | --- |
+| status | waiting, starting, ready, reconnecting, degraded, failed or ended. |
+| publisherConnected | An eligible publisher/source connection is observed. |
+| sourceProducing | A live leased source has positive program bitrate. |
+| outputStarting | An active source is awaiting viewer-ready output. |
+| viewerReady | Protected playback was observed ready for the current source generation. |
+| code | Safe diagnostic code, or null. |
+| checkedAt | ISO timestamp of the observation. |
+
+Use viewerReady when displaying playback availability. A successful grant request or connected publisher does not establish ready media.
 
 List pagination differs from RTC room lists: iterate `page.data`, then supply `page.nextCursor` until null. Do not assume nodes/pageInfo. Retirement/stop return durable operations, not completed RTC cleanup results. Poll until completed or failed. An operation failure includes errorCode.
 
-Authenticate and authorize your own caller before returning participant tokens or viewer grants. Ordinary reads do not reveal stored secrets. Do not log credential/grant responses or raw playback URLs. [REST reference](/reference/api/v1/streams) documents scopes, limits, statuses and errors.
+`StreamingOperation.sessionId` is a string or null. `broadcastId` and `outputId` are optional and nullable: source-command responses can omit them, while operation reads return their nullable values. Do not assume every operation belongs to a broadcast or output.
 
+Authenticate and authorize your own caller before returning participant tokens or viewer grants. Ordinary reads do not reveal stored secrets. Do not log credential/grant responses or raw playback URLs. [REST reference](/reference/api/v1/streams) documents scopes, limits, statuses and errors.

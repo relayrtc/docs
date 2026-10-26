@@ -26,8 +26,12 @@ A secret key with `rooms:read`. The requested resource must belong to that key's
 | cursor | string | Optional | Opaque endCursor from the previous page. |
 | limit | integer | 50 | From 1 to 100. |
 | status | string | Optional | created, active, ending, ended or failed. |
+| search | string | Optional | Case-insensitive substring of the room name or ID, at most 120 characters after trimming. |
+| joinable | boolean | Optional | `true` selects created/active rooms. `false` leaves status filtering unchanged. |
 
 Every method accepts [RequestOptions](/reference/sdk/server/node/request-options) as its final argument.
+
+These filters require a matching SDK release. The SDK serializes `joinable` to the API's `true`/`false` query value. It filters room state, not available seats.
 
 ## Example
 

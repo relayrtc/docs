@@ -1,49 +1,49 @@
 ---
-title: "Node destination methods"
-description: "Configure private platform connections and select them for broadcast runs."
+title: "Destinations"
+description: "Save RTMP output settings and rotate credentials for future runs."
 section: "Node SDK"
 ---
 
-Use the matching local SDK build on your authenticated application backend. Never send its secret API key or destination credentials to viewers.
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
+
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-const first = await relay.streams.destinations.create(streamId, {
-  name: 'First platform', endpoint: platformServerUrl, streamKey: platformStreamKey,
-  profile: 'remux',
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
 })
-const second = await relay.streams.destinations.create(streamId, {
-  name: 'Second platform', endpoint: secondServerUrl, streamKey: secondStreamKey,
-  profile: '720p',
-})
-const run = await relay.broadcasts.create({
-  streamId, name: 'Live program', destinationIds: [first.id, second.id],
-})
-await relay.broadcasts.start(run.id)
 ```
 
-| Method | Input/result |
+## Authorization and inputs
+
+Reads require streams:read; mutations require streams:write. CreateDestinationInput takes name, endpoint and streamKey, plus optional profile and enabled. The endpoint is a public RTMP/RTMPS application URL without userinfo, query or fragment. Profiles are remux, 720p or 1080p.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
 | --- | --- |
-| streams.destinations.create | streamId, configuration, options → StreamDestination |
-| streams.destinations.list | streamId, optional cursor/limit, options → DestinationPage |
-| streams.destinations.get | streamId, destinationId, options → StreamDestination |
-| streams.destinations.update | streamId, destinationId, version plus changes, options → StreamDestination |
-| streams.destinations.delete | streamId, destinationId, options → id/deleted |
-| streams.destinations.rotateSecret | streamId, destinationId, version/streamKey, options → StreamDestination |
-| broadcasts.outputs.retry | broadcastId, outputId, optional version, options → StreamingOperation |
+| `streams.destinations.create` | `(streamId: string, input: CreateDestinationInput, options?: RequestOptions): Promise<StreamDestination>` |
+| `streams.destinations.list` | `(streamId: string, query?: { cursor?: string; limit?: number; }, options?: RequestOptions): Promise<DestinationPage>` |
+| `streams.destinations.get` | `(streamId: string, destinationId: string, options?: RequestOptions): Promise<StreamDestination>` |
+| `streams.destinations.update` | `(streamId: string, destinationId: string, input: UpdateDestinationInput, options?: RequestOptions): Promise<StreamDestination>` |
+| `streams.destinations.delete` | `(streamId: string, destinationId: string, options?: RequestOptions): Promise<{ id: string; deleted: true; }>` |
+| `streams.destinations.rotateSecret` | `(streamId: string, destinationId: string, input: RotateDestinationSecretInput, options?: RequestOptions): Promise<StreamDestination>` |
 
-```ts
-const current = await relay.streams.destinations.get(streamId, first.id)
-await relay.streams.destinations.update(streamId, first.id, {
-  version: current.version, enabled: false,
-})
-const latest = await relay.streams.destinations.get(streamId, first.id)
-await relay.streams.destinations.rotateSecret(streamId, first.id, {
-  version: latest.version, streamKey: replacementKey,
-})
-const pending = await relay.broadcasts.outputs.retry(run.id, failedOutputId, {}, {
-  idempotencyKey: stableApplicationCommandId,
-})
-const progress = await relay.streamingOperations.get(pending.id)
-```
+## Behavior and results
 
-Management mutations generate an idempotency UUID unless provided. Preserve one key when retrying after a lost response. Returned resources never reveal saved endpoint paths or keys. Disabling/removing/rotating affects newly created runs; stop an existing run to disconnect its saved outputs. No platform account OAuth is performed. See [REST contracts](/reference/api/v1/destinations) and [setup guide](/guides/multistreaming).
+Update and rotateSecret require the current destination version. Reads expose host, protocol, port, profile, version and secretConfigured, never the saved URL/key. A broadcast keeps its destination snapshot even if the definition is later disabled, deleted or rotated. Stop the run to disconnect that output.
+
+## Requests and errors
+
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/destinations) and the [public type index](/reference/sdk/server/node/types).

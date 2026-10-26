@@ -45,7 +45,7 @@ const result = await relay.webhooks.create({ url: 'https://your-app.example/webh
 
 ## Behavior
 
-Events: `room.created`, `room.started`, `room.ended`, `participant.joined`, `participant.left`, `participant.reconnected`, `track.published`, `track.unpublished`, `connection.degraded`, `connection.recovered`.
+Subscribe to supported [event types](/reference/api/v1/schemas/webhook-event), including room/participant lifecycle, connection quality and the streaming resource families supported by your deployed API. Matching Node SDK builds export the [complete subscription literals](/reference/sdk/server/node/constants#webhook-events).
 
 Your endpoint is a receiver in your own backend. [Verify signed requests](/guides/webhooks) before processing them.
 

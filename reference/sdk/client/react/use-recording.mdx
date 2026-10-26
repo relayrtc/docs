@@ -1,40 +1,49 @@
 ---
 title: "useRecording"
-description: "Observe recording, show consent-aware indicators and present private recorded video."
+description: "Observe recording capture and finalization through application callbacks."
 section: "React SDK"
 ---
 
-`useRecording` works independently of RelayProvider/RelayRoom. Its application callbacks authorize the caller on your backend. Never place a management key in the browser.
+`useRecording(options)` is independent of RelayProvider and RelayRoom. Supply stable callbacks to authenticated application endpoints. Keep management keys on the backend.
+
+## Options
+
+| Option | Contract |
+| --- | --- |
+| `getRecording` | Required; receives AbortSignal and returns RecordingResource or null. |
+| `start`, `stop`, `delete` | Optional application commands receiving `{ signal, idempotencyKey }`. |
+| `pollIntervalMs` | Integer 1000–60000 milliseconds; default 2500. |
+
+Forward command keys to your backend SDK calls. Callbacks must honor AbortSignal. isRecording is true only for observed recording state; isProcessing indicates finalizing. RecordingIndicator displays state and does not obtain consent. getRecording identity selects the resource; command closures can update without resetting its observed state. Obtain consent before enabling a start action.
+
+## Returns
+
+The hook returns recording, pending, error, isRecording, isProcessing, start, stop, delete and refresh. `pending` covers the application request, not completion of asynchronous server work. Errors are sanitized in the snapshot.
+
+## Example
+
+The parent supplies memoized options bound to one selected resource.
 
 ```tsx
-const recording = useRecording({
-  getRecording: signal => app.getRecording({ signal }),
-  start: context => app.startRecording(context),
-  stop: context => app.stopRecording(context),
-  delete: context => app.deleteRecording(context),
-  pollIntervalMs: 2500,
-})
-return <>
-  <RecordingIndicator state={recording.recording?.state} />
-  <button disabled={!consentAcknowledged || !!recording.pending}
-    onClick={() => { void recording.start() }}>Record</button>
-</>
+import { useRecording, RecordingIndicator } from '@relayrtc/react'
+
+export function RecordingPanel({ options, consent }: {
+  options: Parameters<typeof useRecording>[0]; consent: boolean
+}) {
+  const capture = useRecording(options)
+  return <section>
+    <RecordingIndicator state={capture.recording?.state} />
+    <button disabled={!consent || !options.start || !!capture.pending}
+      onClick={() => { void capture.start() }}>Record</button>
+    <button disabled={!options.stop || !!capture.pending}
+      onClick={() => { void capture.stop() }}>Stop and finalize</button>
+    {capture.error && <p role="alert">{capture.error.message}</p>}
+  </section>
+}
 ```
 
-getRecording receives an AbortSignal and returns RecordingResource or null. Optional command callbacks receive `{ signal, idempotencyKey }` and return the observed resource. Forward the idempotency key to your backend's Node SDK command. The client retains it when a response is uncertain. Recreate callbacks when selecting a different stream or recording so an old command identity is not reused for another target.
+## Lifecycle and retries
 
-The hook returns recording, pending, error, isRecording, isProcessing, start, stop, delete and refresh. Queued means capture was requested; isRecording is true only for observed recording. isProcessing indicates finalization. Polling is bounded and canceled on unmount. Command revisions prevent an older status response from overwriting a newer command response. RecordingIndicator can be rendered inside a room UI but does not ask for consent or obtain recording permissions.
+Unmounting stops polling and aborts outstanding callbacks. Status revisions prevent stale polling from overwriting a newer command result. An uncertain command retains its idempotency key; retry the same action/payload rather than reusing it for another resource. HTTP cancellation does not undo committed server work.
 
-## VOD player
-```tsx
-<BroadcastPlayer
-  mode="vod"
-  autoPlay={false}
-  source={{ mode: 'vod', getPlayback: app.getRecordingPlayback, getGrant: app.getAssetGrant }}
-  createHlsEngine={createHlsEngine}
-/>
-```
-
-getPlayback returns RecordingPlayback metadata; getGrant calls an application endpoint which issues a playback asset grant. Ready VOD metadata enables playback. Renewing grants preserves position and paused state for the same asset/generation. Use native controls to seek. An application-supplied HLS engine is required in browsers without native HLS. MP4 download grants are separate from playback grants.
-
-See [Recording and VOD](/guides/recording-and-vod) for partial results, retention, consent and the existing runnable React example. The browser SDK also exports RecordingClient with the same callback/state behavior.
+See the [workflow](/guides/recording-and-vod) for backend setup, retention and authorization. The browser SDK exposes the corresponding client without React.

@@ -23,7 +23,7 @@ A secret key with `usage:read`. The result is restricted to its project and envi
 
 | Option | Type | Default / requirement | Purpose |
 | --- | --- | --- | --- |
-| category | UsageCategory | all | all, rooms, participants, sfu, turn, signaling or screen-share. |
+| category | UsageCategory | all | all, rooms, participants, sfu, turn, signaling, screen-share or streaming. |
 | range | UsageRange | 7d | 24h, 7d, 14d or 30d. |
 | startedAt | ISO datetime | With endedAt | Custom window start. Cannot combine with range. |
 | endedAt | ISO datetime | With startedAt | Custom exclusive end, no later than now. |
@@ -48,6 +48,18 @@ console.log(usage.summary.participantMinutesDerived)
 ## Returns
 
 `Promise<UsageResponse>`: scope, category, window, bucketDefinition, metricDefinitions, summary, buckets and dataQuality.
+
+Matching SDK/API releases also support `category: 'streaming'` and the optional `serviceUsage` report. It is returned for `all` and `streaming`; other categories omit it. A streaming-only response has an empty RTC summary and RTC bucket metrics. Read service measurements from `usage.serviceUsage.summary`, with their own `metricDefinitions` and `coverage`, rather than from the RTC summary. Published SDK versions can lag these additions.
+
+```ts
+const streamingUsage = await relay.usage.get({ category: 'streaming', range: '24h' })
+if (streamingUsage.serviceUsage) {
+  console.log(streamingUsage.serviceUsage.summary.liveDeliveryBytes)
+  console.log(streamingUsage.serviceUsage.coverage.liveDeliveryBytes)
+}
+```
+
+Service measurements are unpriced quantities, not enforced quotas or calculated charges. The public `usage.get` method accepts the preset ranges listed above; the rolling `live` window belongs to resource usage reports, which remain REST-only. See [response fields](/reference/api/v1/schemas/usage).
 
 Metrics use the units defined by the response. `5.538` participant minutes means about 5.5 minutes, not thousands. See [usage interpretation](/guides/usage).
 

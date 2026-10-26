@@ -33,9 +33,9 @@ Each `RelayClient` has its own ICE configuration. Participants in the same room 
 
 Provide TURN servers or temporary credentials when you want TURN to be available. To disable it, use `'all'` with `iceServers: []` and no `turnCredentials` or `refreshTurnCredentials`. Automatic alone does not mean TURN is disabled.
 
-Choose the policy when creating the client. Leave the current call and create a client with the new settings to change modes. See [TURN configuration](/guides/turn-configuration#choose-a-mode-for-each-participant) for the mode comparison and connection checks.
+Choose the policy when creating the client. Leave the current call and create a client with the new settings to change modes. See [TURN configuration](/guides/turn-configuration#when-turn-is-used) for the mode comparison and connection checks.
 
-The [browser example](/guides/turn-configuration#browser-example) shows a client factory accepting Automatic, Force TURN or TURN disabled for each participant, with temporary credential renewal.
+The [browser example](/guides/turn-configuration#configure-relayclient) shows a client factory accepting Automatic, Force TURN or TURN disabled for each participant, with temporary credential renewal.
 
 ## Join and publish
 

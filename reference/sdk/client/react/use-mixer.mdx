@@ -1,25 +1,45 @@
 ---
 title: "useMixer"
-description: "Follow desired and confirmed program versions through application-authorized studio endpoints."
+description: "Observe requested and applied program revisions separately from scene editing."
 section: "React SDK"
 ---
 
+`useMixer(options)` is independent of RelayProvider and RelayRoom. Supply stable callbacks to authenticated application endpoints. Keep management keys on the backend.
+
+## Options
+
+| Option | Contract |
+| --- | --- |
+| `getMixer` | Required; receives AbortSignal and returns MixerResource or null. |
+| `activateScene`, `stop` | Optional application commands receiving `{ signal, idempotencyKey }`. |
+| `pollIntervalMs` | Integer 1000–60000 milliseconds; default 2500. |
+
+Forward command keys to your backend SDK calls. Callbacks must honor AbortSignal. getOperation optionally receives an operation ID and AbortSignal and returns MixerOperation. Command callbacks return MixerCommandResult, not just a mixer. isApplied means a positive desiredVersion matches appliedVersion; a degraded program can still have an applied scene. Saving scenes is a separate backend operation. Bind an immutable saved scene/version to each activation attempt.
+
+## Returns
+
+The hook returns mixer, operation, pending, error, isLive, isApplied, activateScene, stop and refresh. `pending` covers the application request, not completion of asynchronous server work. Errors are sanitized in the snapshot.
+
+## Example
+
+The parent supplies memoized options bound to one selected resource.
+
 ```tsx
-const studio = useMixer({
-  getMixer: signal => app.getMixer({ signal }),
-  getOperation: (id, signal) => app.getMixerOperation(id, { signal }),
-  activateScene: context => app.activateSavedScene(context),
-  stop: context => app.stopMixer(context),
-})
-return <>
-  <button disabled={!!studio.pending || studio.operation?.status === 'pending'}
-    onClick={() => { void studio.activateScene() }}>Activate saved scene</button>
-  <p>Requested {studio.mixer?.desiredVersion}; applied {studio.mixer?.appliedVersion}</p>
-</>
+import { useMixer } from '@relayrtc/react'
+
+export function MixerPanel({ options }: { options: Parameters<typeof useMixer>[0] }) {
+  const studio = useMixer(options)
+  return <section>
+    <p>Requested {studio.mixer?.desiredVersion ?? 0}; applied {studio.mixer?.appliedVersion ?? 0}</p>
+    <button disabled={!options.activateScene || !!studio.pending || studio.operation?.status === 'pending'}
+      onClick={() => { void studio.activateScene() }}>Activate saved scene</button>
+    {studio.error && <p role="alert">{studio.error.message}</p>}
+  </section>
+}
 ```
 
-Callbacks authorize studio operators on your backend; management keys and media-process options never enter the browser. Keep callback identities stable and bind an immutable saved scene/version payload for each command attempt. Command callbacks receive signal and idempotencyKey and return MixerCommandResult. getMixer returns MixerResource or null. Optional getOperation follows the pending operation ID and returns MixerOperation. Callback timeout/cancellation does not cancel an already committed server command; retry the same identity and reconcile status.
+## Lifecycle and retries
 
-The hook returns mixer, operation, pending, error, isLive, isApplied, activateScene, stop and refresh. isApplied means a positive desired program revision matches its confirmed applied revision. Live/degraded state is observed separately; a source-loss slate can still have an applied scene. Polling stops on unmount and revisions prevent stale polls overwriting newer command responses. The browser package exports MixerClient with the same behavior.
+Unmounting stops polling and aborts outstanding callbacks. Status revisions prevent stale polling from overwriting a newer command result. An uncertain command retains its idempotency key; retry the same action/payload rather than reusing it for another resource. HTTP cancellation does not undo committed server work.
 
-Source and layout selection edit a local draft. Your backend saves it through mixers.putScene; activation references that saved version. Render draft controls separately from a BroadcastPlayer using the original stream's application-authorized playback metadata/grant. That player displays the server program, not a browser-composed arrangement. The existing streaming-foundation MixerPanel includes source/layout controls, host-only scene/operation endpoints and a program player. See [cloud video mixer](/guides/cloud-video-mixer) for setup and continuity limits.
+See the [workflow](/guides/cloud-video-mixer) for backend setup, retention and authorization. The browser SDK exposes the corresponding client without React.

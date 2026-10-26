@@ -1,47 +1,63 @@
 ---
-title: "Node schedule methods"
-description: "Create scheduled events, convert local times safely and authorize event access."
-section: "Server SDK"
+title: "Schedules"
+description: "Create timed runs, control event access and inspect scheduler outcomes."
+section: "Node SDK"
 ---
 
-Use a matching local SDK and a backend secret key with streams:read/write. Event grants require streams:playback/publish, and automatic recording requires recordings:create.
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
+
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
+
+```ts
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
+```
+
+## Authorization and inputs
+
+Reads require streams:read, schedule mutations streams:write, ingest issuance streams:publish and viewer grants streams:playback. CreateScheduleInput contains broadcast and timing. ScheduleTiming uses UTC startsAt/endsAt, an IANA timeZone, source/catch-up windows, publisher/viewer windows and nullable notifyBeforeSeconds.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
+| --- | --- |
+| `schedules.create` | `(input: CreateScheduleInput, options?: RequestOptions): Promise<ScheduledBroadcast>` |
+| `schedules.list` | `(query?: { cursor?: string; limit?: number; state?: ScheduleState; }, options?: RequestOptions): Promise<SchedulePage>` |
+| `schedules.get` | `(scheduleId: string, options?: RequestOptions): Promise<ScheduledBroadcast>` |
+| `schedules.update` | `(scheduleId: string, input: UpdateScheduleInput, options?: RequestOptions): Promise<ScheduledBroadcast>` |
+| `schedules.cancel` | `(scheduleId: string, input: { version: number; }, options?: RequestOptions): Promise<ScheduledBroadcast>` |
+| `schedules.startNow` | `(scheduleId: string, input: { version: number; }, options?: RequestOptions): Promise<ScheduledBroadcast>` |
+| `schedules.getOperation` | `(operationId: string, options?: RequestOptions): Promise<ScheduleOperation>` |
+| `schedules.getPlayback` | `(scheduleId: string, options?: RequestOptions): Promise<ScheduledPlayback>` |
+| `schedules.createPlaybackGrant` | `(scheduleId: string, input?: { ttlSeconds?: number; }, options?: RequestOptions): Promise<PlaybackGrant>` |
+| `schedules.createIngestCredentials` | `(scheduleId: string, options?: RequestOptions): Promise<IngestCredential & { scheduleId: string; notBefore: string; }>` |
+
+## Behavior and results
+
+Update, cancel and startNow require the current version. A schedule snapshots its run configuration and rechecks creator authority at execution. Changes revoke earlier event credentials. Playback metadata contains serverTime/countdownSeconds; event grants cannot outlast the event end. viewerAfterSeconds extends ended metadata, not live media. resolveScheduleLocalTime converts local wall times with explicit DST handling.
+
+## Requests and errors
+
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/scheduled-broadcasts) and the [public type index](/reference/sdk/server/node/types).
+
+### Convert local time
 
 ```ts
 import { resolveScheduleLocalTime } from '@relayrtc/node'
 
-// On your backend: an ambiguous local time requires an explicit offset in minutes.
-const startsAt = resolveScheduleLocalTime('2026-11-01T19:00', 'Africa/Casablanca')
-const endsAt = resolveScheduleLocalTime('2026-11-01T20:00', 'Africa/Casablanca')
-const event = await relay.schedules.create({
-  broadcast: { streamId, name: 'Weekly event' },
-  timing: { startsAt, endsAt, timeZone: 'Africa/Casablanca', sourceWaitSeconds: 120,
-    catchUpSeconds: 300, publisherEarlySeconds: 900, viewerEarlySeconds: 900,
-    viewerAfterSeconds: 0, notifyBeforeSeconds: null },
-})
+export function toUtc(localDateTime: string, timeZone: string) {
+  return resolveScheduleLocalTime(localDateTime, timeZone)
+}
 ```
-
-| Method | Returns |
-| --- | --- |
-| `schedules.create(input, options?)` | ScheduledBroadcast |
-| `schedules.list(query?, options?)` | SchedulePage |
-| `schedules.get(scheduleId, options?)` | ScheduledBroadcast |
-| `schedules.update(scheduleId, {version, timing}, options?)` | ScheduledBroadcast |
-| `schedules.cancel(scheduleId, {version}, options?)` | cancelled ScheduledBroadcast |
-| `schedules.startNow(scheduleId, {version}, options?)` | accepted ScheduledBroadcast with operationId |
-| `schedules.getOperation(operationId, options?)` | ScheduleOperation |
-| `schedules.getPlayback(scheduleId, options?)` | ScheduledPlayback |
-| `schedules.createPlaybackGrant(scheduleId, {ttlSeconds?}, options?)` | PlaybackGrant |
-| `schedules.createIngestCredentials(scheduleId, options?)` | IngestCredential with scheduleId/notBefore |
-
-Command methods generate a stable key for transport retries. Supply options.idempotencyKey to reuse it across application retries. Conflict errors use the existing RelayApiError with code/status; reload on SCHEDULE_VERSION_CONFLICT. Do not retry with a changed version under the same key.
-
-```ts
-const current = await relay.schedules.get(event.id)
-const requested = await relay.schedules.startNow(current.id, { version: current.version })
-const operation = await relay.schedules.getOperation(requested.operationId)
-// Poll until completed/failed/cancelled; inspect the schedule for the current event lifecycle.
-```
-
-Authorize each application caller before issuing bounded credentials. Publisher notBefore/expiry are enforced on ingest, and the publisher still connects separately. Return scheduled playback metadata to entitled viewers, then issue the event playback grant only when live. A generic stream grant bypasses event-specific policy and should remain an operator capability.
-
-For schedule.reminder/schedule.started webhooks, verifyWebhookRequest must receive the untouched raw request body and headers. Deduplicate the event ID, fetch the schedule and verify project/environment plus intended application audience before notifying anyone. The provider configuration and a runnable example are described in [Scheduled broadcasts](/guides/scheduled-broadcasts).

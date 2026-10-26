@@ -23,11 +23,10 @@ Call this hook inside [RelayProvider](/reference/sdk/client/react/RelayProvider)
 ## Example
 
 ```tsx
-const cameras = useTracks({
-  participantId,
-  types: ['camera_video'],
-  subscribedOnly: false,
-})
+export function CameraCount({ participantId }: { participantId: string }) {
+  const cameras = useTracks({ participantId, types: ['camera_video'], subscribedOnly: false })
+  return <p>{cameras.length} camera publications</p>
+}
 ```
 
 ## Options and behavior

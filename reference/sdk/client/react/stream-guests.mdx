@@ -9,17 +9,20 @@ Both hooks accept the stable StreamGuestOptions callbacks described by [StreamGu
 useStreamGuests returns roster, pending, error, client, refresh and command for host invitations, requests and moderation. useGuestSession adds joinStage and leaveStage and the room/activeGuestId snapshot. Effects connect polling and disconnect/leave RTC on unmount. Backend identity/role checks still apply when a button is hidden.
 
 ```tsx
-const guest = useGuestSession(applicationGuestOptions)
-const own = guest.roster?.data.find(row => row.state === 'approved' || row.state === 'accepted')
-return <>
-  {own && !guest.room && <button onClick={() => guest.joinStage(own.id)}>
-    Join stage with devices off
-  </button>}
-  {guest.room && <button onClick={() => guest.room?.localParticipant.microphone.enable()}>
-    Enable microphone
-  </button>}
-  {guest.error && <p role="alert">{guest.error.message}</p>}
-</>
+import { useGuestSession } from '@relayrtc/react'
+
+export function GuestStage({ options }: { options: Parameters<typeof useGuestSession>[0] }) {
+  const guest = useGuestSession(options)
+  const own = guest.roster?.data.find(row => row.state === 'approved' || row.state === 'accepted')
+  return <section>
+    {own && !guest.room && <button disabled={!!guest.pending}
+      onClick={() => { void guest.joinStage(own.id) }}>Join stage with devices off</button>}
+    {guest.room && <button
+      onClick={() => { void guest.room?.microphone.enable().catch(console.error) }}>Enable microphone</button>}
+    {guest.room && <button onClick={() => { void guest.leaveStage() }}>Leave stage</button>}
+    {guest.error && <p role="alert">{guest.error.message}</p>}
+  </section>
+}
 ```
 
-Use existing Room device controls and local-media hooks for prejoin preview/capture errors. Invitation acceptance, RTC join and device enablement are separate choices. Show camera-denial errors while allowing a permitted microphone; moderator mute is a server permission fence, separate from local mute or device disable. Unmount delayed HLS/DVR players during stage participation and restore authorized viewer playback after leave/removal. The streaming-foundation GuestPanel shows host/co-host/viewer flows, audio-only invitations, moderation confirmations, real-time track playback and return-to-viewer behavior. See [live guests](/guides/live-guests-and-cohosting).
+Use the returned guest Room for device controls and media snapshots. The guest client owns an independent room; ordinary provider hooks do not automatically observe it. Subscribe to that Room or its capture controls when building a preview. Invitation acceptance, RTC join and device enablement are separate choices. Show camera-denial errors while allowing a permitted microphone; moderator mute is a server permission fence, separate from local mute or device disable. Unmount delayed HLS/DVR players during stage participation and restore authorized viewer playback after leave/removal. See [live guests](/guides/live-guests-and-cohosting).

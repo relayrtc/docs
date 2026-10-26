@@ -28,13 +28,15 @@ Render inside [RelayProvider](/reference/sdk/client/react/RelayProvider). Only o
 ## Example
 
 ```tsx
-<RelayRoom
-  token={participantToken}
-  onConnected={(room) => console.log('Joined', room.id)}
-  onDisconnected={() => console.log('Left')}
->
-  <YourCall />
-</RelayRoom>
+import type { ReactNode } from 'react'
+
+export function JoinedRoom({ token, children }: { token: string | null; children: ReactNode }) {
+  return <RelayRoom
+    token={token}
+    onConnected={room => console.log('Joined', room.id)}
+    onDisconnected={() => console.log('Left')}
+  >{children}</RelayRoom>
+}
 ```
 
 ## Token changes

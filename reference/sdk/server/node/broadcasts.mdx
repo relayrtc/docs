@@ -1,39 +1,50 @@
 ---
-title: "Node broadcast methods"
-description: "Create one execution, start/stop it and follow output/operation status."
+title: "Broadcasts"
+description: "Control individual runs and inspect independently managed outputs."
 section: "Node SDK"
 ---
 
-## Availability
-Unreleased Phase 1 additions to the local @relayrtc/node build require the matching Phase 1 API and migration. Keep RelayServer and its secret key on the backend.
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
+
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-const run = await relay.broadcasts.create({
-  streamId, name: 'Demo run', outputs: [{ kind: 'hls' }],
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
 })
-const start = await relay.broadcasts.start(run.id, { version: run.version }, {
-  idempotencyKey: applicationCommandId,
-})
-const operation = await relay.streamingOperations.get(start.id)
-const detail = await relay.broadcasts.get(run.id)
-const outputs = await relay.broadcasts.getOutputs(run.id)
-const page = await relay.broadcasts.list({ streamId, state: 'live', limit: 30 })
-const stop = await relay.broadcasts.stop(run.id)
 ```
 
-| Method | Result |
+## Authorization and inputs
+
+Reads require streams:read; run commands require streams:write. Create snapshots the source, profile, destinations and automatic recording policy. A run includes exactly one HLS output. Start can wait for a source; terminal runs cannot restart. Stop preserves the source session and room. Output retry affects only the selected failed output.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
 | --- | --- |
-| broadcasts.create(input, options?) | BroadcastResource |
-| broadcasts.list(query?, options?) | BroadcastPage: data, nextCursor, environment limits |
-| broadcasts.get(id, options?) | BroadcastDetail with usage |
-| broadcasts.start(id, input?, options?) | StreamingOperation |
-| broadcasts.stop(id, input?, options?) | StreamingOperation |
-| broadcasts.getOutputs(id, options?) | data: BroadcastOutput array |
-| streamingOperations.get(id, options?) | StreamingOperation |
+| `broadcasts.outputs.retry` | `(broadcastId: string, outputId: string, input?: BroadcastCommandInput, options?: RequestOptions): Promise<StreamingOperation>` |
+| `broadcasts.create` | `(input: CreateBroadcastInput, options?: RequestOptions): Promise<BroadcastResource>` |
+| `broadcasts.list` | `(query?: ListBroadcastsQuery, options?: RequestOptions): Promise<BroadcastPage>` |
+| `broadcasts.get` | `(broadcastId: string, options?: RequestOptions): Promise<BroadcastDetail>` |
+| `broadcasts.start` | `(broadcastId: string, input?: BroadcastCommandInput, options?: RequestOptions): Promise<StreamingOperation>` |
+| `broadcasts.stop` | `(broadcastId: string, input?: BroadcastCommandInput, options?: RequestOptions): Promise<StreamingOperation>` |
+| `broadcasts.getOutputs` | `(broadcastId: string, options?: RequestOptions): Promise<{ data: BroadcastOutput[]; }>` |
 
-Input types CreateBroadcastInput, BroadcastCommandInput and ListBroadcastsQuery and all resource/output/status types are exported. Optional start/stop input contains version. Supply an empty input before request options when needed. Standard signal/timeout/retry options apply; mutations remain explicit one-attempt requests. Commands generate a UUID idempotency key unless supplied. Retry a lost response with the same application command ID, not a fresh key.
+## Behavior and results
 
-Create/start/stop require streams:write; reads require streams:read. Configuration is captured per run. Starting does not publish media; configure and start the source separately. A 202 operation is not live confirmation. Stop releases jobs without stopping the source. A terminal run cannot restart. Poll status or expose application-authorized callbacks to [useBroadcast](/reference/sdk/client/react/use-broadcast).
+BroadcastPage uses data and nextCursor. ListBroadcastsQuery accepts streamId, state, cursor, limit (1–100; default 30), order (id or newest) and activeOnly (boolean). StreamingOperation represents asynchronous start/stop/retry; poll streamingOperations.get before treating work as complete.
 
-See [broadcast REST](/reference/api/v1/broadcasts) for exact fields, states, errors, limits and event contracts. Existing streaming operation kinds now also include broadcast.start/broadcast.stop; consumers using exhaustive switches should handle them.
+## Requests and errors
 
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/broadcasts) and the [public type index](/reference/sdk/server/node/types).

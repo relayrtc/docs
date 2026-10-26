@@ -1,39 +1,35 @@
 ---
 title: "Browser stream playback"
 description: "Application callbacks, private grants and media attachment without management authority."
-section: "JavaScript SDK"
+section: "Browser SDK"
 ---
 ## StreamPlaybackClient
-Unreleased additions to local @relayrtc/client 0.0.0. The existing RelayClient room API is preserved.
+StreamPlaybackClient manages private HTTP playback independently of the RTC room client. See [installation](/installation) for package availability.
 
 ```ts
 import { StreamPlaybackClient, attachBroadcastPlayback } from '@relayrtc/client'
+import type { StreamPlaybackOptions, HlsEngineFactory } from '@relayrtc/client'
 
-async function request(path, method, signal) {
-  const response = await fetch(path, {
-    method, signal, credentials: 'same-origin', cache: 'no-store',
+export function mountPlayer(
+  video: HTMLVideoElement,
+  status: HTMLElement,
+  options: StreamPlaybackOptions,
+  createHlsEngine?: HlsEngineFactory,
+) {
+  const client = new StreamPlaybackClient(options)
+  const detach = attachBroadcastPlayback(video, client, {
+    autoPlay: false,
+    ...(createHlsEngine ? { createHlsEngine } : {}),
+    onState: state => { status.textContent = state },
   })
-  if (!response.ok) throw new Error('Playback unavailable')
-  return response.json()
+  client.start()
+  return () => { detach(); client.dispose() }
 }
-const client = new StreamPlaybackClient({
-  getPlayback: (signal) => request('/app-api/playback', 'GET', signal),
-  getGrant: (signal) => request('/app-api/grant', 'POST', signal),
-})
-const unsubscribe = client.subscribe(() => renderStatus(client.getSnapshot()))
-const detach = attachBroadcastPlayback(videoElement, client, {
-  autoPlay: true,
-  createHlsEngine, // optional adapter; see React player reference
-  onState: renderPlayerState,
-})
-client.start()
-// During teardown:
-detach()
-unsubscribe()
-client.dispose()
 ```
 
 getPlayback returns at least streamId, sourceSessionId, generation and state. getGrant returns url and ISO expiresAt; token is optional because URL transport supports native players. Callbacks must honor AbortSignal and apply your application authentication. Poll interval defaults to 5000 ms and supports 1000..60000 ms. No management URL or secret key is accepted by this API.
+
+Matching browser builds also accept optional `sourceState` and `readiness` on `StreamPlaybackMetadata`. Forward these from your backend when it exposes the current stream metadata. `StreamPlaybackReadiness` reports pipeline status, publisher connection, source production, output startup, observed viewer readiness, a safe code and observation time. Application callbacks can omit these additive fields; use `readiness?.viewerReady` when available to distinguish a connected encoder from playable media. See the [REST playback fields](/reference/api/v1/streams#playback-metadata).
 
 start is idempotent. refresh() reconciles metadata; refresh(true) also requests another grant. stop aborts polling and resets state; start can resume it. dispose additionally removes listeners. Snapshot fields are playback, grant and a sanitized error. getServerSnapshot supports SSR.
 

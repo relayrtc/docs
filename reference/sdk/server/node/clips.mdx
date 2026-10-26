@@ -1,26 +1,52 @@
 ---
-title: "Clip APIs"
-description: "Create highlights, observe jobs and issue authorized clip playback grants."
+title: "Clips and buffers"
+description: "Retain an interval, follow rendering and publish a private highlight."
 section: "Node SDK"
 ---
 
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
+
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
+
 ```ts
-const windows = await relay.streams.clips.getWindow(streamId)
-const source = windows.data[0]
-if (!source) throw new Error('No retained media')
-const clip = await relay.streams.clips.create(streamId, {
-  recordingId: source.recordingId,
-  interval: { kind: 'media', startSeconds: source.startSeconds, endSeconds: source.startSeconds + 10 },
-  cutMode: 'precise',
-}, { idempotencyKey: requestId })
-const observed = await relay.clips.get(clip.id)
-if (observed.state === 'ready') {
-  await relay.clips.publish(observed.id)
-  const grant = await relay.assets.createAccessGrant(observed.assetId, { action: 'playback' })
-  // Return the grant only after your application authorizes its viewer.
-}
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
 ```
 
-streams.clips.create/list/getWindow/getBufferPolicy/setBufferPolicy and clips.get/publish/delete accept normal RequestOptions. create/list require a stream ID; list accepts cursor and limit. create accepts CreateClipInput with an explicit recordingId and typed ClipInterval. Commands automatically generate idempotency keys; supply a stable application request key when retries can cross backend requests. setBufferPolicy takes policy and the current version. Publish returns the observed ClipResource synchronously; deletion and creation return durable resources whose state must be polled.
+## Authorization and inputs
 
-For operator preview before publication, use `assets.createAccessGrant(assetId, { audience: 'preview', action: 'playback' })` with recordings:create authority. Viewers receive the default viewer audience only after publication. Existing recordings.getPlayback(clip.recordingId), assets.get and assets.createAccessGrant handle the resulting asset. A download grant uses action: download. Keep all management calls and API keys on your backend. See [REST errors and state](/reference/api/v1/clips) and [clip operations](/guides/clips-and-replay).
+Reads require recordings:read; clip/buffer controls and operator preview require recordings:create. Publishing also requires streams:publish. CreateClipInput requires recordingId and interval. Choose last, media or wall coordinates, optional cutMode (keyframe or precise), label and retentionSeconds.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
+| --- | --- |
+| `clips.list` | `(query?: ClipListQuery, options?: RequestOptions): Promise<ClipPage>` |
+| `clips.get` | `(clipId: string, options?: RequestOptions): Promise<ClipResource>` |
+| `clips.publish` | `(clipId: string, options?: RequestOptions): Promise<ClipResource>` |
+| `clips.delete` | `(clipId: string, options?: RequestOptions): Promise<ClipResource>` |
+| `streams.clips.create` | `(streamId: string, input: CreateClipInput, options?: RequestOptions): Promise<ClipResource>` |
+| `streams.clips.list` | `(streamId: string, query?: ClipListQuery, options?: RequestOptions): Promise<ClipPage>` |
+| `streams.clips.getWindow` | `(streamId: string, options?: RequestOptions): Promise<{ data: ClipWindow[]; }>` |
+| `streams.clips.getBufferPolicy` | `(streamId: string, options?: RequestOptions): Promise<{ policy: RollingBufferPolicy \| null; version: number; }>` |
+| `streams.clips.setBufferPolicy` | `(streamId: string, input: { policy: RollingBufferPolicy; version: number; }, options?: RequestOptions): Promise<{ policy: RollingBufferPolicy; version: number; }>` |
+
+## Behavior and results
+
+ClipPage uses data and nextCursor. getWindow identifies available source recordings/buffers and actual retained ranges. setBufferPolicy requires its current version and consent acknowledgment. create returns queued work; wait for ready. publish permits viewer grants but does not replace application entitlement. Completed clips retain their own media independently of source-buffer eviction.
+
+## Requests and errors
+
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/clips) and the [public type index](/reference/sdk/server/node/types).
