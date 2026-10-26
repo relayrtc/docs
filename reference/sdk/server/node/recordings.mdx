@@ -1,64 +1,57 @@
 ---
-title: "Node recording methods"
-description: "Start recordings, configure automatic capture and authorize VOD assets from your backend."
-section: "Server SDK"
+title: "Recordings and assets"
+description: "Capture a program and authorize retained media without exposing storage credentials."
+section: "Node SDK"
 ---
 
-Use a matching local Node SDK build and a secret key with recordings:create and recordings:read. These methods belong on an application backend.
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
+
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-const policy = {
-  mode: 'manual' as const,
-  maxDurationSeconds: 14400,
-  retentionSeconds: 604800,
-  region: 'us-east-1',
-  allowPartial: false,
-  exportMp4: true,
-  segmentEvents: false,
-  consentAcknowledged: true,
-}
-// Obtain consent and authorize the host before reaching this call.
-const recording = await relay.streams.recordings.start(streamId, { broadcastId, policy })
-await relay.recordings.stop(recording.id)
-const observed = await relay.recordings.get(recording.id)
-// Follow observed.state until ready or failed before requesting access.
-```
+import { RelayServer } from '@relayrtc/node'
 
-| Method | Returns |
-| --- | --- |
-| `streams.recordings.start(streamId, input, options?)` | RecordingResource |
-| `streams.recordings.list(streamId, query?, options?)` | RecordingPage |
-| `streams.recordings.getPolicy(streamId, options?)` | policy or null, version |
-| `streams.recordings.setPolicy(streamId, input, options?)` | policy, version |
-| `recordings.list(query?, options?)` | RecordingPage |
-| `recordings.get(recordingId, options?)` | RecordingResource |
-| `recordings.stop(recordingId, options?)` | observed RecordingResource |
-| `recordings.getPlayback(recordingId, options?)` | RecordingPlayback |
-| `recordings.delete(recordingId, options?)` | deleting/deleted RecordingResource |
-| `assets.get(assetId, options?)` | MediaAsset |
-| `assets.createAccessGrant(assetId, input?, options?)` | AssetAccessGrant |
-| `assets.delete(assetId, options?)` | associated RecordingResource |
-
-Command methods generate an idempotency key and preserve it through transport retries. Supply `options.idempotencyKey` to preserve command identity across application retries. Stop/delete return 202 observed resources, not completed cleanup promises; poll get until ready/failed/deleted as appropriate.
-
-## Automatic capture
-```ts
-const current = await relay.streams.recordings.getPolicy(streamId)
-await relay.streams.recordings.setPolicy(streamId, {
-  version: current.version,
-  policy: { ...policy, mode: 'automatic' },
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
 })
-// Create a NEW broadcast to snapshot this policy, then start it.
 ```
 
-## Playback, download and ready events
-```ts
-// First authorize your application user to view this recording.
-const ready = await relay.recordings.get(recordingId)
-if (ready.state !== 'ready') throw new Error('Recording is not ready')
-const playback = await relay.recordings.getPlayback(ready.id)
-const grant = await relay.assets.createAccessGrant(ready.assetId, { action: 'playback' })
-const download = await relay.assets.createAccessGrant(ready.assetId, { action: 'download' })
-```
+## Authorization and inputs
 
-Return only the needed metadata/grant to the authorized caller. Download is unavailable when exportMp4 was false. Use verifyWebhookRequest with the untouched raw body and delivery headers for recording.ready callbacks, deduplicate event IDs durably, and re-read recording/asset ownership and readiness before making a publication decision. The [runnable guide](/guides/recording-and-vod) describes the existing example's verified callback and limits.
+Recording reads and asset playback use recordings:read; capture, policy and deletion controls use recordings:create. StartRecordingInput accepts an explicit broadcastId and policy. Supply the storage region, retention and duration in seconds, partial-output/export choices, and consentAcknowledged: true only after obtaining consent.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
+| --- | --- |
+| `streams.recordings.start` | `(streamId: string, input: StartRecordingInput, options?: RequestOptions): Promise<RecordingResource>` |
+| `streams.recordings.list` | `(streamId: string, query?: { cursor?: string; limit?: number; }, options?: RequestOptions): Promise<RecordingPage>` |
+| `streams.recordings.getPolicy` | `(streamId: string, options?: RequestOptions): Promise<{ policy: RecordingPolicy \| null; version: number; }>` |
+| `streams.recordings.setPolicy` | `(streamId: string, input: { policy: RecordingPolicy; version: number; }, options?: RequestOptions): Promise<{ policy: RecordingPolicy; version: number; }>` |
+| `recordings.list` | `(query?: { cursor?: string; limit?: number; }, options?: RequestOptions): Promise<RecordingPage>` |
+| `recordings.get` | `(recordingId: string, options?: RequestOptions): Promise<RecordingResource>` |
+| `recordings.stop` | `(recordingId: string, options?: RequestOptions): Promise<RecordingResource>` |
+| `recordings.getPlayback` | `(recordingId: string, options?: RequestOptions): Promise<RecordingPlayback>` |
+| `recordings.delete` | `(recordingId: string, options?: RequestOptions): Promise<RecordingResource>` |
+| `assets.get` | `(assetId: string, options?: RequestOptions): Promise<MediaAsset>` |
+| `assets.createAccessGrant` | `(assetId: string, input?: { action?: "playback" \| "download"; ttlSeconds?: number; audience?: "preview" \| "viewer"; }, options?: RequestOptions): Promise<AssetAccessGrant>` |
+| `assets.delete` | `(assetId: string, options?: RequestOptions): Promise<RecordingResource>` |
+
+## Behavior and results
+
+Policies require the current version. Automatic policy applies to subsequently created runs. Stop initiates finalization; wait for recording.state ready before issuing playback or download grants. Asset grants distinguish playback from download and preview from viewer. Viewer clip grants require publication. Deletion revokes access before physical cleanup completes.
+
+## Requests and errors
+
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/recordings) and the [public type index](/reference/sdk/server/node/types).
+
+Asset delivery and link revocation routes are detailed in [assets](/reference/api/v1/assets). The current SDK has no dedicated asset link-revocation method; use the REST route from your backend.

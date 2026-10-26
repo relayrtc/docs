@@ -5,7 +5,7 @@ section: "React SDK"
 ---
 
 ## Application callbacks
-Unreleased React useBroadcast wraps the browser BroadcastClient. Neither accepts a management key. Your backend authenticates the user, binds the selected run and checks viewer/operator authority. Pass stable callbacks or memoize them when the selected run changes.
+useBroadcast wraps the browser BroadcastClient. Neither accepts a management key. Your backend authenticates the user, binds the selected run and checks viewer/operator authority. Pass stable callbacks or memoize them when the selected run changes.
 
 ```tsx
 import { useBroadcast } from '@relayrtc/react'
@@ -52,5 +52,5 @@ The client preserves a failed command's idempotency key and version when retryin
 
 For non-React applications, instantiate BroadcastClient(options), subscribe to getSnapshot(), call connect(), start()/stop()/retryOutput(outputId)/refresh(), then unsubscribe and dispose(). disconnect() resets state and permits later connect(); dispose() additionally removes listeners. Use a new client/options set for another run. Sources and playback grants remain independent of broadcast control; stopping a run does not end the source.
 
-The local streaming-foundation example contains the backend routes and React status panel with fixed-resource authorization, polling, pending/error handling and teardown. See [broadcast lifecycle](/guides/broadcasts) for quotas, safe draining and recovery.
+See [broadcast lifecycle](/guides/broadcasts) for quotas, safe draining and recovery.
 

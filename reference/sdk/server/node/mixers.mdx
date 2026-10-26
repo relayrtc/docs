@@ -1,34 +1,53 @@
 ---
-title: "Mixer APIs"
-description: "Manage server-rendered scenes with optimistic concurrency and durable operations."
+title: "Mixers"
+description: "Bind program inputs, save scenes and follow explicit activation operations."
 section: "Node SDK"
 ---
 
-The Node SDK exports typed MixerScene, MixerResource, MixerSceneResource, MixerOperation, MixerCommandResult and overlay/source/input contracts. All management calls stay on your backend.
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
 
-| Method | Behavior |
-| --- | --- |
-| broadcasts.mixers.create(broadcastId, input) | Create source registry; primary is implicit |
-| broadcasts.mixers.list(broadcastId) | Bounded definition history |
-| mixers.get(mixerId) | Authoritative desired/applied state and usage |
-| mixers.listScenes(mixerId) | Saved versioned scene resources |
-| mixers.putScene(mixerId, sceneId, input) | Create/update using current scene version |
-| mixers.activateScene(mixerId, input) | Queue immutable snapshot activation |
-| mixers.addOverlay(mixerId, input) | Admit a private PNG image |
-| mixers.removeOverlay(mixerId, overlayId) | Schedule unused asset deletion |
-| mixers.stop(mixerId, input) | Drain and return to primary program |
-| mixers.getOperation(operationId) | Observe pending/completed/failed |
+## Import and client
 
-All accept the normal RequestOptions. Commands generate idempotency keys; provide a stable application key when retrying across backend requests. Keep the original versioned payload while its response is uncertain. An API-level conflict requires re-reading and explicitly deciding on a new command, not silently replacing the fingerprint under an old key.
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-const saved = await relay.mixers.putScene(mixerId, sceneId, { version, scene })
-const mixer = await relay.mixers.get(mixerId)
-const command = await relay.mixers.activateScene(mixerId, {
-  version: mixer.version, sceneId: saved.id, sceneVersion: saved.version,
-}, { idempotencyKey: applicationRequestId })
-const observed = await relay.mixers.getOperation(command.operation.id)
-// Wait for completed and reconcile mixer.appliedVersion with command.operation.revision.
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
 ```
 
-For PNG admission read the file on your backend, encode base64 and send name, contentType: image/png and dataBase64. Do not send public image URLs, shell fragments or internal FFmpeg options. Use existing streams.getPlayback/createPlaybackGrant for the composited program and existing recording APIs to capture it. See the [full studio example and deployment](/guides/cloud-video-mixer).
+## Authorization and inputs
+
+Reads require streams:read; authoring/stop require streams:write; creation and activation also require streams:publish. CreateMixerInput binds up to three additional streams; primary is implicit. putScene requires the saved scene version (zero for creation). activateScene requires mixer version, sceneId and sceneVersion.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
+| --- | --- |
+| `mixers.get` | `(mixerId: string, options?: RequestOptions): Promise<MixerResource>` |
+| `mixers.listScenes` | `(mixerId: string, options?: RequestOptions): Promise<{ data: MixerSceneResource[]; }>` |
+| `mixers.putScene` | `(mixerId: string, sceneId: string, input: PutMixerSceneInput, options?: RequestOptions): Promise<MixerSceneResource>` |
+| `mixers.activateScene` | `(mixerId: string, input: ActivateMixerSceneInput, options?: RequestOptions): Promise<MixerCommandResult>` |
+| `mixers.addOverlay` | `(mixerId: string, input: CreateMixerOverlayInput, options?: RequestOptions): Promise<MixerOverlay>` |
+| `mixers.removeOverlay` | `(mixerId: string, overlayId: string, options?: RequestOptions): Promise<{ id: string; deleted: true; }>` |
+| `mixers.stop` | `(mixerId: string, input: { version: number; }, options?: RequestOptions): Promise<MixerCommandResult>` |
+| `mixers.getOperation` | `(operationId: string, options?: RequestOptions): Promise<MixerOperation>` |
+| `broadcasts.mixers.create` | `(broadcastId: string, input?: CreateMixerInput, options?: RequestOptions): Promise<MixerResource>` |
+| `broadcasts.mixers.list` | `(broadcastId: string, options?: RequestOptions): Promise<{ data: MixerResource[]; }>` |
+
+## Behavior and results
+
+Saving a draft does not put it on air. MixerCommandResult contains mixer and operation; poll getOperation and inspect desiredVersion/appliedVersion to confirm activation. Scene/mixer versions and program revisions are distinct. addOverlay accepts name, contentType: image/png and dataBase64. Stop returns to the original source without implicitly ending the room or broadcast.
+
+## Requests and errors
+
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/mixers) and the [public type index](/reference/sdk/server/node/types).

@@ -1,10 +1,12 @@
 ---
 title: "DVR REST API"
 description: "Versioned DVR policies, run-bound seek windows and existing playback grants."
-section: "REST API"
+section: "REST API v1"
 ---
 
 All management routes use /v1 and existing project/environment authentication. Read requires streams:read; configure/update requires streams:write; grants require streams:playback. Optional projectId/environmentId query values must match the resource. The schema-generated OpenAPI document is GET /v1/dvr/openapi. DVR disabled by the operator rejects enable commands with DVR_DISABLED.
+
+The OpenAPI 3.1 document covers the DVR slice, requires management authentication and is available when streaming is enabled. Its info.version is v1, the API contract version, independently of the server release or SDK package version.
 
 | Method | Route | Behavior |
 | --- | --- | --- |
@@ -27,7 +29,7 @@ All management routes use /v1 and existing project/environment authentication. R
 }
 ```
 
-PATCH adds version beside policy. Send Idempotency-Key with mutations and reuse the exact body/key when retrying uncertain results. DVR_VERSION_CONFLICT requires reading the latest version; DVR_STORAGE_LIMIT means the requested cap exceeds operator limits. Policy admission does not reserve an active worker: capacity can leave the window starting until a capture slot is free.
+PATCH adds version beside policy. Policy creation and updates require Idempotency-Key; reuse the exact body/key when retrying uncertain results. Playback grant issuance and revocation follow the [stream grant contract](/reference/api/v1/streams) and do not require that header. DVR_VERSION_CONFLICT requires reading the latest version; DVR_STORAGE_LIMIT means the requested cap exceeds operator limits. Policy admission does not reserve an active worker: capacity can leave the window starting until a capture slot is free.
 
 Playback includes streamId, broadcastId, windowId, sourceSessionId (the DVR window identity), generation (saved policy version), state starting/live/ended/unavailable, startSeconds/endSeconds, wallStart/wallEnd, discontinuities, expiresAt, policyVersion, storedBytes, storageByteSeconds, deliveredBytes, limits and grantRequired. Stored values are shared-buffer usage already counted by recording. Metadata does not contain private object keys or grant URLs. No window returns unavailable with null bounds.
 

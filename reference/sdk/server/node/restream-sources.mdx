@@ -1,27 +1,51 @@
 ---
-title: "Node restream source methods"
-description: "Manage approved external inputs from an authenticated application backend."
-section: "Server SDK"
+title: "External sources"
+description: "Register, probe and operate approved HLS pulls or monitored push encoders."
+section: "Node SDK"
 ---
 
-Use a matching local Node SDK with streams:read/write/publish. All mutations accept RequestOptions, including idempotencyKey for application-managed retries. Types include RestreamSource, RestreamDetail, RestreamSession, RestreamProtocol, RestreamState, CreateRestreamSourceInput and UpdateRestreamSourceInput.
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
+
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-const source = await relay.restreamSources.create({
-  streamId, name: 'Approved feed', protocol: 'hls_pull',
-  endpoint: process.env.APPROVED_HLS_URL!,
-  redistributionAuthorized: true,
-}, { idempotencyKey: crypto.randomUUID() })
-await relay.restreamSources.probe(source.id)
-const status = await relay.restreamSources.get(source.id)
-if (status.state === 'ready') await relay.restreamSources.start(source.id)
-const page = await relay.restreamSources.list({ limit: 30 })
-await relay.restreamSources.stop(source.id)
-// Wait for status.session.endedAt before updating credentials or limits.
-await relay.restreamSources.update(source.id, {
-  version: source.version, authorization: process.env.NEW_SOURCE_AUTHORIZATION!,
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
 })
-await relay.restreamSources.delete(source.id)
 ```
 
-Registry URLs and headers stay on your backend. Issue push credentials with streams.createIngestCredentials; viewers only receive application-authorized playback grants. [External ingest](/guides/external-ingest) defines attachment rules and actual supported profiles. [REST contracts](/reference/api/v1/restream-sources) define async state and pagination.
+## Authorization and inputs
+
+Reads require streams:read; source mutations require streams:write; start also requires streams:publish. CreateRestreamSourceInput requires streamId, name, protocol and redistributionAuthorized: true. Only hls_pull accepts endpoint/authorization; it attaches to an RTMP stream. rtmp_push and whip_push attach to matching stream kinds.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
+| --- | --- |
+| `restreamSources.create` | `(input: CreateRestreamSourceInput, options?: RequestOptions): Promise<RestreamSource>` |
+| `restreamSources.list` | `(query?: { cursor?: string; limit?: number; }, options?: RequestOptions): Promise<{ data: RestreamSource[]; nextCursor: string \| null; }>` |
+| `restreamSources.get` | `(sourceId: string, options?: RequestOptions): Promise<RestreamDetail>` |
+| `restreamSources.update` | `(sourceId: string, input: UpdateRestreamSourceInput, options?: RequestOptions): Promise<RestreamSource>` |
+| `restreamSources.delete` | `(sourceId: string, options?: RequestOptions): Promise<{ id: string; deleted: true; }>` |
+| `restreamSources.probe` | `(sourceId: string, options?: RequestOptions): Promise<RestreamDetail>` |
+| `restreamSources.start` | `(sourceId: string, options?: RequestOptions): Promise<RestreamDetail>` |
+| `restreamSources.stop` | `(sourceId: string, options?: RequestOptions): Promise<RestreamDetail>` |
+
+## Behavior and results
+
+Update requires the current version. Stream/protocol bindings are immutable. Stop the active session before editing. Probe is asynchronous: read state until ready or failed before starting a pull. RestreamDetail includes the current session, safe recent health transitions and observed fetch/processing usage. Pull hosts must be explicitly allowed by the deployment.
+
+## Requests and errors
+
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/restream-sources) and the [public type index](/reference/sdk/server/node/types).

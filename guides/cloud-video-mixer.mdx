@@ -1,80 +1,72 @@
 ---
 title: "Cloud video mixer"
-description: "Author versioned scenes and activate them on a server-rendered program feed."
+description: "Compose a server-rendered program with versioned scenes and explicit activation."
 section: "Streaming"
 ---
 
-## Start a studio
+A mixer combines registered RelayRTC streams, audio, text and approved image overlays into one program. Viewers, destinations, recordings and clips consume that same program.
 
-Start your primary stream and a broadcast using it. In Console → Streams → your stream → Mixer studio, use the shared broadcast selector, create a mixer and optionally bind up to three independent streams in the same project/environment. Primary is the broadcast stream's original room, RTMP or WHIP source. Additional inputs are already-normalized RelayRTC streams; use the external-source registry for approved upstream media. The mixer does not pull arbitrary URLs.
+Start the primary source and its broadcast first. Additional inputs must be independent streams in the same project and environment. Use [external ingest](/guides/external-ingest) to normalize an approved upstream feed; the mixer does not pull arbitrary media URLs.
 
-Choose a layout and video sources, set audio gain/mute/ducking, add text or an approved PNG logo, then save the draft. Activate saved scene starts a durable operation. Wait for the operation to complete and the confirmed program revision to match the requested revision. Saving a scene alone does not change live video. The draft layout guide is local UI; the program player shows actual server output.
+## Create and activate a scene
+
+This backend helper binds a second stream, saves a scene and requests activation. Both stream IDs must come from resources the operator is authorized to control.
 
 ```ts
-const mixer = await relay.broadcasts.mixers.create(broadcastId, {
-  sources: [{ id: 'camera-two', streamId: secondStreamId }],
-})
-const scene = await relay.mixers.putScene(mixer.id, 'main', {
-  version: 0,
-  scene: {
-    name: 'Two cameras', layout: 'grid', background: '#101010',
-    layers: [
-      { sourceId: 'primary', x: 0, y: 0, width: 320, height: 360, z: 0, fit: 'contain', opacity: 1 },
-      { sourceId: 'camera-two', x: 320, y: 0, width: 320, height: 360, z: 1, fit: 'contain', opacity: 1 },
-    ],
-    overlays: [], texts: [],
-    audio: [{ sourceId: 'primary', gainDb: 0, muted: false }],
-    ducking: null, transition: 'cut',
-  },
-})
-const command = await relay.mixers.activateScene(mixer.id, {
-  version: mixer.version, sceneId: scene.id, sceneVersion: scene.version,
-})
-// Poll relay.mixers.getOperation(command.operation.id) and relay.mixers.get(mixer.id).
+import { relay } from './relay.js'
+
+export async function activateTwoCameraScene(broadcastId: string, secondStreamId: string) {
+  const mixer = await relay.broadcasts.mixers.create(broadcastId, {
+    sources: [{ id: 'camera-two', streamId: secondStreamId }],
+  })
+  const scene = await relay.mixers.putScene(mixer.id, 'main', {
+    version: 0,
+    scene: {
+      name: 'Two cameras', layout: 'grid', background: '#101010',
+      layers: [
+        { sourceId: 'primary', x: 0, y: 0, width: 320, height: 360, z: 0, fit: 'contain', opacity: 1 },
+        { sourceId: 'camera-two', x: 320, y: 0, width: 320, height: 360, z: 1, fit: 'contain', opacity: 1 },
+      ],
+      overlays: [], texts: [],
+      audio: [{ sourceId: 'primary', gainDb: 0, muted: false }],
+      ducking: null, transition: 'cut',
+    },
+  })
+  const command = await relay.mixers.activateScene(mixer.id, {
+    version: mixer.version,
+    sceneId: scene.id,
+    sceneVersion: scene.version,
+  })
+  return { mixerId: mixer.id, operationId: command.operation.id }
+}
 ```
 
-## Program identity and continuity
+## Confirm what is on air
 
-A mixer reserves its primary stream for one broadcast. Another run cannot start on that stream while the mixer is active. Nested mixers and feedback loops are rejected. Source bindings are immutable for a mixer; create a new mixer when changing its registry. Guest IDs are not accepted as media authority: future guest integration must resolve an authorized registered stream binding.
+Saving a scene changes the draft, not live video. Read `mixers.getOperation(operationId)` and `mixers.get(mixerId)` until activation completes and the applied program revision matches the desired revision.
 
-The compositor extends the canonical streaming worker. Playback grants, recordings, clips and platform destinations all consume the same program session/path. First activation and stopping mixer mode require a fenced source-generation handoff and may briefly rebuffer (up to the old 15-second lease plus source startup). Activate the mixer before starting a strict recording, or acknowledge partial recording coverage when intentionally changing generations. Stopping the mixer returns to the original source; it does not end its RTC room or stop the broadcast by default.
+Activation prepares assets and required inputs before cutting on the compositor clock. The previous scene remains selected while preparation runs. A successful JSON update alone is not proof that the rendered program changed.
 
-Within a running mixer, scene snapshots are prepared off the program clock, then switched at a frame boundary. The program encoder stays running, so timestamps and its two-second keyframe cadence continue. A worker restart creates a new generation and can rebuffer, as with ordinary source recovery. Activation is acknowledged only after the worker reports the revision and subsequent gateway-observed program output confirms progress; a changed JSON document is not an activation acknowledgment.
+Within a running mixer, scene changes preserve the output encoder. Entering or leaving mixer mode requires a source-generation handoff and can rebuffer. Activate before a strict recording, or deliberately choose its partial-output policy when spanning that transition.
 
-## Layout, audio and resource limits
+## Inputs and continuity
 
-The supported CPU canvas is 640×360 at 15 frames/second. Delivery keeps the stream's configured video profile, up to 1280×720 at 30 fps; higher delivery resolution scales this canvas and does not add source detail. Each input decoder produces a bounded 320×180 raster. Single uses one full-frame source; grid uses two columns and one/two rows; picture-in-picture uses a full background plus a 160×90 inset at x=464/y=254. Custom uses explicit canvas coordinates. Fit contains the entire input; cover crops it to fill. Unique z-order determines layering, with straight-alpha opacity. Four video layers, four image layers and four text layers are supported. Only cut transitions are implemented.
+`primary` identifies the broadcast stream's source. Bind up to three additional streams when creating the mixer; bindings are immutable. Nested mixers and feedback loops are rejected. A mixer reserves its primary stream for that broadcast.
 
-Audio is stereo 48 kHz on the same local output clock. Gain ranges from -60 to +12 dB with mute per source, optional threshold-based ducking of other inputs, smoothed duck/release and output limiting. Decoders normalize source timestamps; the compositor selects the most recent bounded input frames and audio blocks for each clock tick. This is arrival-clock synchronization with bounded local queues, not a guarantee that independent cameras share a capture-time clock. Upstream latency differences remain visible. Each registered logical input reserves decoding resources even if the current scene hides it.
+If an applied input stops producing, it falls back to black/silence while healthy inputs and the program clock continue. Missing required inputs can prevent a new scene from activating. Inspect degraded source IDs and operation errors before retrying.
 
-Four logical inputs (primary plus three additional streams), two active mixers globally and one per environment are the defaults. At most ten mixer definitions can be created for one broadcast, twelve saved scenes per mixer and eight retained image assets per mixer. The canonical worker now runs a bounded source-job pool (STREAMING_WORKER_CONCURRENCY=4 by default, 1?8 supported), so the local stack can normalize a primary plus three independent inputs simultaneously. Each job has a separate 24-port RTP/RTCP range beneath STREAMING_RTP_PORT_BASE; job cleanup releases its own slot. The default worker container caps are STREAMING_WORKER_CPUS=4, STREAMING_WORKER_MEMORY=4g and 256 processes. These are resource ceilings, not a promise that the host has spare capacity. Admission limits do not create worker slots; keep STREAMING_MAX_SESSIONS and your active inputs within provisioned capacity. The existing worker container's CPU, memory and process limits isolate render overload. CPU/GPU hardware is not inferred: GPU support is optional and is not configured or claimed by this implementation. Measure capacity before increasing admission limits; adding definitions does not create more workers.
+`mixers.stop(mixerId, { version })` returns the program to its original source. It does not end the RTC room or stop the broadcast by default. Wait for operation acknowledgement before assuming the handoff is complete.
 
-## Loss, overload and cancellation
+## Rendering limits
 
-When an input stops producing frames/audio for two seconds, its video becomes black and audio becomes silence. Healthy inputs and the program clock continue. Failed decoders retry with bounded queues and a two-second delay; recovery restores their current input. Degraded status identifies missing source IDs. Primary ingest credentials, tenant ownership and source duration still expire normally; fallback cannot bypass those boundaries.
+The compositor uses a 640 × 360 canvas at 15 fps. Higher configured delivery resolution scales that canvas; it does not add composition detail. Four logical inputs, four video layers, four images and four text layers are supported, with cut transitions. See the [scene schema](/guides/mixer-scene-schema).
 
-Sustained rendering/backpressure uses a solid-background slate and silence, emits overload status and preserves the encoder where possible. A blocked output lasting three seconds aborts the render attempt; the existing fenced worker retry policy applies. Scene preparation keeps the last prepared scene active until the candidate is ready. One activation is pending at a time; stale versions and concurrent switches are rejected. A command not confirmed within 60 seconds fails and drains the mixer. Stop, broadcast completion, feature disablement and owner retirement release decoder/render reservations. Saved scene metadata and usage history remain; image assets are removed after owner retirement or one day after the mixer ends.
+Audio is stereo 48 kHz with per-source gain/mute and optional ducking. Independent sources are aligned on an arrival clock, not a shared camera capture clock; upstream latency differences remain visible.
 
-## Overlay admission and process boundaries
+Default admission permits two active mixers globally and one per environment. Input decoding consumes worker capacity even when an input is hidden. Provision CPU/memory and source-worker slots before increasing quotas; GPU acceleration is not configured by default.
 
-Upload image/png as base64 through the scoped overlay endpoint. Admission fully validates PNG signature/chunks/CRC, dimensions and bounded decompression. Only non-interlaced 8-bit RGB/RGBA PNGs up to 640×360 and 1 MiB are accepted. SVG, animation, remote URLs and arbitrary filters are unsupported. Assets stay in private S3/MinIO; ordinary resource reads return only metadata. Remove an image from saved, desired and confirmed-applied scenes before deleting it, or wait for the mixer to stop. Deletion waits beyond bounded in-flight media requests.
+## Observe and recover
 
-Text uses the installed DejaVu Sans font, at most 120 characters and size 10–48. Control characters, user-selected font paths and filter syntax are rejected. Text is supplied through generated local files with expansion disabled. Media children receive PATH and narrow guard settings, not worker/S3 credentials. Additional HLS decoders can connect only to a job-local loopback proxy. The API resolves authorized source bindings and validates manifests; workers never receive arbitrary upstream URLs. Primary RTP/RTSP and output RTSP addresses come only from the existing trusted lease/export path.
+Follow operation IDs, desired/applied revisions and safe errors. Signed mixer lifecycle webhooks notify scene activation, missing sources, overload and terminal outcomes; reload state after receiving them.
 
-## Deployment, usage and example
-
-Apply additive migration 0039 through your authorized deployment and rebuild the API, streaming worker, console and SDKs together. The worker image includes the approved font package. No extra service, bucket, broker or GPU is required. Configuration defaults are STREAMING_MIXERS_ENABLED=true, STREAMING_MAX_MIXERS=2 and STREAMING_MAX_MIXERS_PER_ENVIRONMENT=1. Setting the feature flag false rejects new mixers and drains existing ones. Before rollback, stop mixers and wait for their workers to leave mixer mode; retain additive scene/operation/usage records.
-
-Mixer usage measures observed pipeline elapsed render seconds, gateway-observed program seconds, logical bound-input reservation seconds and accepted frames. Append-only samples are keyed by source session/generation/sequence, so repeated heartbeats do not double-count. These are operational units, not measured CPU/GPU time. Raw usage samples and completed operation resources are retained for 90 days; mixer aggregate history remains after that cleanup. Program duration overlaps ordinary stream usage and must not be billed twice. Prometheus exposes aggregate mixer states, activation lag, usage and reserved overlay bytes; events include mixer.started, scene_activated, source_lost, overloaded, stopped and failed with desired/applied revisions. Use the operation ID and current mixer state for reconciliation after reconnects.
-
-The existing streaming-foundation example includes MixerPanel and host-authenticated mixer/scene/operation endpoints. Build the local SDKs, start its server and Vite app, sign in as host, start the source and broadcast, save a studio scene, then activate it. Use the console to bind additional inputs. The program player and ordinary viewers show the same rendered feed; no management key enters the browser. The demo stores selected IDs in memory; production applications should persist their own studio authorization and command identity. Local compilation does not establish live-media or load acceptance.
-
-See [scene schema](/guides/mixer-scene-schema), [REST APIs](/reference/api/v1/mixers), [Node methods](/reference/sdk/server/node/mixers) and [useMixer](/reference/sdk/client/react/use-mixer).
-
-## Applying a scene safely
-
-Saving a scene does not put it on air. Activation prepares its assets and waits for fresh required inputs before cutting on the compositor clock. The previous applied scene stays selected while preparation runs. The operation completes only after the worker reports the revision and the API observes advancing program output across successive reports. Missing inputs, preparation failures and overload cannot acknowledge a new revision as successfully applied.
-
-A lost input in an already applied scene falls back to black/silence and reports degraded state. Switch to a scene with healthy inputs to recover; the output encoder and playback grant remain in place during ordinary scene changes. Muting the ducking source also stops it from ducking the remaining audio. Microphone gain is applied when determining whether that source crosses the ducking threshold.
-
-Primary external input reads the dedicated ingest path, never the mixer's own program output. Room input uses current leased RTP subscriptions. Additional source decoders remain behind the authorized, bounded local media proxy. Decoder failures produce bounded diagnostics with addresses and credentials redacted.
+Render seconds and bound-input seconds are operational elapsed measurements, not CPU/GPU time. Program duration overlaps ordinary stream usage and must not be counted twice. See [mixer REST APIs](/reference/api/v1/mixers), [Node methods](/reference/sdk/server/node/mixers) and [React state](/reference/sdk/client/react/use-mixer).

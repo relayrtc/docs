@@ -47,6 +47,8 @@ URLs cannot contain embedded credentials, a query or a fragment. The SDK sends b
 
 GET retries cover network errors and HTTP 408, 425, 429 and 5xx. Retry-After is respected within the request deadline. Other errors fail immediately.
 
+`Retry-After` can contain seconds or an HTTP date. When the required wait would exhaust the deadline, the original HTTP error is returned with its status and `retryAfterMs` instead of being replaced by a timeout.
+
 Write methods do not retry automatically. Check the resource state after a lost write response before repeating it.
 
 <Callout type="danger" title="Server only">

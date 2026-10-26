@@ -1,314 +1,199 @@
 ---
-title: "Self-hosting"
-description: "Run the complete RelayRTC stack with prebuilt Docker images."
-section: "Deploy"
+title: "Install RelayRTC"
+description: "Run RelayRTC calls and streaming, open the console and create your first API key."
+section: "Self-hosting"
 ---
 
-Run RelayRTC on your own computer using its published container images. This guide starts the API, signaling, media, TURN, console, PostgreSQL, Prometheus and Grafana. Database migrations run before the application services start.
+This guide installs the complete RelayRTC stack using Docker: the console, API, calls, streaming workers, ingest gateway and private media storage. You will get a console at [localhost:3002](http://localhost:3002) and an API key for your application.
 
-You only need the Docker configuration files and your environment settings. You do not need to clone the source repository or install Node.js, Go or pnpm.
+Start here for local testing. To make the installation accessible to other devices, follow [public hosting](/guides/self-hosting-operations#public-hosting-and-ports) afterward.
 
-## Requirements
+<Callout title="v0.1.2 release">
+These instructions target v0.1.2. Its tag and container images must be published before downloading and starting this version. A missing download or image means the release is unavailable; use matching files and images from the same release.
+</Callout>
 
-- Docker Desktop with Linux containers on Windows or macOS, or Docker Engine with the Compose plugin on Linux.
-- An AMD64 computer. The current published images target Linux AMD64; native ARM64 images are not included in this release.
-- GitHub and Google OAuth credentials, plus a Resend API key and verified sender for console authentication and email.
+## 1. Install and open Docker
 
-Start Docker and check that Compose is available:
+Install [Docker Desktop](https://docs.docker.com/get-started/get-docker/) on Windows or macOS. Open it and wait for Docker to finish starting. On Windows, use Linux containers. Linux users can use Docker Engine with the Compose plugin.
 
-```bash
-docker version
+The supplied release images target Linux AMD64. Check the release's supported architectures before using an ARM computer, including Apple Silicon. You do not need to install Node.js, Go or pnpm for this guide.
+
+## 2. Download RelayRTC
+
+1. Download the [v0.1.2 ZIP](https://github.com/relayrtc/relayrtc/archive/refs/tags/v0.1.2.zip) in your browser.
+2. Extract the ZIP.
+3. Open the extracted folder containing `docker-compose.yml`. Your ZIP program may put it inside another folder with the same name.
+
+You should see these files, along with the rest of the release:
+
+```text
+relayrtc-0.1.2/
+  .env.example
+  docker-compose.yml
+  docker-compose.streaming.yml
+  docker-compose.release.yml
+  docker-compose.streaming.release.yml
+  infrastructure/
+  scripts/
+    configure-env.mjs
+    prepare-streaming.mjs
+```
+
+Keep this folder for future starts and updates. Docker will download prebuilt services; you do not need to build the downloaded source.
+
+## 3. Open a terminal in that folder
+
+A terminal is the window where you paste the commands below. Run commands one at a time and wait for each to finish.
+
+**Windows:** in File Explorer, open the folder from step 2. Click the address bar, type `powershell`, and press Enter. Use that PowerShell window throughout this guide.
+
+**macOS or Linux:** open Terminal, type `cd ` with a space after it, drag the extracted folder into the terminal, and press Enter.
+
+Check that Docker Compose is installed:
+
+```sh
 docker compose version
 ```
 
-<Callout type="note" title="Local setup">
-The addresses below are for applications and browsers running on the same computer as Docker. Hosting on a server or connecting from another device requires reachable addresses, firewall rules and HTTPS for browser camera and microphone access.
-</Callout>
+You should see a version number. If Docker is not found, finish its installation before continuing.
 
-## Download the configuration
+## 4. Create your settings file
 
-Create a folder named `relayrtc`. Download these three files into it:
+Copy the command for your operating system. It creates `.env`, fills in the internal and streaming credentials, and prepares private monitoring files in `.streaming`. Streaming is included automatically.
 
-| File | Download |
-| --- | --- |
-| `docker-compose.yml` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/6612c2f/docker-compose.yml) |
-| `docker-compose.release.yml` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/6612c2f/docker-compose.release.yml) |
-| `.env.example` | [Open on GitHub](https://github.com/relayrtc/relayrtc/blob/6612c2f/.env.example) |
-
-On each GitHub file page, use **Download raw file** in the file toolbar. Save the actual file content, not the GitHub HTML page. Keep the filenames exactly as shown, including the leading dot in `.env.example`.
-
-These links point to the configuration used for the `0.1.0` container images.
-
-Copy `.env.example` to `.env`. In PowerShell:
+### Windows PowerShell
 
 ```powershell
-Copy-Item .env.example .env
+docker run --rm --mount "type=bind,source=$PWD,target=/workspace" --workdir /workspace node:24-alpine node scripts/configure-env.mjs
 ```
 
-In Windows Command Prompt:
-
-```cmd
-copy .env.example .env
-```
-
-On macOS or Linux:
+### macOS or Linux
 
 ```bash
-cp .env.example .env
+docker run --rm --user "$(id -u):$(id -g)" --mount "type=bind,source=$PWD,target=/workspace" --workdir /workspace node:24-alpine node scripts/configure-env.mjs
 ```
 
-Open `.env` in your editor. Run all remaining commands from this folder.
+Docker may download the Node.js image first. When finished, you should see `Prepared .env; prepared .streaming. No services were started.` Repeating this command keeps your existing configured keys. Keep `.env` and `.streaming` private; on Windows, restrict their file permissions to your account and Docker.
 
-## Set passwords and secrets
+## 5. Fill in your sign-in and email settings
 
-Use a separate random value for each setting:
+Open `.env` in a text editor. On Windows, use the same PowerShell window:
 
-| Setting | Used for |
+```powershell
+notepad .env
+```
+
+On macOS or Linux, open the file in your editor. Files beginning with a dot may be hidden in your file manager.
+
+Fill in these six settings. The [sign-in and email setup](/guides/self-hosting-authentication) explains where to get each value and gives the exact callback URLs.
+
+| Setting in `.env` | Value to enter |
 | --- | --- |
-| `POSTGRES_PASSWORD` | PostgreSQL authentication. |
-| `BETTER_AUTH_SECRET` | Console authentication. |
-| `PARTICIPANT_TOKEN_SIGNING_SECRET` | Signing participant tokens. |
-| `RELAYRTC_INTERNAL_SECRET` | Authentication between services. |
-| `TURN_SHARED_SECRET` | Issuing temporary TURN credentials. |
-| `GRAFANA_ADMIN_PASSWORD` | Grafana administrator login. |
+| `GITHUB_CLIENT_ID` | Your GitHub OAuth app's client ID |
+| `GITHUB_CLIENT_SECRET` | Your GitHub OAuth app's client secret |
+| `GOOGLE_CLIENT_ID` | Your Google web application's client ID |
+| `GOOGLE_CLIENT_SECRET` | Your Google web application's client secret |
+| `RESEND_API_KEY` | Your Resend email-sending API key |
+| `RESEND_FROM_EMAIL` | A sender on your verified domain, such as `"RelayRTC <noreply@your-domain.com>"` |
 
-You can generate a value through Docker. Run this command once for each setting and paste each result into `.env`:
+Put each value after its `=` sign. The current account service requires both OAuth providers and email configuration, even when you plan to sign in with email and password. Complete [provider setup](/guides/self-hosting-authentication) before continuing.
 
-```bash
-docker run --rm node:24-alpine node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+Save the file as `.env`, keeping its exact name. Windows editors must not add `.txt`. For local testing, keep the generated keys, localhost addresses and other settings as supplied. Keep this file private and retain it across restarts.
+
+## 6. Start RelayRTC
+
+Run each command separately in the same terminal. These commands work in both PowerShell and Bash.
+
+**Check configuration:**
+
+```sh
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml config --quiet
 ```
 
-Keep these values separate. The services reject placeholder or shared credentials.
+Success produces no output. If a message names a missing setting, fill it in `.env` before continuing.
 
-Set `DATABASE_URL` using the same PostgreSQL password:
+**Download the release images:**
 
-```dotenv
-DATABASE_URL=postgresql://relaykit:YOUR_POSTGRES_PASSWORD@localhost:5433/relaykit
+```sh
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml pull
 ```
 
-This address is for tools running on your computer. Compose supplies the containers with their internal database address automatically.
+Wait for all downloads to finish. If an image is missing or access is denied, check that the release images are published.
 
-Generate the webhook encryption key:
+**Start the services:**
 
-```bash
-docker run --rm node:24-alpine node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```sh
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml up -d --no-build --wait
 ```
 
-Paste the result into `WEBHOOK_SIGNING_ENCRYPTION_KEY`. This setting requires a base64-encoded 32-byte key, not a hexadecimal string.
+This prepares the database and private storage, then starts calls and streaming in the background. The first run can take several minutes. Keep all four Compose files in these commands: the first two define the complete services, and the last two select the prebuilt release images.
 
-<Callout type="danger" title="Keep your secrets private">
-Do not share `.env`, commit it to Git, or put its values in frontend code. Keep a secure backup of the webhook encryption key. Existing webhook signing secrets cannot be decrypted without it.
-</Callout>
+**Check the result:**
 
-## Configure local addresses
-
-Set these values in `.env`:
-
-```dotenv
-RELAYRTC_VERSION=0.1.0
-API_PORT=8080
-SIGNALING_PORT=8081
-MEDIA_PORT=8083
-CONSOLE_PORT=3002
-POSTGRES_PORT=5433
-
-BETTER_AUTH_URL=http://localhost:3002
-CONSOLE_AUTH_URL=http://localhost:3002
-BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3002
-RELAYRTC_API_URL=http://localhost:8080
-RELAYRTC_SIGNALING_ALLOWED_ORIGINS=http://localhost:3005,http://localhost:3002
-
-MEDIA_RTC_LISTEN_IP=0.0.0.0
-MEDIA_RTC_ANNOUNCED_ADDRESS=127.0.0.1
-MEDIA_RTC_PORT=40000
-MEDIA_RTC_MAX_PORT=40003
-MEDIA_WORKERS=1
-
-TURN_REALM=relayrtc.local
-TURN_PUBLIC_IP=127.0.0.1
-TURN_DOCKER_RELAY_ADDRESS=172.30.0.11
-TURN_STUN_URLS=stun:localhost:3478
-TURN_URLS=turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp
+```sh
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml ps -a
 ```
 
-This example allows an application frontend at `http://localhost:3005`. Replace that origin with your application's address, including its port. `localhost` and `127.0.0.1` are different origins.
+Long-running services should be running, with healthy results where health checks are configured. Both `migrate` and `streaming-storage-init` are one-time setup services; `Exited (0)` is their successful result. The complete stack contains 16 services, including these two setup services.
 
-Keep `TURN_DOCKER_RELAY_ADDRESS=172.30.0.11`; it is the TURN container's address in the Docker network. The URLs above use TURN over UDP and TCP. The container generates its own self-signed TLS certificate at startup, but trusted TURN TLS is not configured by this local example.
+## 7. Open the console and create an API key
 
-## Configure sign-in and email
+1. Open [http://localhost:3002](http://localhost:3002).
+2. Create your account and follow the verification email.
+3. Create your organization and project. The project creates Development and Production environments for you.
+4. Open the project's **Developer Controls**, then **API keys**.
+5. Select **Development**, create a **Secret** key, and select `rooms:create` and `tokens:create` for the first-call example.
+6. Copy the secret when shown and store it in your application backend's environment.
 
-Replace these placeholders in `.env` with your provider credentials:
+Use these connection addresses in the [first-call guide](/quickstart):
 
-- `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
-- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-- `RESEND_API_KEY` and `RESEND_FROM_EMAIL`.
-
-Use a verified Resend sender. The current configuration requires both OAuth providers and the email settings, even if you plan to use email and password sign-in.
-
-For the console, register these callback URLs with the respective providers:
-
-```text
-http://localhost:3002/api/auth/callback/github
-http://localhost:3002/api/auth/callback/google
-```
-
-## Download and start the images
-
-Validate your configuration:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml config --quiet
-```
-
-Download the published images:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml pull
-```
-
-Start the stack:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build --wait
-```
-
-Docker downloads the images from GitHub Container Registry. No GitHub login is needed for public images. The first download can take several minutes, depending on your connection.
-
-The release Compose file selects eight RelayRTC images plus the official PostgreSQL image. Always include both `-f` arguments and `--no-build` when starting this setup; the base Compose file also contains source build definitions.
-
-Check the services:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml ps -a
-```
-
-Application services should be running and become healthy. The `migrate` container exits after applying the database migrations. Exit code `0` means it completed successfully.
-
-## Open the console
-
-Open [localhost:3002](http://localhost:3002), create your account, organization, project and environment, then create a secret API key.
-
-| Service | Local address |
+| Application setting | Local value |
 | --- | --- |
-| Console | `http://localhost:3002` |
-| REST API | `http://localhost:8080/v1` |
-| Signaling | `ws://localhost:8081/v1/connect` |
-| Media readiness | `http://localhost:8083/ready` |
-| PostgreSQL | `localhost:5433` |
-| STUN and TURN | `localhost:3478` |
-| Prometheus | `http://localhost:9090` |
-| Grafana | `http://localhost:3000` |
+| API base URL | `http://localhost:8080/v1` |
+| Signaling URL | `ws://localhost:8081/v1/connect` |
 
-Grafana uses the administrator username and password from `.env`. Dashboard access follows the application's authorization rules.
+Keep the secret key on your backend. Each caller receives their own participant token. Your frontend's origin must also appear in `RELAYRTC_SIGNALING_ALLOWED_ORIGINS`; the starter allows ports 3002 and 3005.
 
-The media HTTP service is an internal control endpoint, not an SDK endpoint. Browsers receive their media transport configuration through signaling.
+## Stop and troubleshoot
 
-## Connect an application
+You can close the terminal after startup. Docker keeps the services running. End active calls, broadcasts and recordings before stopping the stack. Reopen a terminal in the installation folder and run:
 
-Configure your application's backend:
-
-```dotenv
-RELAYRTC_API_URL=http://localhost:8080/v1
-RELAYRTC_SIGNALING_URL=ws://localhost:8081/v1/connect
-RELAYRTC_SECRET_KEY=your-project-secret-key
+```sh
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml down
 ```
 
-Follow [Build your first call](/quickstart) to create a room and issue participant tokens. Use the local API and signaling addresses above if the quickstart uses different ports.
+This keeps your saved database and settings. To start again, use the `up` command from step 6.
 
-Keep the secret API key on your backend. Send only the participant token and signaling URL to the frontend.
+If the console does not open, inspect the service logs:
 
-Join the same room from two browser windows using different participant tokens. Allow camera and microphone access, then test audio, video, messages and screen sharing.
-
-## Troubleshooting
-
-Read the service logs:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml logs --tail=100 api signaling media coturn console migrate
+```sh
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml logs --tail=100 api console migrate
 ```
 
-| Problem | Check |
+| Problem | What to do |
 | --- | --- |
-| Docker cannot connect | Start Docker Desktop or Docker Engine. |
-| A configuration file is missing | Run the command from the folder containing both Compose files and `.env`. |
-| Image download is denied | Check the image name and version. The GHCR package must be public for anonymous downloads. |
-| Docker tries to build source | Include the release Compose file and `--no-build`. |
-| A port is already in use | Stop the other stack or application, or change its host port in `.env`. |
-| API exits during startup | Replace placeholder secrets and check the webhook key's base64 encoding. |
-| PostgreSQL rejects the password | An existing volume keeps its original database password. Changing `.env` does not update that password. |
-| Signaling rejects a connection | Match the frontend origin in `RELAYRTC_SIGNALING_ALLOWED_ORIGINS`. |
-| Remote media is missing | Check media and TURN addresses, Docker port mappings and the host firewall. |
-| Camera or microphone is unavailable | Check browser permissions and other applications using the device. |
-| OAuth or email fails | Check provider credentials, callback URLs and your verified email sender. |
+| Docker cannot connect | Open Docker Desktop and wait for it to start |
+| Compose file or `.env` not found | Reopen the terminal in the folder containing `docker-compose.yml`; check that the settings file is not named `.env.txt` |
+| A required setting is missing | Complete the six provider settings in step 5 and save `.env` |
+| Image download fails | Confirm the matching release images are published |
+| Email is not arriving | Check the Resend sender and API key using [email setup](/guides/self-hosting-authentication#resend-email) |
+| Sign-in returns a callback error | Use the exact URLs in [sign-in setup](/guides/self-hosting-authentication) |
+| A port is already in use | Close the other application, or review [port settings](/guides/self-hosting-operations#local-endpoints) before changing `.env` |
 
-See [Troubleshooting calls](/guides/troubleshooting) for browser checks.
+For camera, microphone or remote-media problems, use [call troubleshooting](/guides/troubleshooting). Streaming is already running; use [streaming configuration](/guides/streaming-self-hosting) to check its addresses and test ingest/playback. For a deployment serving users, follow the [draining procedure](/guides/streaming-operations#upgrades-and-draining) before shutdown.
 
-## Change settings or upgrade
+## Public hosting and ports
 
-After editing `.env`, recreate the services to apply the settings:
+For a VPS, domain names, HTTPS and access from other devices, follow [public hosting](/guides/self-hosting-operations#public-hosting-and-ports). The localhost settings above are for browsers on this computer.
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build --wait
-```
+## Backups
 
-To upgrade, back up your database and `.env`, read the release notes, and download any updated configuration files. Set `RELAYRTC_VERSION` to the published version you want to run, then download its images:
+Before updates, save your database and original keys using the [backup procedure](/guides/self-hosting-operations#backups).
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml pull
-```
+## Upgrade
 
-Run that version's migrations before starting the updated services:
+Use the [upgrade procedure](/guides/self-hosting-operations#upgrade) for an existing installation.
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm --no-deps migrate
-```
+## Restore and rollback
 
-The existing PostgreSQL service must be running for this command. Stop if migration fails. After a successful migration:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml up -d --no-build --wait
-```
-
-Schedule upgrades when no calls are active. Recreating media or signaling services interrupts calls. Returning to an older image does not undo database migrations.
-
-## Stop or remove the installation
-
-Stop the containers while keeping your database and other saved data:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml down
-```
-
-To remove the saved data as well:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.release.yml down --volumes
-```
-
-<Callout type="danger" title="Removing volumes deletes data">
-This removes accounts, projects, API keys, rooms and other stored records. Back up anything you need before running `down --volumes`.
-</Callout>
-
-## Optional streaming foundation (unreleased)
-
-The opt-in source-build override adds a private gateway, encoder worker, S3-compatible storage and monitoring. See [self-host streaming](/guides/streaming-self-hosting) before enabling it. Its startup uses the existing migrator; review the target database and backups first. These Phase 0 additions have not been published or deployed by implementation.
-
-## Live DVR origin settings
-
-DVR reuses the streaming-recordings worker, private S3/MinIO bucket and canonical broadcast output. Apply additive migration 0040 with your normal migration step and rebuild the API, console, browser/React SDKs and streaming worker. No new container is required. STREAMING_DVR_ENABLED defaults true but streams retain nothing until a DVR policy or clip buffer policy is enabled. STREAMING_MAX_BUFFERS defaults 4; STREAMING_MAX_BUFFERS_PER_ENVIRONMENT defaults 2. Both share recording worker capture capacity. The existing STREAMING_MAX_RECORDING_BYTES caps DVR policy admission.
-
-STREAMING_PUBLIC_ORIGIN must be the browser-reachable API origin; localhost installations can use their published API port, such as http://localhost:8082. STREAMING_S3_ENDPOINT stays the internal private storage endpoint. Include the application/console origins in STREAMING_ALLOWED_ORIGINS. No extra DVR secret or public bucket is required.
-
-Pass `/v1/dvr/` through the same authorized API origin, preserving query tokens and private, no-store response headers. Bypass shared CDN caches for every DVR response, including segments: this implementation does not provide an edge entitlement adapter or CDN egress metering. Do not strip token queries, log token-bearing URLs, cache authenticated objects publicly or expose the backing bucket. Standard live LL-HLS continues using its original route. See [live DVR](/guides/live-dvr) for 60-second playlist pins, draining and shared storage pressure.
-
-For rollback, turn STREAMING_DVR_ENABLED false and keep migration 0040 installed while workers drain. Stop DVR usage and wait for window expiry/pins before considering a destructive schema rollback; removing tables/triggers while the API still runs is unsupported. No migration is applied automatically by development edits.
-
-## Live guests and co-hosting
-
-Apply additive migration 0041 and rebuild the API, signaling, media, streaming worker and matching browser/Node/React SDKs together. Guest authorization uses shared PostgreSQL authority plus existing participant-removal cleanup; upgrading only the console or issuing a new ordinary participant token is insufficient. STREAMING_GUESTS_ENABLED defaults true; no stage is enabled until configured on a room-source broadcast. STREAMING_GUEST_SIGNALING_URL defaults ws://localhost:8081/v1/connect and must be browser-reachable (use wss behind your public TLS proxy). Internal media/API/control endpoints remain private. Actual .env is not changed by development edits.
-
-Use a dedicated RTC room with 2?4 total seats, configure one host plus 1?3 guest slots and start its broadcast. Existing RTC UDP/ICE/TURN connectivity and browser secure-context requirements apply. Provide TURN credentials through approved application callbacks/rtcOptions for deployments that require relay connectivity. Guest wrappers do not invent new network access or a public SFU endpoint. HLS viewers consume no stage seat.
-
-Stage mode shares the canonical worker's CPU compositor and process/memory budget. Entering/exiting the mode may rebuffer once; subsequent membership changes preserve the program encoder. Advanced same-run mixers can use the stage grid as their primary input, with bounded primary fallback during subscription replacement. Validate CPU, process and bandwidth capacity with representative real media before release.
-
-STREAMING_GUESTS_ENABLED=false denies new stage admission and drains persisted stages through the lifecycle worker. Keep migration 0041, database authorization functions and existing runtime-removal workers installed during rollback/cleanup. Revoked versions cannot be revived by quickly toggling a stage off/on. Watch GuestCleanupStalled and pending participant-removal operations. Do not log audience, RTC or playback credentials. See [live guests](/guides/live-guests-and-cohosting) for consent, expiry, role delegation and the local host/co-host/viewer example.
+Use the [restore procedure](/guides/self-hosting-operations#restore-and-rollback) with a matching database backup, media and keys.

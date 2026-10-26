@@ -1,11 +1,11 @@
 ---
 title: "Broadcasts REST API"
 description: "Run snapshots, scoped commands, output status and durable operations."
-section: "API reference"
+section: "REST API v1"
 ---
 
 ## Authentication
-Unreleased Phase 1 endpoints are registered when the streaming foundation is enabled. Use a scoped secret API key or authorized console session. reads require streams:read; create/start/stop require streams:write. The API derives scope from verified keys; console requests supply projectId/environmentId query fields. Session mutations require the trusted console Origin. Application backends authorize their own browser users before forwarding commands.
+Broadcast endpoints are registered when streaming is enabled. Use a scoped secret API key or authorized console session. reads require streams:read; create/start/stop require streams:write. The API derives scope from verified keys; console requests supply projectId/environmentId query fields. Session mutations require the trusted console Origin. Application backends authorize their own browser users before forwarding commands.
 
 ## Routes
 | Method | Path | Success |
@@ -31,7 +31,7 @@ Lists use ascending scoped run IDs, limit 1..100 (default 30), cursor, optional 
 }
 ```
 
-Each run includes one HLS output. Optional destinationIds select up to eight enabled destinations from the same stream. Default source wait is 120 seconds, range 10..600. Maximum run duration defaults to four hours, range 60..86400 seconds, capped by the stream's configured maximum. The run captures streamVersion, source, profile, outputs, selected destination versions/profiles and recording=false. Configuration changes require a new run, not mutation of a running snapshot.
+Each run includes one HLS output. Optional destinationIds select up to eight enabled destinations from the same stream. Default source wait is 120 seconds, range 10..600. Maximum run duration defaults to four hours, range 60..86400 seconds, capped by the stream's configured maximum. The run captures streamVersion, source, profile, outputs, selected destination versions/profiles and recording: either the stream's saved automatic recording policy or false. Starting a run with an automatic recording snapshot also requires recordings:create. Configuration changes require a new run, not mutation of a running snapshot.
 
 Resources expose id, streamId, organizationId/projectId/environmentId, name, state, desiredState, version, snapshot, sourceSessionId/sourceGeneration, waitTimeoutSeconds, maxDurationSeconds, lastError, correlationId and ISO UTC createdAt/startRequestedAt/startedAt/endedAt. States: created, waiting_for_source, starting, live, reconnecting, degraded, stopping, stopped, failed. Terminal run IDs cannot restart.
 
@@ -43,7 +43,7 @@ Start and stop bodies are empty objects or an optional positive integer version.
 Operations reuse the streaming operation endpoint and add nullable broadcastId and kinds broadcast.start/broadcast.stop/broadcast.output.retry; output retries include outputId. Existing streamId/sessionId/status/errorCode/createdAt/completedAt fields remain. Status is pending/completed/failed. Poll the operation before claiming completion; a cached command result can still show its original pending status.
 
 ## Output and usage
-Output fields: id, broadcastId, kind, state, attempts, fence, lastError, lastHeartbeatAt, sourceSessionId/sourceGeneration. States: queued/running/retry/stopping/completed/failed/cancelled. Each output owns one independently leased job and persisted attempt history. Phase 2 adds POST /v1/broadcasts/{broadcastId}/outputs/{outputId}/retry, plus destinationId, bytes, bitrate, droppedFrames and transcodeSeconds in output status. See [destinations](/reference/api/v1/destinations).
+Output fields include id, broadcastId, kind, state, attempts, fence, lastError, lastHeartbeatAt and sourceSessionId/sourceGeneration. States are queued/running/retry/stopping/completed/failed/cancelled. Each output owns one independently leased job and persisted attempt history. Destination outputs also expose destinationId, bytes, bitrate, droppedFrames and transcodeSeconds. Retry a failed output with `POST /v1/broadcasts/{broadcastId}/outputs/{outputId}/retry`; see [destinations](/reference/api/v1/destinations).
 
 Run detail includes usage with runSeconds, outputSeconds, reservationSeconds, bytes, transcodeSeconds, samples and coverage. These are distinct observed live work and reserved-slot occupancy. Waiting/retry gaps are not counted as live duration. Missing live observations mark partial coverage. No HLS audience billing is inferred.
 

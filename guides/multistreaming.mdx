@@ -1,51 +1,75 @@
 ---
 title: "Multistreaming"
-description: "Send one RelayRTC program to several external streaming platforms."
+description: "Distribute one live program to multiple RTMP or RTMPS destinations."
 section: "Streaming"
 ---
 
-## Availability and setup
-Phase 2 is available in matching local core, Node and React builds. Published packages and images may not contain it yet. Upgrade the API, output workers and console together and apply migration 0034 through your normal deployment process. This implementation has not yet been verified against live external platform accounts.
+Add destinations to a stream, then select them when creating a broadcast. Each destination receives the canonical program and has independent connection state and recovery. Private HLS playback remains available.
 
-Run `pnpm docker:up:streaming` from the core repository to generate missing local secrets and build/start the streaming stack. This command also runs the existing migration service. It preserves existing credentials and enables streaming in `.env`. For another deployment, configure a separate `STREAMING_DESTINATION_ENCRYPTION_KEY` containing 32 random bytes encoded as standard base64; keep it across restarts and backups. Losing or replacing this key makes existing destination snapshots unreadable. Do not reuse the worker or gateway credentials.
+## Add a destination
 
-## Console workflow
-1. Publish to your source and confirm private playback in Streams.
-2. Open the stream's Details, then Destinations. Add a name, platform server URL and separate stream key. Choose stream quality, 720p or 1080p.
-3. In Broadcasts, create a run using that stream ID, click Load destinations and select the destinations to include.
-4. Start the run. Each destination connects independently; private HLS playback remains available.
-5. Inspect output state, bitrate, bytes, dropped frames and safe failure codes. Retry a failed output without restarting healthy outputs.
+Obtain the ingest server URL and separate stream key from the destination platform. This backend helper accepts those credentials from an authorized operator:
 
-Changing the destination name, URL, profile, enabled flag or key affects newly created runs. Even an unstarted existing run keeps its creation snapshot. Disabling or removing a destination does not disconnect an existing run. Stop the run to disconnect its outputs; stopping the run leaves the source stream and room active. Deleted configurations clear their current encrypted credentials; terminal runs clear their encrypted output copies. Historical output attempts and usage remain.
+```ts
+import { relay } from './relay.js'
 
-## Supported media
-| Profile | Behavior |
+export async function addDestination(
+  streamId: string, endpoint: string, streamKey: string,
+) {
+  return relay.streams.destinations.create(streamId, {
+    name: 'External platform',
+    endpoint,
+    streamKey,
+    profile: 'remux',
+    enabled: true,
+  })
+}
+```
+
+The endpoint must be a public RTMP/RTMPS server with an application path, using port 1935, 1936 or 443. Query strings, userinfo and fragments are rejected. Put the stream key in `streamKey`, not in a combined credential URL.
+
+RelayRTC encrypts saved credentials. Reads return safe metadata rather than the endpoint and key. Preserve `STREAMING_DESTINATION_ENCRYPTION_KEY` across restarts and backups.
+
+## Choose output quality
+
+| Profile | Output |
 | --- | --- |
-| remux | Copies the canonical H.264/AAC program without another encoding pass. Uses the stream's resolution and bitrate. |
-| 720p | H.264/yuv420p, 1280×720 with aspect-preserving padding, 30 fps, two-second GOP, 2.5 Mbit/s video, AAC 128 kbit/s stereo. |
-| 1080p | H.264/yuv420p, 1920×1080 with padding, 30 fps, two-second GOP, 5 Mbit/s video, AAC 128 kbit/s stereo. |
+| `remux` | Copies the canonical H.264/AAC program without another encoding pass |
+| `720p` | 1280 × 720, 30 fps, 2.5 Mbit/s video, 128 kbit/s AAC |
+| `1080p` | 1920 × 1080, 30 fps, 5 Mbit/s video, 128 kbit/s AAC |
 
-Audio-only sources remain audio-only; each platform decides whether it accepts them. No per-viewer quality ladder, platform chat integration, account OAuth or automatic platform event creation is included. Destinations receive the canonical program, not isolated participant tracks.
+Transcoded profiles preserve aspect ratio with padding. Audio-only inputs remain audio-only; the receiving platform decides whether it accepts them. Upscaling does not add source detail.
 
-## Platform setup
-For Twitch, obtain the selected ingest server URL and stream key using the [Twitch broadcasting instructions](https://dev.twitch.tv/docs/video-broadcast/). Put the server application URL in endpoint and the key in streamKey. Do not paste the combined credential URL. The default video program and explicit profiles use H.264/AAC; review the platform's current account and broadcast settings before going live.
+## Select destinations for a run
 
-For YouTube, configure an encoder broadcast in Live Control Room, copy the RTMPS server URL and separate key, then add those values to RelayRTC. [YouTube's RTMPS instructions](https://support.google.com/youtube/answer/10364924?hl=en) explain how to obtain the server URL. Receiving media and making a platform event publicly live are separate actions; finish the platform's own preview/go-live flow where required.
+```ts
+import { relay } from './relay.js'
 
-Custom RTMP/RTMPS servers must use a public hostname/IP, application path and port 1935, 1936 or 443. Query strings, userinfo and fragments are rejected. Endpoints and keys are write-only and encrypted together; ordinary reads show only host/protocol/port and key version. Platform-specific URLs requiring query authentication are outside this initial contract.
+export async function createDistributedEvent(streamId: string, destinationIds: string[]) {
+  return relay.broadcasts.create({
+    streamId,
+    name: 'Distributed town hall',
+    destinationIds,
+  })
+}
+```
 
-## Isolation and network requirements
-Allow outbound DNS and TCP to your selected public ingest endpoints. RTMPS uses certificate validation and the original hostname for SNI. All DNS answers must be public; the worker resolves again for every attempt and pins the actual TCP/TLS connection to a checked IP. Private, loopback, link-local, reserved and mixed public/private answers are rejected.
+Start the returned broadcast using the [broadcast workflow](/guides/broadcasts). Even an unstarted run keeps its creation snapshot. Renaming, disabling, rotating or deleting a destination affects newly created runs; stop an existing run to disconnect its saved outputs.
 
-The supplied Linux container includes an encoder connection guard. FFmpeg can connect only to its two job-local proxies; remote RTMP redirects cannot bypass address validation. The Node upstream proxy owns outbound connections, backpressure and TLS. Native Windows RTMP output workers and unguarded replacement encoder binaries are unsupported; use the supplied Docker worker. No destination URLs, keys or raw encoder logs are exposed through the public API.
+Connecting media to a platform does not necessarily publish its event. Finish that platform's preview/go-live controls where required. RelayRTC does not create platform events, manage platform OAuth or relay platform chat.
 
-Each output has a separate encoder/remux process, bounded media reads, connection timeout, three automatic attempts with backoff, fenced leases and cancellation. A failed destination degrades the run while other outputs keep working. Manual retry permits five additional retry cycles per output, with a cooldown. Terminal runs cannot retry.
+## Monitor and retry
 
-## Limits, usage and failures
-Defaults: eight destinations per stream/run, 24 Mbit/s of configured destination bitrate per run, 20 GB of observed egress per run, and four concurrent output jobs per worker. Configure `STREAMING_MAX_DESTINATIONS`, `STREAMING_MAX_EGRESS_BITRATE`, `STREAMING_MAX_EGRESS_BYTES` and existing broadcast/output limits. HLS also occupies one output slot. A default worker can serve HLS plus three destinations at once; increase both STREAMING_OUTPUT_CONCURRENCY and STREAMING_MAX_OUTPUT_JOBS_PER_WORKER, or add output-worker replicas, for more simultaneous outputs. Worker IDs receive a unique process suffix, so replicas have independent capacity. Queued outputs remain visible while capacity is full. New destination creation is limited to ten per stream per minute; retries remain subject to API limits and attempt/cooldown limits.
+Read `broadcasts.getOutputs(broadcastId)` for output state, bitrate, observed bytes, dropped frames and safe errors. Failed destinations recover independently; healthy outputs continue.
 
-Output bytes measure outbound socket bytes, including RTMP overhead (TLS transport overhead is not estimated); bitrate is the worker's interval measurement. Dropped frames come from encoder progress. Transcode seconds measure observed live output duration while a transcode profile is selected, not CPU-seconds. Run seconds follow the canonical HLS attachment; output seconds sum all independently observed outputs. Gaps are marked partial, not invented. Usage is deduplicated by job/fence/sequence. The egress byte limit is checked at heartbeat boundaries, so one reporting interval can exceed the allowance before teardown. It stops external outputs while preserving HLS/source playback.
+For a failed output, call `broadcasts.outputs.retry(broadcastId, outputId)` from an authorized backend. Retry cycles are bounded and have a cooldown; terminal runs cannot retry. Use stable idempotency keys when retrying uncertain command responses.
 
-Safe errors include DESTINATION_ADDRESS_REJECTED, DESTINATION_CONNECTION_FAILED, DESTINATION_TLS_FAILED, DESTINATION_ENCODER_FAILED, OUTPUT_TIMEOUT, EGRESS_BYTE_LIMIT and OUTPUT_RETRY_EXHAUSTED. Check the platform's private ingest dashboard for detailed authentication or codec rejection reasons; raw upstream messages may contain credentials and are deliberately withheld. Correlate run/output IDs, fences and durable destination.created/connected/disconnected/retrying/failed webhooks.
+For address/TLS failures, check public DNS, allowed ports and trusted certificates. For connection or encoder failures, inspect the platform's private ingest dashboard. Do not expose credentials or raw encoder logs to viewers.
 
-See [destination REST APIs](/reference/api/v1/destinations), [Node methods](/reference/sdk/server/node/destinations), [React controls](/reference/sdk/client/react/use-broadcast) and [broadcast runs](/guides/broadcasts). The existing streaming-foundation example includes a host-only custom destination form and application-authorized output retries.
+## Capacity and usage
+
+Defaults allow eight destinations per stream/run, 24 Mbit/s of configured destination bitrate and 20 GB of observed external egress per run. Output slots are separate: HLS occupies one slot, and each external destination occupies another. Increasing a destination limit alone does not add worker capacity.
+
+Destination bytes measure outbound socket bytes, including RTMP overhead, rather than viewer traffic. Transcode seconds measure observed elapsed output time, not CPU-seconds. An external egress limit stops external outputs while preserving the HLS/source program.
+
+See [destination REST APIs](/reference/api/v1/destinations), [Node methods](/reference/sdk/server/node/destinations) and [usage](/guides/usage).

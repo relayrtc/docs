@@ -4,12 +4,30 @@ description: "Renew the token for an existing active participant/session."
 section: "Node SDK"
 ---
 
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
+
 ```ts
-const renewed = await relay.tokens.renew(roomId, {
-  participantToken: currentToken,
-  sessionId,
-  ttlSeconds: 600,
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
 })
+```
+
+## Example
+
+```ts
+// Inputs come from the authenticated caller's stored participant session.
+export async function renewParticipant(roomId: string, currentToken: string, sessionId: string) {
+  return relay.tokens.renew(roomId, {
+    participantToken: currentToken,
+    sessionId,
+    ttlSeconds: 600,
+  })
+}
 ```
 
 Requires a scoped secret key with `tokens:create`. Authenticate the application user, bind them to this participant/session and recheck their room access before calling. Keep current tokens in server-side session storage, not logs. Persist the returned token as the next current credential and return it to the requesting browser. No management key belongs in a browser.
@@ -18,4 +36,4 @@ Requires a scoped secret key with `tokens:create`. Authenticate the application 
 
 Accepts [RequestOptions](/reference/sdk/server/node/request-options) as the final argument. Errors throw `RelayApiError`; renewal does not fall back to `tokens.create`. Expired tokens, removed participants, inactive sessions and denied scope cannot renew. A changed application entitlement must be denied by your backend as well. Streaming guests retain their separate join-grant renewal API.
 
-Wire the result into the browser/React `refreshToken` callback. See [connection recovery](/guides/connection-recovery) and the [REST contract](/reference/api/v1/tokens/renew). Use matching local API and SDK builds; this addition does not claim published-package availability.
+Wire the result into the browser/React `refreshToken` callback. See [connection recovery](/guides/connection-recovery) and the [REST contract](/reference/api/v1/tokens/renew). Use compatible API/SDK builds; see [installation](/installation) for package availability.

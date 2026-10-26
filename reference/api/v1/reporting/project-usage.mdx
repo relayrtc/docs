@@ -29,7 +29,7 @@ curl "$RELAYRTC_API_URL/projects/project_example/usage?range=7d" \
 
 ## Availability
 
-The unreleased Phase 7 API also includes `serviceUsage` for the exact same scope and UTC window. Its service buckets carry source/output/viewer/asset/mixer observations with definitions and coverage. RTC summary and bucket meanings remain unchanged. See [usage semantics](/guides/usage#streaming-and-assets-unreleased).
+The API also includes `serviceUsage` for the exact same scope and UTC window. Its service buckets carry source/output/viewer/asset/mixer observations with definitions and coverage. RTC summary and bucket meanings remain unchanged. See [usage semantics](/guides/usage#streaming-and-assets).
 
 This endpoint is REST-only. The current Node SDK exposes public `usage.get`, but has no wrapper for these reporting endpoints. It is separate from [public scoped usage](/reference/api/v1/usage/all).
 

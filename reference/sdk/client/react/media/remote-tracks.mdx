@@ -39,12 +39,17 @@ A track is a publication from another participant. Use [useMediaTrack](/referenc
 ## Example
 
 ```ts
-await track.subscribe()
-await track.setQuality('720p')
-await track.attach(videoElement)
+import type { RoomRemoteTrack } from '@relayrtc/react'
 
-track.detach(videoElement)
-await track.unsubscribe()
+export async function attachRemoteVideo(track: RoomRemoteTrack, video: HTMLVideoElement) {
+  await track.subscribe()
+  await track.setQuality('720p')
+  await track.attach(video)
+  return async () => {
+    track.detach(video)
+    await track.unsubscribe()
+  }
+}
 ```
 
 Here `track` is a remote video publication and `videoElement` is an HTMLVideoElement.

@@ -1,7 +1,7 @@
 ---
 title: "Assets REST API"
 description: "Read recording assets and issue scoped playback or MP4 download grants."
-section: "API reference"
+section: "REST API v1"
 ---
 
 | Method | Route | Result |
@@ -15,7 +15,15 @@ Metadata and grant issuance require recordings:read and a matching secret-key sc
 
 Metadata contains id, recordingId, streamId, broadcastId, state, partial, durationSeconds, region, formats, hasThumbnail, codecs, sizeBytes and expiresAt. Formats remain empty until ready. HLS is present on ready assets; MP4 requires a completed requested export. Audio-only assets have no thumbnail.
 
-Grant input is `{ "action": "playback", "ttlSeconds": 300 }`. Action is playback or download; TTL is 30-3600 seconds and is capped by asset retention. The result contains assetId, action, url and expiresAt. Downloads are MP4 only. Your backend must authorize the requesting viewer before issuing a grant; a browser must never receive the secret API key. Renew using a new Idempotency-Key.
+## Grant input
+
+| Field | Values and default |
+| --- | --- |
+| `action` | `playback` (default) or `download` |
+| `audience` | `viewer` (default) or `preview` |
+| `ttlSeconds` | Integer 30–3600 seconds, default 300; capped by asset retention |
+
+Viewer grants for clip assets require publication. Operator preview can access a ready unpublished clip and additionally requires `recordings:create`. The result contains `assetId`, `action`, `url` and `expiresAt`. Downloads are MP4 only. Your backend must authorize the requesting viewer before issuing a grant; a browser must never receive the secret API key. Renew using a new Idempotency-Key.
 
 The returned playback URL identifies the protected VOD manifest. Its fragment and initialization references carry the same grant. A playback grant can also authorize `/assets/{assetId}/thumbnail.jpg?token=...` when hasThumbnail is true. Download grants authorize only the MP4 route. Every object checks the owning resources, asset state, grant epoch, expiry and revocation. Bucket keys remain private. MP4 supports a single byte range; authorization is rechecked between chunks. All responses use private, no-store caching and configured streaming CORS origins.
 
@@ -26,7 +34,7 @@ Deleting an asset deletes its recording and media variants, revokes grants immed
 Send an empty JSON object to `POST /v1/assets/{assetId}/access-grants/revoke` with an Idempotency-Key. This retires all existing playback and download grants for that asset without deleting it. The old master playlist, child playlists, initialization files, segments and MP4 range requests stop working. Authorized applications can issue new grants afterward. Console exposes **Revoke existing links** in recording and clip details.
 
 ```bash
-curl -X POST "$API_URL/v1/assets/$ASSET_ID/access-grants/revoke" \
+curl -X POST "$RELAYRTC_API_URL/assets/$ASSET_ID/access-grants/revoke" \
   -H "Authorization: Bearer $RELAYRTC_SECRET_KEY" \
   -H "Idempotency-Key: 79d6a601-fdb0-4ed1-97cd-51a63b14d8e0" \
   -H "Content-Type: application/json" \

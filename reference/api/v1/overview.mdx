@@ -6,7 +6,7 @@ section: "REST API v1"
 
 ## Base URL
 
-Use the API URL configured for your RelayRTC deployment, with the `/v1` prefix. Local development uses `http://localhost:8082/v1`.
+Use the API URL configured for your RelayRTC deployment, with the `/v1` prefix. Local development uses `http://localhost:8080/v1`.
 
 The examples use `RELAYRTC_API_URL` for that base and `RELAYRTC_SECRET_KEY` for your secret key.
 
@@ -26,18 +26,26 @@ See [authentication](/reference/api/v1/authentication) for scopes and environmen
 | Resource | Operations |
 | --- | --- |
 | [Rooms](/reference/api/v1/rooms/create) | Create, list, read, end and inspect runtime cleanup. |
-| [Participant tokens](/reference/api/v1/tokens/create) | Issue a token to join one room. |
+| [Participant tokens](/reference/api/v1/tokens/create) | Issue a token to join one room; [renew](/reference/api/v1/tokens/renew) active credentials. |
 | [Participants](/reference/api/v1/participants/list) | List, read, remove and inspect cleanup. |
 | [TURN credentials](/reference/api/v1/turn/create-credentials) | Issue temporary ICE relay credentials. |
 | [Usage](/reference/api/v1/usage/all) | Read all usage or one category. |
 | [Webhooks](/reference/api/v1/webhooks/create) | Configure receivers, rotate secrets, inspect deliveries and replay. |
 | [Reporting](/reference/api/v1/reporting/project-usage) | Read project reports, analytics and console organization reports. |
+| [Streams](/reference/api/v1/streams) | Source configuration, credentials, playback grants and asynchronous operations. |
+| [Broadcasts](/reference/api/v1/broadcasts) | Individual runs and output state. |
+| [Destinations](/reference/api/v1/destinations) | External RTMP/RTMPS distribution. |
+| [Recordings](/reference/api/v1/recordings) and [assets](/reference/api/v1/assets) | Capture, retention, private playback and downloads. |
+| [Schedules](/reference/api/v1/scheduled-broadcasts) | Timed events and event access windows. |
+| [External sources](/reference/api/v1/restream-sources) | Approved HLS pulls and push-source lifecycle. |
+| [Clips](/reference/api/v1/clips) and [DVR](/reference/api/v1/dvr) | Retained highlights and rolling live windows. |
+| [Mixers](/reference/api/v1/mixers) and [guests](/reference/api/v1/guests) | Program composition and controlled RTC stages. |
 
 ## Request and response bodies
 
 Use `Content-Type: application/json` for JSON writes. Successful objects are returned directly, without a `data` wrapper.
 
-Cursor lists return `nodes` and `pageInfo`. Webhook lists use offset pagination. A `204` response has no JSON body.
+Room and participant lists return `nodes` and `pageInfo`. Streaming collections generally return `data` and `nextCursor`; webhook lists use offset pagination. Some bounded streaming lists have no pagination. See [pagination formats](/reference/api/v1/pagination) for each family. A `204` response has no JSON body.
 
 Unknown fields are rejected by strict request schemas.
 
@@ -51,7 +59,7 @@ This reference documents HTTP endpoints. Joining a live room, sending in-room me
 
 Responses include `x-relayrtc-api-version: v1` and `x-request-id`. Include the request ID when investigating an error.
 
-## Streaming foundation (unreleased)
+## Streaming resources
 
-[Streams REST](/reference/api/v1/streams) documents the feature-gated Phase 0 configuration, source lifecycle, grants, usage and durable operations. The private playback path protects every child object. These additions are drafts until published with matching SDKs.
+[Streams REST](/reference/api/v1/streams) documents stream configuration, source sessions, grants, usage and durable operations when streaming is enabled. The private playback path protects every child object. Use compatible API and SDK builds; package availability is listed in [installation](/installation).
 

@@ -4,17 +4,18 @@ description: "Follow external source status through your application and reuse p
 section: "React SDK"
 ---
 
-Use matching local React/browser SDK builds. The hook is independent of RelayProvider and RTC room membership. Pass stable getSource and optional command callbacks backed by your application. Your backend must authenticate viewers, verify the source attachment, authorize management actions, and project audience-safe status. It must never return the upstream endpoint, headers or management API key.
+Use compatible React/browser builds as described in [installation](/installation). The hook is independent of RelayProvider and RTC room membership. Pass stable getSource and optional command callbacks backed by your application. Your backend must authenticate viewers, verify the source attachment, authorize management actions, and project audience-safe status. It must never return the upstream endpoint, headers or management API key.
 
 ```tsx
-import { useRestreamSource, BroadcastPlayer } from '@relayrtc/react'
-// These stable callbacks call authenticated endpoints implemented by your application.
-function ExternalViewer() {
-  const source = useRestreamSource({ getSource })
+import { useRestreamSource } from '@relayrtc/react'
+
+export function ExternalSourceStatus({ options }: {
+  options: Parameters<typeof useRestreamSource>[0]
+}) {
+  const source = useRestreamSource(options)
   return <section>
     <p>{source.source?.state ?? 'Loading'}</p>
     {source.error && <p role="alert">{source.error.message}</p>}
-    {source.isLive && <BroadcastPlayer source={{ getPlayback, getGrant }} controls />}
   </section>
 }
 ```

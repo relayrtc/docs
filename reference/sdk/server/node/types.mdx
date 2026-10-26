@@ -68,6 +68,7 @@ Overrides for one request. See [Request options](/reference/sdk/server/node/requ
 
 ```ts
 export interface RequestOptions {
+  readonly idempotencyKey?: string
   readonly signal?: AbortSignal
   readonly timeoutMs?: number
   readonly retry?: false
@@ -148,6 +149,8 @@ export interface ListRoomsQuery {
   readonly cursor?: string
   readonly limit?: number
   readonly status?: RoomStatus
+  readonly search?: string
+  readonly joinable?: boolean
 }
 ```
 
@@ -194,6 +197,18 @@ export interface CreateParticipantTokenInput {
   readonly participantName: string
   readonly permissions?: readonly ParticipantPermission[]
   readonly metadata?: JsonObject
+  readonly ttlSeconds?: number
+}
+```
+
+## RenewParticipantTokenInput
+
+The body for [tokens.renew](/reference/sdk/server/node/tokens/renew). The token and session must identify the caller's existing active participant; renewal cannot change their identity or permissions.
+
+```ts
+export interface RenewParticipantTokenInput {
+  readonly participantToken: string
+  readonly sessionId: string
   readonly ttlSeconds?: number
 }
 ```
@@ -521,7 +536,7 @@ export interface WebhookSignatureContract {
 The usage category to request.
 
 ```ts
-export type UsageCategory = 'all' | 'rooms' | 'participants' | 'sfu' | 'turn' | 'signaling' | 'screen-share'
+export type UsageCategory = 'all' | 'rooms' | 'participants' | 'sfu' | 'turn' | 'signaling' | 'screen-share' | 'streaming'
 ```
 
 ## UsageRange
@@ -613,6 +628,8 @@ export interface UsageResponse {
     readonly events: 'attributed to occurrence time'
   }
   readonly metricDefinitions: Readonly<Partial<Record<UsageMetric, UsageMetricDefinition>>>
+  /** Included for all/streaming reports; service measurements are unpriced origin observations. */
+  readonly serviceUsage?: ServiceUsageReport
   readonly summary: UsageMetrics
   readonly buckets: readonly { readonly startedAt: string; readonly endedAt: string; readonly metrics: UsageMetrics }[]
   readonly dataQuality: {
@@ -623,6 +640,45 @@ export interface UsageResponse {
   }
 }
 ```
+
+## ServiceUsageReport
+
+Matching SDK builds export `ServiceUsageReport` and its metric, coverage, definition, resource and project types. `UsageResponse.serviceUsage` is optional because RTC-only categories do not return this report. See [service metrics and coverage](/reference/api/v1/schemas/usage#streaming-service-report).
+
+```ts
+export interface ServiceUsageReport {
+  readonly window: {
+    readonly startedAt: string
+    readonly endedAt: string
+    readonly timezone: 'UTC'
+    readonly endExclusive: true
+    readonly granularity: 'hour' | 'day'
+  }
+  readonly summary: ServiceUsageMetrics
+  readonly metricDefinitions: Readonly<Record<ServiceUsageMetric, ServiceUsageMetricDefinition>>
+  readonly rules: Readonly<Record<string, string>>
+  readonly buckets: readonly {
+    readonly startedAt: string
+    readonly endedAt: string
+    readonly metrics: ServiceUsageMetrics
+  }[]
+  readonly coverage: ServiceUsageMetricCoverage
+  readonly journalStartedAt: string
+  readonly historicalCoverage: 'complete' | 'partial'
+  readonly deliveryAuthority: 'origin'
+  readonly pricing: 'unpriced'
+  readonly resources: readonly ServiceUsageResource[]
+  readonly projects: readonly ServiceUsageProject[]
+  readonly resourceLimit: 100
+  readonly resourcesTruncated: boolean
+}
+```
+
+`ServiceUsageCoverage` is `'observed' | 'estimated' | 'partial' | 'unavailable'`. Service metric values are separate from RTC `UsageMetrics`. They describe observed service quantities with `pricing: 'unpriced'`, not plan allowances or computed charges.
+
+## Streaming contracts
+
+Stream and playback types, including `CreateIngestCredentialInput`, `IngestCredentialSummary`, `IngestCredentialList`, `RotatedIngestCredential`, `CreatePlaybackGrantInput` and `StreamPlaybackReadiness`, are described with the [stream methods](/reference/sdk/server/node/streams). Install a release that includes these contracts before using them.
 
 ## Webhook verification types
 
@@ -644,8 +700,174 @@ export interface RelayApiErrorOptions {
   readonly status?: number | null
   readonly requestId?: string | null
   readonly retryable?: boolean
+  readonly retryAfterMs?: number | null
 }
 ```
 
 See [RelayApiError](/reference/sdk/server/node/RelayApiError).
 
+
+## Additional public types
+
+The package root also exports the following contracts. Import only the types your application needs. Input contracts describe management requests; result contracts describe returned data. Types do not grant authority or apply server validation.
+
+### Streaming
+
+See the [streaming contract](/reference/api/v1/streams) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `StreamSource` | `{ kind: 'room'; roomId: string; videoTrackIds?: string[]; audioTrackIds?: string[] } \| { kind: 'whip' \| 'rtmp' }` |
+| `StreamProfile` | `audioOnly`, `width`, `height`, `fps`, `videoBitrate`, `audioBitrate`, `layout`. |
+| `CreateStreamInput` | `name`, `source`, `profile`, `maxDurationSeconds`, `retentionSeconds`. |
+| `UpdateStreamInput` | `version`. |
+| `StreamState` | `'ready' \| 'starting' \| 'live' \| 'reconnecting' \| 'stopping' \| 'ended' \| 'failed'` |
+| `StreamSession` | `id`, `streamId`, `state`, `desiredState`, `generation`, `attempts`, `lastError`, and additional fields. |
+| `StreamResource` | `id`, `organizationId`, `projectId`, `environmentId`, `name`, `source`, `profile`, and additional fields. |
+| `StreamDetail` | `sessions`. |
+| `StreamListQuery` | `cursor`, `limit`. |
+| `StreamPage` | `data`, `nextCursor`. |
+| `IngestCredentialHandover` | `policy`, `status`, `retryAfterSeconds`. |
+| `StreamingOperation` | `id`, `streamId`, `kind`, `broadcastId`, `outputId`, `sessionId`, `status`, and additional fields. |
+| `StreamingUsage` | `streamId`, `sourceSeconds`, `ingressBytes`, `programBytes`, `coverage`, `samples`. |
+
+### Broadcast
+
+See the [broadcast contract](/reference/api/v1/broadcasts) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `BroadcastState` | `\| "created" \| "waiting_for_source" \| "starting" \| "live" \| "reconnecting" \| "degraded" \| "stopping" \| "stopped" \| "failed"` |
+| `CreateBroadcastInput` | `streamId`, `name`, `destinationIds`, `outputs`, `waitTimeoutSeconds`, `maxDurationSeconds`. |
+| `BroadcastCommandInput` | `version`. |
+| `BroadcastResource` | `id`, `streamId`, `organizationId`, `projectId`, `environmentId`, `name`, `state`, and additional fields. |
+| `BroadcastOutput` | `id`, `broadcastId`, `kind`, `destinationId`, `destinationName`, `outputSeconds`, `bytes`, and additional fields. |
+| `BroadcastUsage` | `bytes`, `transcodeSeconds`, `runSeconds`, `outputSeconds`, `reservationSeconds`, `samples`, `coverage`. |
+| `BroadcastDetail` | `usage`. |
+| `ListBroadcastsQuery` | `cursor`, `limit`, `order`, `activeOnly`, `streamId`, `state`. |
+| `BroadcastPage` | `data`, `nextCursor`, `limits`. |
+
+### Destination
+
+See the [destination contract](/reference/api/v1/destinations) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `DestinationProfile` | `"remux" \| "720p" \| "1080p"` |
+| `StreamDestination` | `id`, `streamId`, `name`, `host`, `protocol`, `port`, `profile`, and additional fields. |
+| `DestinationSnapshot` | `id`, `version`, `credentialVersion`, `name`, `profile`. |
+| `CreateDestinationInput` | `name`, `endpoint`, `streamKey`, `profile`, `enabled`. |
+| `UpdateDestinationInput` | `version`, `name`, `endpoint`, `profile`, `enabled`. |
+| `RotateDestinationSecretInput` | `version`, `streamKey`. |
+| `DestinationPage` | `data`, `nextCursor`. |
+
+### Recording
+
+See the [recording contract](/reference/api/v1/recordings) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `RecordingPolicy` | `mode`, `maxDurationSeconds`, `retentionSeconds`, `region`, `allowPartial`, `exportMp4`, `segmentEvents`, and additional fields. |
+| `RecordingState` | `\| "queued" \| "recording" \| "finalizing" \| "ready" \| "failed" \| "deleting" \| "deleted"` |
+| `RecordingResource` | `id`, `streamId`, `broadcastId`, `assetId`, `projectId`, `environmentId`, `state`, and additional fields. |
+| `MediaAsset` | `id`, `recordingId`, `streamId`, `broadcastId`, `state`, `partial`, `durationSeconds`, and additional fields. |
+| `AssetAccessGrant` | `assetId`, `action`, `url`, `expiresAt`. |
+| `RecordingPlayback` | `mode`, `recordingId`, `assetId`, `streamId`, `sourceSessionId`, `generation`, `state`, and additional fields. |
+| `StartRecordingInput` | `broadcastId`, `policy`. |
+| `RecordingPage` | `data`, `nextCursor`. |
+
+### Schedule
+
+See the [schedule contract](/reference/api/v1/scheduled-broadcasts) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `ScheduleState` | `\| "scheduled" \| "starting" \| "running" \| "ending" \| "completed" \| "missed" \| "failed" \| "cancelled"` |
+| `ScheduleTiming` | `startsAt`, `endsAt`, `timeZone`, `sourceWaitSeconds`, `catchUpSeconds`, `publisherEarlySeconds`, `viewerEarlySeconds`, and additional fields. |
+| `ScheduledBroadcast` | `id`, `streamId`, `broadcastId`, `operationId`, `organizationId`, `projectId`, `environmentId`, and additional fields. |
+| `ScheduleOperation` | `id`, `scheduleId`, `broadcastId`, `broadcastOperationId`, `status`, `errorCode`, `createdAt`, and additional fields. |
+| `ScheduledPlayback` | `scheduleId`, `streamId`, `broadcastId`, `state`, `scheduleState`, `sourceSessionId`, `generation`, and additional fields. |
+| `CreateScheduleInput` | `broadcast`, `timing`. |
+| `UpdateScheduleInput` | `version`, `timing`. |
+| `SchedulePage` | `data`, `nextCursor`, `limits`. |
+
+### Restream
+
+See the [restream contract](/reference/api/v1/restream-sources) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `RestreamProtocol` | `"hls_pull" \| "rtmp_push" \| "whip_push"` |
+| `RestreamState` | `"created" \| "probing" \| "ready" \| "connecting" \| "live" \| "recovering" \| "stopped" \| "failed"` |
+| `RestreamSource` | `id`, `streamId`, `projectId`, `environmentId`, `name`, `protocol`, `host`, and additional fields. |
+| `RestreamSession` | `id`, `sourceId`, `kind`, `state`, `attempts`, `fetchedBytes`, `processingSeconds`, and additional fields. |
+| `RestreamDetail` | `session`, `health`, `usage`. |
+| `CreateRestreamSourceInput` | `streamId`, `name`, `protocol`, `endpoint`, `authorization`, `redistributionAuthorized`, `reconnectBudget`, and additional fields. |
+| `UpdateRestreamSourceInput` | `version`, `name`, `endpoint`, `authorization`, `redistributionAuthorized`, `reconnectBudget`, `maxDurationSeconds`, and additional fields. |
+
+### Clip
+
+See the [clip contract](/reference/api/v1/clips) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `ClipInterval` | `\| { kind: "last"; seconds: number } \| { kind: "media"; startSeconds: number; endSeconds: number } \| { kind: "wall"; start: string; end: string }` |
+| `CreateClipInput` | `recordingId`, `interval`, `cutMode`, `retentionSeconds`, `label`. |
+| `ClipResource` | `id`, `streamId`, `broadcastId`, `sourceRecordingId`, `recordingId`, `assetId`, `label`, and additional fields. |
+| `ClipListQuery` | `cursor`, `limit`. |
+| `ClipPage` | `data`, `nextCursor`. |
+| `RollingBufferPolicy` | `enabled`, `durationSeconds`, `maxBytes`, `consentAcknowledged`. |
+| `ClipWindow` | `recordingId`, `broadcastId`, `kind`, `state`, `startSeconds`, `endSeconds`, `wallStart`, and additional fields. |
+
+### Mixer
+
+See the [mixer contract](/reference/api/v1/mixers) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `MixerSource` | `id`, `streamId`. |
+| `MixerLayer` | `sourceId`, `x`, `y`, `width`, `height`, `z`, `fit`, and additional fields. |
+| `MixerOverlayLayer` | `overlayId`, `x`, `y`, `width`, `height`, `z`, `opacity`. |
+| `MixerTextLayer` | `id`, `text`, `x`, `y`, `width`, `height`, `z`, and additional fields. |
+| `MixerAudio` | `sourceId`, `gainDb`, `muted`. |
+| `MixerScene` | `name`, `layout`, `background`, `layers`, `overlays`, `texts`, `audio`, and additional fields. |
+| `MixerSceneResource` | `id`, `mixerId`, `version`, `scene`. |
+| `MixerOverlay` | `id`, `name`, `width`, `height`, `sizeBytes`. |
+| `MixerResource` | `id`, `broadcastId`, `streamId`, `projectId`, `environmentId`, `state`, `version`, and additional fields. |
+| `MixerOperation` | `id`, `mixerId`, `kind`, `revision`, `status`, `errorCode`, `createdAt`, and additional fields. |
+| `MixerCommandResult` | `mixer`, `operation`. |
+| `CreateMixerInput` | `sources`. |
+| `PutMixerSceneInput` | `version`, `scene`. |
+| `ActivateMixerSceneInput` | `version`, `sceneId`, `sceneVersion`. |
+| `CreateMixerOverlayInput` | `name`, `contentType`, `dataBase64`. |
+
+### Dvr
+
+See the [dvr contract](/reference/api/v1/dvr) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `DvrPolicy` | `enabled`, `durationSeconds`, `maxBytes`, `endedRetentionSeconds`, `consentAcknowledged`. |
+| `DvrPolicyResource` | `policy`, `version`, `effective`. |
+| `DvrPlayback` | `streamId`, `broadcastId`, `windowId`, `sourceSessionId`, `generation`, `state`, `startSeconds`, and additional fields. |
+
+### Guest
+
+See the [guest contract](/reference/api/v1/guests) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `GuestMedia` | `audio`, `video`, `screen`. |
+| `GuestRole` | `"host" \| "cohost" \| "moderator" \| "guest" \| "viewer"` |
+| `GuestDelegation` | `"invite" \| "approve" \| "moderate"` |
+| `GuestResource` | `id`, `kind`, `state`, `version`, `name`, `media`, `mutedAudio`, and additional fields. |
+| `GuestStage` | `enabled`, `version`, `maxGuests`, `occupied`, `layout`, `roomId`. |
+| `GuestRoster` | `data`, `nextCursor`, `stage`. |
+| `GuestJoinGrant` | `token`, `participantId`, `roomId`, `expiresAt`, `version`, `media`, `signalingUrl`. |
+| `GuestDecision` | `version`, `subject`. |
+| `InviteGuestInput` | `recipientSubject`, `media`, `ttlSeconds`. |
+| `RequestGuestInput` | `subject`, `media`. |
+| `AudienceGrantInput` | `subject`, `name`, `role`, `delegations`, `ttlSeconds`. |
+| `GuestStageInput` | `enabled`, `version`, `maxGuests`, `layout`. |
+
+Use [live streaming](/guides/live-streaming) to select the relevant workflow. Exact method inputs and results appear on the resource pages; limits and validation remain authoritative on the API.

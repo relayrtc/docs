@@ -1,7 +1,7 @@
 ---
 title: "Restream sources REST API"
 description: "Register, probe and control authorized external streaming sources."
-section: "API reference"
+section: "REST API v1"
 ---
 
 Reads require streams:read. Management requires streams:write; start additionally requires streams:publish. Console members can read; owners/admins can manage. Scope every request with the matching project/environment or a scoped secret API key. Console mutations require the trusted Origin. Every mutation requires Idempotency-Key. Retry an uncertain command with its original key/body. Use a new key for a new operation after the previous session ends.

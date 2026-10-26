@@ -1,86 +1,76 @@
 ---
 title: "Live guests and co-hosting"
-description: "Invite or approve audience members for a controlled RTC stage and continuous broadcast program."
+description: "Invite or approve viewers for a controlled RTC stage without granting operator access."
 section: "Streaming"
 ---
 
-## Create a stage
+A guest stage lets selected viewers publish RTC media into a room-source broadcast. HLS viewers remain outside the room until accepted and explicitly joined. Playback access does not grant stage or moderator authority.
 
-Use a dedicated RTC room with 2–4 total seats, a stream whose source is that room, and a running broadcast. Reserve one seat for the host and at most three for guests. Room capacity limits RTC participants; it does not limit HLS viewers. Console → Streams → your stream → Guests exposes stage settings, invitations, request queue, roster and moderation. RTMP/WHIP source streams must use a room-based stage instead; this implementation does not automatically create a room or promote an HLS connection into RTC.
+## Prepare the stage
 
-```ts
-await relay.streams.guests.configureStage(streamId, broadcastId, {
-  enabled: true, version: 0, maxGuests: 3, layout: 'grid',
-})
-const invitation = await relay.streams.guests.invite(streamId, broadcastId, {
-  recipientSubject: 'app-user-42',
-  media: { audio: true, video: false, screen: false },
-  ttlSeconds: 300,
-})
-```
+Create a dedicated room with two to four total seats, a stream sourced from that room, and a running broadcast. Reserve one seat for the host and at most three for guests. Room capacity limits RTC participants, not HLS viewers.
 
-Room-source programs use the dynamic composition path from startup. Enabling/disabling the stage, changing its layout and joining/leaving reconcile subscriptions within the existing source generation and output encoder. Enable before inviting guests. Healthy subscriptions retain their ports and decoders. Selected non-stage track IDs remain respected when the stage is disabled. Basic grid/single/picture-in-picture uses the existing 640×360, 15 fps canvas; delivery follows the configured stream profile. Picture-in-picture permits one guest. Each participant contributes its screen video when present, otherwise camera, plus microphone/desktop audio. An audio-only guest produces a black video tile and audio; denied camera access never forces capture or terminates a permitted microphone.
-
-The same run can also use an advanced mixer: its primary input is the dynamic stage grid, regardless of the basic-stage layout setting. Other registered stream inputs, overlays, text and audio controls work through the existing mixer contract. A stage membership change may briefly replace that aggregate primary decoder, using fallback while it restarts; the advanced mixer output encoder continues. The basic stage keeps unaffected individual decoders. Another run cannot reserve the same room/program while this stage is enabled.
-
-## Identity and delegated controls
-
-An application subject is a backend-verified user ID, not a client-selected participant ID. Your backend binds it to a stream/run-scoped audience identity. HLS playback grants confer no guest or moderator authority. The matching unreleased SDK adds this management operation:
+Enable the stage before inviting guests. These backend helpers must run as an authorized host/operator; derive `recipientSubject` from your application's user records.
 
 ```ts
-const audience = await relay.streams.guests.createAudienceGrant(streamId, broadcastId, {
-  subject: signedInUser.id,
-  name: signedInUser.displayName,
-  role: 'viewer',
-  delegations: [],
-  ttlSeconds: 300,
-})
+import { relay } from './relay.js'
+
+export async function createStage(streamId: string, broadcastId: string) {
+  return relay.streams.guests.configureStage(streamId, broadcastId, {
+    enabled: true,
+    version: 0,
+    maxGuests: 3,
+    layout: 'grid',
+  })
+}
+
+export async function inviteAudioGuest(
+  streamId: string, broadcastId: string, recipientSubject: string,
+) {
+  return relay.streams.guests.invite(streamId, broadcastId, {
+    recipientSubject,
+    media: { audio: true, video: false, screen: false },
+    ttlSeconds: 300,
+  })
+}
 ```
 
-Derive subject, role and delegation from your own authenticated session. Do not copy them from a browser body. Management issuance requires streams:write, streams:publish and tokens:create. Cache the narrow audience credential on your backend until shortly before expiry and forward commands through application endpoints. Role/delegation changes increment its epoch and revoke old audience credentials. Updating audience control roles does not replace an accepted guest's separate RTC grant: use remove/mute or disable the stage to revoke its publication authority.
+Use version zero only for initial stage configuration; subsequent changes need the current version from `getStage`. RTMP/WHIP streams need a separate room-based stage workflow; enabling guests does not convert an encoder into an RTC room.
 
-| Audience role | Own request/accept/leave | Invite/approve/moderate |
-| --- | --- | --- |
-| Host | Yes | All stage controls |
-| Co-host | Yes | Only explicit invite, approve or moderate delegations |
-| Moderator | Yes | Only explicit delegations; no implicit publication |
-| Guest/viewer | Yes | None |
+## Bind identity and delegate narrowly
 
-Management credentials can act for a subject, but own actions must explicitly supply the authenticated application's subject. Audience credentials bind their own subject and reject another one. Recipient IDs cannot be guessed to accept somebody else's invitation. Viewer reads contain caller-owned invitations/requests and a safe joined roster; operator identity/subjects are redacted for viewers.
+Your backend authenticates a user and binds a stable application subject to this stream/run. Never trust a browser-supplied subject, role or delegation without checking it against the signed-in session.
 
-## Accept, approve and publish deliberately
+Use `createAudienceGrant` for narrow audience credentials. Management issuance requires `streams:write`, `streams:publish` and `tokens:create`. Keep management keys on the backend and proxy authorized guest actions through application endpoints.
 
-Invitations start pending; the bound recipient accepts or declines. Requests start pending; an authorized host/delegate approves or rejects. Cancelling a pending invitation produces a terminal cancelled state. Acceptance/approval atomically reserves a seat for 120 seconds. A join grant extends it to five minutes and carries only approved audio/video/screen permissions. Joining never enables devices automatically.
+| Role | Authority |
+| --- | --- |
+| Host | Stage controls |
+| Co-host or moderator | Only explicitly delegated invite, approve or moderation controls |
+| Guest or viewer | Their own requests, invitation decisions and leave action |
 
-```text
-viewer → own request or invitation → accepted/approved reservation
-       → scoped RTC join grant → join with devices off
-       → user enables permitted devices → existing RTC publication
-       → leave/remove/expiry → publication revoked → return to viewing
-```
+Changing audience roles revokes old audience credentials. It does not replace an accepted guest's separate RTC grant; use removal or server moderation to change their publication authority.
 
-Use [StreamGuestClient](/reference/sdk/client/javascript/stream-guest-client), [useGuestSession](/reference/sdk/client/react/stream-guests) and the existing Room microphone/camera/screen controls. A camera-denial error leaves other permitted devices available. During stage participation, stop/unmount delayed HLS/DVR playback and monitor other participants through RTC. This avoids delayed microphone feedback and duplicate audience/stage audio. Return to application-authorized viewing after leaving; leaving does not itself issue HLS entitlement.
+## Accept and join
 
-## Revocation and reconnect
+The invited user accepts or declines their invitation. A requesting viewer waits for host approval. Acceptance/approval reserves a seat; a join grant carries only the approved audio, video and screen permissions.
 
-Each RTC token ID binds a guest version and server-assigned participant identity. Signaling checks the live authority at join, resume, RTC commands, credential refresh and its two-second guest sweep. Media control independently checks current authority and track capabilities; a two-second media sweep and the existing durable participant-removal outbox close producers/transports. Authority-store failures fail closed for remembered guest media while ordinary RTC continues under its existing contract. Already-delivered/buffered media cannot be recalled.
+Use [StreamGuestClient](/reference/sdk/client/javascript/stream-guest-client) and [React guest state](/reference/sdk/client/react/stream-guests) to follow the decision and obtain a scoped RTC join grant. Join with devices off, then let the user explicitly enable permitted media. Denying camera access must not prevent permitted microphone-only participation.
 
-Server mute is a permission change with disconnect/regrant behavior. Changing permitted audio/video increments the version and removes the old RTC participant. Repeating the current permission leaves its version and connection unchanged. The guest must deliberately rejoin with devices off and then enable permitted devices. Allowing microphone publication never switches a browser microphone on. Moderator audio mute also denies desktop audio; video mute disables camera and screen sharing, including desktop audio. Removal, leave, expiry, stage disablement, run completion, owner retirement or source-room replacement revoke old grants and release reservations. Disablement fences credentials transactionally before lifecycle notifications finish. This is distinct from local microphone mute/unmute, which keeps capture open.
+While on stage, stop delayed HLS/DVR playback and listen through RTC. This prevents duplicate audio and delayed microphone feedback. After leaving, return to separately authorized viewing.
 
-A transient disconnect uses the existing RTC recovery window (default 30 seconds) with the same participant ID and grant version. After final RTC departure, a new request/invitation is required. Permission changes instead rotate the participant on the next explicit join. The host can disconnect without ending a healthy guest stage; missing tracks become black/silence and the run continues until stopped, expired or limited by the configured source/run duration. No guest is automatically promoted to host.
+## Moderate and revoke
 
-## Notifications, limits and operations
+Server mute changes publication permission and disconnects the old RTC participant. The guest must explicitly rejoin with devices off before enabling media again. Granting permission never activates a device. This differs from a participant's local mute/unmute control.
 
-Authenticated guest-status polling defaults to two seconds, reconciles on reconnect and exposes expired/revoked outcomes without relying on uninterrupted WebSocket notifications. External stream.guest.* webhooks use the existing signed durable outbox, stable event IDs and per-guest sequences. Events include invited, invite_accepted, invite_declined, requested, request_approved, request_rejected, joined, left, removed, muted, invite_expired, invite_cancelled and grant_revoked. Audit records distinguish the actual API/user actor from SYSTEM lifecycle decisions. RTC session/media accounting is reused; no duplicate guest participant interval is created.
+Removal, leave, expiry, stage disablement, run completion and owning-resource retirement revoke stage authority. After final RTC departure, joining again requires a new request or invitation. A transient disconnect can recover within the existing RTC recovery window while its grant remains valid.
 
-Limits are one open invitation/request per subject/run, five creates per subject/minute, 100 creates per run/minute, 1000 guest records/run, 10,000 audience identities/run, three reserved guests and ten join grants per guest/minute. Guest credentials nominally last five minutes (at most 310 seconds to keep burst renewals strictly increasing); audience grants last 60–3600 seconds. Historical guest decisions/audits/usage remain; expired RTC grant rows and audience identities are cleaned after one day. Room locks serialize ordinary RTC joins with reserved guest slots. Version conflicts require refreshing state; seat limits reject simultaneous excess approvals.
+## Program behavior and limits
 
-Watch relayrtc_stream_guests by state, relayrtc_guest_stages and relayrtc_guest_cleanup_stalled. GuestCleanupStalled alerts on lingering revoked RTC resources. Correlate guestId/broadcastId with existing participant removal operations; never log tokens. Existing source-worker leases, generation fencing, CPU/process/memory limits, decoder fallback and retry budgets still apply. A required source-generation transition, such as entering or leaving advanced mixer mode, remains fenced and is represented as reconnecting/partial observation; a recording spanning an actual generation change follows its partial-output policy. Ordinary stage/layout/member changes do not require that transition. Broad load and network-partition acceptance remain operator work.
+Room-source stages compose participants into the existing program. Ordinary membership/layout changes preserve its output encoder; missing media falls back to black/silence. The host leaving does not automatically end healthy guests or promote a replacement host.
 
-## Local example
+The basic stage uses the mixer canvas and supports grid, single or picture-in-picture; picture-in-picture permits one guest. An advanced [mixer](/guides/cloud-video-mixer) can consume the stage as its aggregate primary input.
 
-Rebuild/apply migration 0041 using the normal streaming startup. In examples/streaming-foundation, configure the matching local SDK builds, a dedicated room with 2–4 seats, its room-source stream, and distinct DEMO_HOST_PASSWORD/DEMO_VIEWER_PASSWORD values. Optionally set a distinct 16-character DEMO_COHOST_PASSWORD. Use separate browser profiles for host, co-host and viewer; subjects are randomly bound to each login session and disappear when the demo backend restarts.
+Defaults allow three reserved guests, one open request/invitation per subject and run, and bounded invitation/join-grant rates. Concurrent approvals still respect room capacity. On conflicts or expired reservations, reload state rather than retrying blindly.
 
-The host joins the existing publisher, enables desired devices, starts the source and broadcast, then clicks Enable one-guest stage. The viewer copies its application subject to the host, accepts an audio-only invitation or requests camera permission, waits for approval, and clicks Join stage with devices off. Enable microphone explicitly; deny a camera prompt to exercise audio-only fallback. The host hears RTC stage audio and can server-mute/remove. The co-host can invite/approve when delegated but cannot moderate by default. Leave returns to private viewing. Configure additional guest slots through Console/Node; the demo's one-guest setting is intentional.
-
-See [guest REST](/reference/api/v1/guests), [Node guests](/reference/sdk/server/node/guests), [audio-only rooms](/guides/audio-only-rooms) and [self-hosting](/self-hosting).
+Signed guest lifecycle webhooks complement authenticated status polling. Deduplicate event IDs, reload the roster and avoid logging tokens. RTC session/media accounting is reused rather than duplicating a guest interval. See [guest REST APIs](/reference/api/v1/guests) and [Node controls](/reference/sdk/server/node/guests).

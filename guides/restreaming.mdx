@@ -1,38 +1,52 @@
 ---
 title: "Restreaming"
-description: "Operate restricted source pulls, recovery, usage and credential rotation."
+description: "Monitor upstream sources, handle recovery and rotate source credentials."
 section: "Streaming"
 ---
 
-## Deploy the source worker
-Apply migration 0037 and upgrade the API and workers together. Before running your normal streaming deployment command, configure:
+After [registering a source](/guides/external-ingest), use its status and session history to manage recovery. Source state is independent of the broadcast outputs that consume its program.
 
-```dotenv
-STREAMING_SOURCE_ALLOWED_HOSTS=media.example.com,segments.example.com
-STREAMING_MAX_SOURCE_JOBS=4
-```
+## Follow the source lifecycle
 
-Replace these with exact public hostnames you control or are authorized to use. No wildcard or suffix matching is performed. Every redirect, nested playlist, initialization fragment and segment must use an allowed host, port 80 or 443, and resolve exclusively to public addresses. Your RelayRTC public API/RTMP hostname is excluded to prevent a playback-to-ingest loop. Private, loopback, link-local, metadata and non-global IPv6 addresses are blocked. DNS is resolved for every connection and the checked IP is pinned; HTTPS uses the original hostname for SNI and certificate verification. HTTPS redirects cannot downgrade to HTTP. Authorization headers are sent only to the original endpoint's origin.
+HLS sources progress through `created`, `probing`, `ready`, `connecting` and `live`. A lost source may enter `recovering`; `stopped` and `failed` end that session. Only observed canonical media establishes a live source.
 
-The streaming-sources service is included in docker-compose.streaming.yml. It runs one job at a time; the API admits four source jobs globally by default and 100 registered definitions per environment. Scale workers within that global budget if needed. Probes occupy source capacity too. The image uses the existing native FFmpeg network guard, read-only filesystem, dropped capabilities, no-new-privileges, one CPU, 1 GiB RAM and 128 processes. FFprobe and FFmpeg receive only PATH and guard settings. They can connect only to two job-local loopback proxies; they cannot fetch upstream URLs or follow arbitrary redirects themselves. The Node transport handles remote HTTP requests and a separate trusted proxy reaches the private ingest gateway. Do not replace the supplied dynamically linked Linux binaries with unguarded binaries.
+`restreamSources.get(sourceId)` returns the current session, recent health transitions, a safe `lastError` and observed usage. After a terminal failure, repair the input and start a new session. Avoid retry loops that ignore capacity or policy errors.
 
-Use a deployment firewall/network policy to allow this worker DNS, the private API and ingest gateway, and approved public source addresses on 80/443. Block metadata and unrelated private networks at the network layer as well. Keep the API, storage and gateway management ports private. Allowlist all CDN segment hosts explicitly, including redirect targets. TLS errors must be fixed at the upstream; certificate verification cannot be disabled.
+## Configure recovery and limits
 
-## Limits and lifecycle
-Pull requests have a 10-second deadline, at most three redirects, 16 KiB headers, 256 KiB/2000-line manifests, 16 MiB objects, four concurrent fetches, 100 fetches and 8 MiB per second, and 4096 discovered resources per attempt. Exceeding a limit fails the attempt. Sources default to 2 GB fetched bytes, four hours and three reconnect retries; administrators can lower these per source. Duration is capped by the attached stream and cannot exceed 24 hours. A probe has a 60-second overall window and a 20-second FFprobe deadline. The same media profile and transport restrictions apply during probe and actual ingest.
+Sources default to a reconnect budget of three, four hours of duration and 2 GB of fetched bytes. The API permits zero to five reconnect retries and durations from one minute to 24 hours, bounded by the attached stream. Probes and retries count toward observed fetch usage.
 
-Source states include created, probing, ready, connecting, live, recovering, stopped and failed. Only observed canonical live media emits source_connected. Failures restart within the configured retry budget with a five-second delay. Timestamp discontinuities are handled by the HLS reader and the canonical normalization worker. New attempts use new fenced credentials. Heartbeats renew 15-second ownership; workers stop locally if control confirmation is absent for 11 seconds. Expired leases revoke ingest credentials and stop the canonical publisher before another attempt can be admitted. A transient recovery can therefore create a new canonical session and playback generation; the existing player follows it.
+The deployment admits four source jobs globally by default. Probes also consume capacity. Increasing `STREAMING_MAX_SOURCE_JOBS` changes admission; it does not add source-worker resources.
 
-Deleting an active source stops its ingest and dependent stream broadcasts, clears its encrypted authentication material, and preserves session history and usage. Parent stream/environment/project/organization retirement also cancels sources. A registered source's stream and protocol are immutable. Stop and wait for a terminal session before editing it. Stream protocol changes require deleting its registered sources first. Stopping a source does not delete an already finalized recording.
+The fetcher bounds request time, redirects, manifest size, object size, discovered resources and concurrent requests. A source that exceeds a safety bound fails visibly. Do not bypass those checks by replacing the guarded worker binaries or disabling TLS verification.
 
-## Credentials, events and usage
-Upstream URL paths, query tokens and Authorization are encrypted with STREAMING_DESTINATION_ENCRYPTION_KEY and a source/version-specific encryption context. Ordinary reads return only protocol/host and a configured flag. Patch the endpoint or authorization with the current source version to rotate them. Send an empty authorization value to remove a header. Rotate the deployment encryption key only with a coordinated re-encryption procedure; changing it alone makes existing ciphertext unreadable.
+## Change credentials or configuration
 
-Subscribe to restream.probing, restream.source_connected, restream.source_lost, restream.recovering, restream.stopped and restream.failed. Delivery uses the existing signed webhook outbox. Health history retains the latest 50 transitions; events contain identifiers and safe failure reasons, never raw upstream diagnostics or URLs.
+Stop the source and wait for its active session to end before editing or probing it again. Updates require its current `version`. Its stream and protocol cannot be changed; register a replacement source instead.
 
-Source detail usage counts observed upstream fetch bytes, including probes, retries, manifests and initialization data, separately from broadcast output bytes. Processing seconds count the probe and pull media processes' observed elapsed time, not CPU billing or canonical transcode time. Lost observations after a worker crash are not estimated. Push traffic is counted by the normal stream usage system; registry monitoring adds no duplicate traffic charge. Source history persists across deletion. Prometheus exposes aggregate active sessions, expired leases, observed fetched bytes and processing seconds, plus worker counters.
+Upstream URLs and authorization are encrypted using the deployment's destination encryption key. Update `endpoint` or `authorization` to rotate them; an empty authorization value removes that header. Preserve the encryption key across restarts and backups. Replacing it without re-encryption makes stored credentials unreadable.
 
-## Troubleshooting
-SOURCE_ADDRESS_REJECTED means a host/port, DNS answer or local-loop rule was rejected. Check every CDN host and redirect. SOURCE_BUSY requires stopping the active operation before editing or probing again. SOURCE_CAPACITY means the global source-job limit is full. PUBLISHER_CONFLICT means another publisher still owns the attached stream; wait for its teardown. SOURCE_CONNECTION_TIMEOUT means a push publisher did not connect or reconnect within its window. SOURCE_PROBE_TIMEOUT means a queued/active probe exceeded its overall deadline. SOURCE_PROFILE_UNSUPPORTED rejects an unsupported codec or playlist profile. SOURCE_BYTE_LIMIT means the source exhausted its byte budget. SOURCE_CANONICAL_FAILED means the normal source worker could not produce a program. SOURCE_FETCH_FAILED and SOURCE_PROCESSING_FAILED are deliberately generic: check the upstream's H.264/AAC profile, supported playlist features, TLS certificate and operator network rules. A probe can succeed while a subsequent live fetch fails because the source changed. Repeated failures exhaust the reconnect budget; repair the input and start a new session. Never expose raw FFmpeg diagnostics to viewers.
+Deleting a source stops ingest and dependent broadcasts, clears its saved authentication material, and preserves history and usage. It does not delete an already finalized recording.
 
-See [source REST APIs](/reference/api/v1/restream-sources), [Node methods](/reference/sdk/server/node/restream-sources) and [React status](/reference/sdk/client/react/use-restream-source).
+## Diagnose failures
+
+| Code | Next step |
+| --- | --- |
+| `SOURCE_ADDRESS_REJECTED` | Check all hostnames, redirects, public DNS answers and permitted ports |
+| `SOURCE_BUSY` | Wait for the active probe/session to stop before changing configuration |
+| `SOURCE_CAPACITY` | Check active jobs and provisioned source-worker capacity |
+| `SOURCE_CONNECTION_TIMEOUT` | Check that the push encoder connects with a valid credential |
+| `SOURCE_PROFILE_UNSUPPORTED` | Check codecs and supported HLS playlist features |
+| `SOURCE_BYTE_LIMIT` | Review the source byte budget |
+| `SOURCE_FETCH_FAILED` | Check upstream availability, authentication and TLS |
+| `SOURCE_CANONICAL_FAILED` | Inspect source-worker health and the attached stream's readiness |
+
+Raw encoder diagnostics may contain upstream secrets and are intentionally excluded from public errors. Correlate source/session IDs with private operator logs instead of displaying those logs to viewers.
+
+## Events and usage
+
+Subscribe to `restream.probing`, `restream.source_connected`, `restream.source_lost`, `restream.recovering`, `restream.stopped` and `restream.failed`. Verify signatures, deduplicate IDs and reload state after notifications.
+
+Fetched bytes include probes, manifests, initialization data and retries. Processing seconds are observed process elapsed time, not CPU-seconds. Push traffic belongs to normal stream usage; registry monitoring does not create another copy of that traffic. Keep these measurements separate from destination egress.
+
+See [Node methods](/reference/sdk/server/node/restream-sources), [React status](/reference/sdk/client/react/use-restream-source) and [streaming self-hosting](/guides/streaming-self-hosting).

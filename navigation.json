@@ -36,7 +36,11 @@
         "href": "/guides/screen-sharing"
       },
       {
-        "label": "Messages, events and raised hands",
+        "label": "Audio-only rooms and roles",
+        "href": "/guides/audio-only-rooms"
+      },
+      {
+        "label": "Messages and events",
         "href": "/guides/messages-and-events"
       },
       {
@@ -48,15 +52,135 @@
         "href": "/guides/video-quality"
       },
       {
+        "label": "TURN configuration",
+        "href": "/guides/turn-configuration"
+      }
+    ]
+  },
+  {
+    "label": "Streaming",
+    "items": [
+      {
+        "label": "Overview",
+        "href": "/guides/live-streaming"
+      },
+      {
+        "label": "Sources and playback",
+        "children": [
+          {
+            "label": "ROOM, WHIP and RTMP ingest",
+            "href": "/guides/streaming-ingest"
+          },
+          {
+            "label": "External ingest",
+            "href": "/guides/external-ingest"
+          },
+          {
+            "label": "External source operations",
+            "href": "/guides/restreaming"
+          },
+          {
+            "label": "Private HLS playback",
+            "href": "/guides/streaming-playback"
+          }
+        ]
+      },
+      {
+        "label": "Broadcasts",
+        "children": [
+          {
+            "label": "Broadcast runs",
+            "href": "/guides/broadcasts"
+          },
+          {
+            "label": "Multistreaming",
+            "href": "/guides/multistreaming"
+          },
+          {
+            "label": "Scheduled broadcasts",
+            "href": "/guides/scheduled-broadcasts"
+          },
+          {
+            "label": "Guests and co-hosting",
+            "href": "/guides/live-guests-and-cohosting"
+          }
+        ]
+      },
+      {
+        "label": "Recordings and replay",
+        "children": [
+          {
+            "label": "Recording and VOD",
+            "href": "/guides/recording-and-vod"
+          },
+          {
+            "label": "Clips and replay",
+            "href": "/guides/clips-and-replay"
+          },
+          {
+            "label": "Live DVR",
+            "href": "/guides/live-dvr"
+          }
+        ]
+      },
+      {
+        "label": "Mixers",
+        "children": [
+          {
+            "label": "Cloud video mixer",
+            "href": "/guides/cloud-video-mixer"
+          },
+          {
+            "label": "Scene schema",
+            "href": "/guides/mixer-scene-schema"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "label": "Backend integration",
+    "items": [
+      {
         "label": "Webhooks",
         "href": "/guides/webhooks"
       },
       {
         "label": "Usage and participant minutes",
         "href": "/guides/usage"
+      }
+    ]
+  },
+  {
+    "label": "Self-hosting",
+    "items": [
+      {
+        "label": "Install RelayRTC",
+        "href": "/self-hosting"
       },
       {
-        "label": "Troubleshooting calls",
+        "label": "Sign-in and email",
+        "href": "/guides/self-hosting-authentication"
+      },
+      {
+        "label": "Streaming configuration",
+        "href": "/guides/streaming-self-hosting"
+      },
+      {
+        "label": "Public hosting and maintenance",
+        "href": "/guides/self-hosting-operations"
+      },
+      {
+        "label": "Streaming operations",
+        "href": "/guides/streaming-operations"
+      }
+    ]
+  },
+  {
+    "label": "Troubleshooting",
+    "items": [
+      {
+        "label": "Troubleshoot calls",
         "href": "/guides/troubleshooting"
       }
     ]
@@ -149,6 +273,55 @@
           {
             "label": "Issue TURN credentials",
             "href": "/reference/api/v1/turn/create-credentials"
+          }
+        ]
+      },
+      {
+        "label": "Streaming",
+        "children": [
+          {
+            "label": "Streams",
+            "href": "/reference/api/v1/streams"
+          },
+          {
+            "label": "Broadcasts",
+            "href": "/reference/api/v1/broadcasts"
+          },
+          {
+            "label": "Destinations",
+            "href": "/reference/api/v1/destinations"
+          },
+          {
+            "label": "Recordings",
+            "href": "/reference/api/v1/recordings"
+          },
+          {
+            "label": "Assets",
+            "href": "/reference/api/v1/assets"
+          },
+          {
+            "label": "Schedules",
+            "href": "/reference/api/v1/scheduled-broadcasts"
+          },
+          {
+            "label": "External sources",
+            "href": "/reference/api/v1/restream-sources"
+          },
+          {
+            "label": "Clips",
+            "href": "/reference/api/v1/clips"
+          },
+          {
+            "label": "Mixers",
+            "href": "/reference/api/v1/mixers"
+          },
+          {
+            "label": "DVR",
+            "href": "/reference/api/v1/dvr"
+          },
+          {
+            "label": "Guests",
+            "href": "/reference/api/v1/guests"
           }
         ]
       },
@@ -389,6 +562,47 @@
         ]
       },
       {
+        "label": "Streaming",
+        "children": [
+          {
+            "label": "BroadcastPlayer",
+            "href": "/reference/sdk/client/react/broadcast-player"
+          },
+          {
+            "label": "useBroadcast",
+            "href": "/reference/sdk/client/react/use-broadcast"
+          },
+          {
+            "label": "useRecording",
+            "href": "/reference/sdk/client/react/use-recording"
+          },
+          {
+            "label": "useScheduledBroadcast",
+            "href": "/reference/sdk/client/react/use-scheduled-broadcast"
+          },
+          {
+            "label": "useRestreamSource",
+            "href": "/reference/sdk/client/react/use-restream-source"
+          },
+          {
+            "label": "useClip",
+            "href": "/reference/sdk/client/react/use-clip"
+          },
+          {
+            "label": "useMixer",
+            "href": "/reference/sdk/client/react/use-mixer"
+          },
+          {
+            "label": "useDvrPlayback",
+            "href": "/reference/sdk/client/react/use-dvr-playback"
+          },
+          {
+            "label": "Guest hooks",
+            "href": "/reference/sdk/client/react/stream-guests"
+          }
+        ]
+      },
+      {
         "label": "Room object",
         "href": "/reference/sdk/client/react/room"
       },
@@ -406,8 +620,16 @@
     "label": "Browser SDK",
     "items": [
       {
-        "label": "Browser client",
+        "label": "Overview",
         "href": "/reference/sdk/client/javascript/overview"
+      },
+      {
+        "label": "Stream playback",
+        "href": "/reference/sdk/client/javascript/stream-playback"
+      },
+      {
+        "label": "StreamGuestClient",
+        "href": "/reference/sdk/client/javascript/stream-guest-client"
       }
     ]
   },
@@ -499,6 +721,51 @@
         ]
       },
       {
+        "label": "Streaming",
+        "children": [
+          {
+            "label": "Streams",
+            "href": "/reference/sdk/server/node/streams"
+          },
+          {
+            "label": "Broadcasts",
+            "href": "/reference/sdk/server/node/broadcasts"
+          },
+          {
+            "label": "Destinations",
+            "href": "/reference/sdk/server/node/destinations"
+          },
+          {
+            "label": "Recordings and assets",
+            "href": "/reference/sdk/server/node/recordings"
+          },
+          {
+            "label": "Schedules",
+            "href": "/reference/sdk/server/node/schedules"
+          },
+          {
+            "label": "External sources",
+            "href": "/reference/sdk/server/node/restream-sources"
+          },
+          {
+            "label": "Clips",
+            "href": "/reference/sdk/server/node/clips"
+          },
+          {
+            "label": "Mixers",
+            "href": "/reference/sdk/server/node/mixers"
+          },
+          {
+            "label": "DVR",
+            "href": "/reference/sdk/server/node/dvr"
+          },
+          {
+            "label": "Guests",
+            "href": "/reference/sdk/server/node/guests"
+          }
+        ]
+      },
+      {
         "label": "Webhooks",
         "children": [
           {
@@ -572,233 +839,6 @@
       {
         "label": "Types",
         "href": "/reference/sdk/server/node/types"
-      }
-    ]
-  },
-  {
-    "label": "Streaming",
-    "items": [
-      {
-        "label": "Scheduled broadcasts",
-        "href": "/guides/scheduled-broadcasts"
-      },
-      {
-        "label": "Schedules REST API",
-        "href": "/reference/api/v1/scheduled-broadcasts"
-      },
-      {
-        "label": "Node schedule methods",
-        "href": "/reference/sdk/server/node/schedules"
-      },
-      {
-        "label": "useScheduledBroadcast",
-        "href": "/reference/sdk/client/react/use-scheduled-broadcast"
-      },
-      {
-        "label": "Recording and VOD",
-        "href": "/guides/recording-and-vod"
-      },
-      {
-        "label": "Recordings REST API",
-        "href": "/reference/api/v1/recordings"
-      },
-      {
-        "label": "Assets REST API",
-        "href": "/reference/api/v1/assets"
-      },
-      {
-        "label": "Node recording methods",
-        "href": "/reference/sdk/server/node/recordings"
-      },
-      {
-        "label": "useRecording",
-        "href": "/reference/sdk/client/react/use-recording"
-      },
-      {
-        "label": "Live streaming foundation",
-        "href": "/guides/live-streaming"
-      },
-      {
-        "label": "Broadcast runs",
-        "href": "/guides/broadcasts"
-      },
-      {
-        "label": "Multistreaming",
-        "href": "/guides/multistreaming"
-      },
-      {
-        "label": "Destination REST API",
-        "href": "/reference/api/v1/destinations"
-      },
-      {
-        "label": "Node destination methods",
-        "href": "/reference/sdk/server/node/destinations"
-      },
-      {
-        "label": "Broadcasts REST API",
-        "href": "/reference/api/v1/broadcasts"
-      },
-      {
-        "label": "Node broadcast methods",
-        "href": "/reference/sdk/server/node/broadcasts"
-      },
-      {
-        "label": "useBroadcast",
-        "href": "/reference/sdk/client/react/use-broadcast"
-      },
-      {
-        "label": "WHIP, RTC and OBS",
-        "href": "/guides/streaming-ingest"
-      },
-      {
-        "label": "Private HLS playback",
-        "href": "/guides/streaming-playback"
-      },
-      {
-        "label": "Self-host streaming",
-        "href": "/guides/streaming-self-hosting"
-      },
-      {
-        "label": "Streams REST API",
-        "href": "/reference/api/v1/streams"
-      },
-      {
-        "label": "Node streaming methods",
-        "href": "/reference/sdk/server/node/streams"
-      },
-      {
-        "label": "Browser stream playback",
-        "href": "/reference/sdk/client/javascript/stream-playback"
-      },
-      {
-        "label": "BroadcastPlayer",
-        "href": "/reference/sdk/client/react/broadcast-player"
-      }
-    ]
-  },
-  {
-    "label": "External sources",
-    "items": [
-      {
-        "label": "External ingest",
-        "href": "/guides/external-ingest"
-      },
-      {
-        "label": "Restreaming operations",
-        "href": "/guides/restreaming"
-      },
-      {
-        "label": "Sources REST API",
-        "href": "/reference/api/v1/restream-sources"
-      },
-      {
-        "label": "Node source methods",
-        "href": "/reference/sdk/server/node/restream-sources"
-      },
-      {
-        "label": "useRestreamSource",
-        "href": "/reference/sdk/client/react/use-restream-source"
-      }
-    ]
-  },
-  {
-    "label": "Clips and replay",
-    "items": [
-      {
-        "label": "Clips and replay",
-        "href": "/guides/clips-and-replay"
-      },
-      {
-        "label": "Clips REST API",
-        "href": "/reference/api/v1/clips"
-      },
-      {
-        "label": "Node clip methods",
-        "href": "/reference/sdk/server/node/clips"
-      },
-      {
-        "label": "useClip",
-        "href": "/reference/sdk/client/react/use-clip"
-      }
-    ]
-  },
-  {
-    "label": "Mixer studio",
-    "items": [
-      {
-        "label": "Cloud video mixer",
-        "href": "/guides/cloud-video-mixer"
-      },
-      {
-        "label": "Scene schema",
-        "href": "/guides/mixer-scene-schema"
-      },
-      {
-        "label": "Mixers REST API",
-        "href": "/reference/api/v1/mixers"
-      },
-      {
-        "label": "Node mixer methods",
-        "href": "/reference/sdk/server/node/mixers"
-      },
-      {
-        "label": "useMixer",
-        "href": "/reference/sdk/client/react/use-mixer"
-      }
-    ]
-  },
-  {
-    "label": "Live DVR",
-    "items": [
-      {
-        "label": "Live DVR guide",
-        "href": "/guides/live-dvr"
-      },
-      {
-        "label": "DVR REST API",
-        "href": "/reference/api/v1/dvr"
-      },
-      {
-        "label": "Node DVR methods",
-        "href": "/reference/sdk/server/node/dvr"
-      },
-      {
-        "label": "useDvrPlayback",
-        "href": "/reference/sdk/client/react/use-dvr-playback"
-      }
-    ]
-  },
-  {
-    "label": "Live guests",
-    "items": [
-      {
-        "label": "Guests and co-hosting",
-        "href": "/guides/live-guests-and-cohosting"
-      },
-      {
-        "label": "Guest REST API",
-        "href": "/reference/api/v1/guests"
-      },
-      {
-        "label": "Node guest methods",
-        "href": "/reference/sdk/server/node/guests"
-      },
-      {
-        "label": "StreamGuestClient",
-        "href": "/reference/sdk/client/javascript/stream-guest-client"
-      },
-      {
-        "label": "React guest hooks",
-        "href": "/reference/sdk/client/react/stream-guests"
-      }
-    ]
-  },
-  {
-    "label": "Deploy",
-    "items": [
-      {
-        "label": "Self-hosting",
-        "href": "/self-hosting"
       }
     ]
   }

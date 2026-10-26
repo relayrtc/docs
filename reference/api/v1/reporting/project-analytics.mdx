@@ -29,7 +29,7 @@ curl "$RELAYRTC_API_URL/projects/project_example/analytics?range=7d" \
 
 ## Availability
 
-The unreleased Phase 7 API includes `serviceUsage` for the same scope and UTC window. `live` means the rolling last 15 minutes, so completed activity eventually leaves that window and totals can decrease. Use a historical range for retained totals. See [usage semantics](/guides/usage#streaming-and-assets-unreleased).
+The API includes `serviceUsage` for the same scope and UTC window. `live` means the rolling last 15 minutes, so completed activity eventually leaves that window and totals can decrease. Use a historical range for retained totals. See [usage semantics](/guides/usage#streaming-and-assets).
 
 This endpoint is REST-only. The current Node SDK exposes public `usage.get`, but has no wrapper for these reporting endpoints. It is separate from [public scoped usage](/reference/api/v1/usage/all).
 

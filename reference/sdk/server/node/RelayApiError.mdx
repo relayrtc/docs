@@ -4,10 +4,17 @@ description: "Handle HTTP, transport, validation and cancellation failures."
 section: "Node SDK"
 ---
 
-## Import
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-import { RelayApiError } from '@relayrtc/node'
+import { RelayApiError, RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
 ```
 
 ## Fields
@@ -19,16 +26,18 @@ import { RelayApiError } from '@relayrtc/node'
 | `status` | HTTP status or null for local/transport errors. |
 | `requestId` | Server request ID when available. |
 | `retryable` | Whether the failure can be transient. |
+| `retryAfterMs` | Parsed `Retry-After` delay in milliseconds, or null when absent or invalid. |
 
 ## Example
 
 ```ts
-try {
-  await relay.rooms.get(roomId)
-} catch (error) {
-  if (error instanceof RelayApiError) {
-    console.error(error.code, error.status, error.requestId)
-  } else {
+export async function readRoom(roomId: string) {
+  try {
+    return await relay.rooms.get(roomId)
+  } catch (error) {
+    if (error instanceof RelayApiError) {
+      console.error(error.code, error.status, error.requestId)
+    }
     throw error
   }
 }
@@ -47,4 +56,6 @@ try {
 | `HTTP_ERROR` | HTTP failure without a structured API code. |
 
 API failures keep the server's `code`, such as API_KEY_SCOPE_REQUIRED or RESOURCE_NOT_FOUND. `retryable` is a hint; it does not make a write operation safe to repeat.
+
+For rate limits, preserve the HTTP status and cooldown when responding from your application backend. GET retries wait for `Retry-After` when it fits the request deadline; otherwise the SDK returns the original error, including `status` and `retryAfterMs`. The field requires an SDK version containing this transport behavior.
 

@@ -61,5 +61,5 @@ await local?.microphone.disable()
 
 Microphone uses the same [input snapshot fields](/reference/sdk/client/react/media/camera#snapshot), with `source: 'microphone'`.
 
-Mute retains device access and is not a remote participant status message. If your UI shows remote microphone status, define a metadata field for that application state and update it along with the control.
+Mute retains device access, pauses sending and awaits the server's publication-state confirmation. Remote subscribers can use the audio track's paused state for a muted indicator. Application metadata can describe additional user status, but is not required to signal publication pause/resume.
 

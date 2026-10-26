@@ -1,36 +1,61 @@
 ---
-title: "Node guest methods"
-description: "Explicit management and subject-bound audience operations for co-hosting."
+title: "Guest stages"
+description: "Bind application identities to invitations, decisions and scoped RTC grants."
 section: "Node SDK"
 ---
 
-The matching unreleased Node SDK exposes relay.streams.guests. Methods take streamId and broadcastId, then their input/query and optional RequestOptions. Resource-specific methods also take guestId before input. RequestOptions support AbortSignal and mutation idempotency keys.
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
 
-| Methods | Purpose |
-| --- | --- |
-| `configureStage`, `getStage` | Versioned stage policy and occupancy |
-| `createAudienceGrant` | Bind backend-verified subject, role and delegations |
-| `invite`, `listInvites`, `cancelInvite` | Operator invitation management |
-| `acceptInvite`, `declineInvite` | Own bound recipient decisions |
-| `requestJoin`, `listRequests` | Own request and authorized queue |
-| `approveRequest`, `rejectRequest` | Authorized operator decisions |
-| `list` | Accepted/approved/joined roster |
-| `getStatus` | Explicit subject-owned snapshot |
-| `createJoinGrant`, `leave` | Own stage grant/departure |
-| `mute`, `remove` | Authorized backend moderation |
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-// Your backend has authenticated user and verified their run access first.
-const request = await relay.streams.guests.requestJoin(streamId, broadcastId, {
-  subject: user.id,
-  media: { audio: true, video: false, screen: false },
-}, { signal, idempotencyKey })
-// An authorized host/delegate approves separately.
-const approved = await relay.streams.guests.approveRequest(streamId, broadcastId,
-  request.id, { version: request.version }, { signal, idempotencyKey: approvalKey })
-// Only the bound guest's authorized backend may request this grant.
-const grant = await relay.streams.guests.createJoinGrant(streamId, broadcastId,
-  approved.id, { version: approved.version, subject: user.id }, { signal })
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
 ```
 
-The SDK does not authenticate your application's caller: never accept subject, role or delegation directly from their body. Methods acting for a user require explicit subject on requestJoin, acceptInvite, declineInvite, createJoinGrant and leave; getStatus requires a subject query. Operator methods require your own host/delegation check before invoking a management-key SDK, or forward through a narrow audience credential so the API enforces the delegated actor itself. The example uses the latter for browser guest/host actions. Typed GuestResource/GuestRoster/GuestStage/GuestJoinGrant and existing RelayApiError describe outcomes. See [REST](/reference/api/v1/guests) and [guest identity](/guides/live-guests-and-cohosting).
+## Authorization and inputs
+
+Reads require streams:read; operator commands streams:write. Audience and RTC grant issuance also require streams:publish and tokens:create. AudienceGrantInput carries a backend-verified subject, name, role, explicit delegations and TTL. Never derive authority directly from an untrusted browser body.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
+| --- | --- |
+| `streams.guests.getStage` | `(streamId: string, broadcastId: string, options?: RequestOptions): Promise<GuestStage>` |
+| `streams.guests.configureStage` | `(streamId: string, broadcastId: string, input: GuestStageInput, options?: RequestOptions): Promise<GuestStage>` |
+| `streams.guests.createAudienceGrant` | `(streamId: string, broadcastId: string, input: AudienceGrantInput, options?: RequestOptions): Promise<{ token: string; expiresAt: string; audienceId: string; }>` |
+| `streams.guests.invite` | `(streamId: string, broadcastId: string, input: InviteGuestInput, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.requestJoin` | `(streamId: string, broadcastId: string, input: RequestGuestInput, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.listInvites` | `(streamId: string, broadcastId: string, query?: { cursor?: string; limit?: number; }, options?: RequestOptions): Promise<GuestRoster>` |
+| `streams.guests.listRequests` | `(streamId: string, broadcastId: string, query?: { cursor?: string; limit?: number; }, options?: RequestOptions): Promise<GuestRoster>` |
+| `streams.guests.list` | `(streamId: string, broadcastId: string, query?: { cursor?: string; limit?: number; }, options?: RequestOptions): Promise<GuestRoster>` |
+| `streams.guests.getStatus` | `(streamId: string, broadcastId: string, query: { subject: string; cursor?: string; limit?: number; }, options?: RequestOptions): Promise<GuestRoster>` |
+| `streams.guests.acceptInvite` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.declineInvite` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.cancelInvite` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.approveRequest` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.rejectRequest` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.leave` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.remove` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.mute` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision & { audio?: boolean; video?: boolean; }, options?: RequestOptions): Promise<GuestResource>` |
+| `streams.guests.createJoinGrant` | `(streamId: string, broadcastId: string, guestId: string, input: GuestDecision, options?: RequestOptions): Promise<GuestJoinGrant>` |
+
+## Behavior and results
+
+Stage settings and decisions use current versions. Management own actions must supply the authenticated subject; audience credentials bind their own subject. InviteGuestInput grants explicit audio/video/screen permissions. Acceptance reserves a seat but does not start devices. Server mute changes permissions and requires deliberate RTC rejoin; local mute is separate. Guest lists use limit 1–50 (default 25), cursor and caller-filtered roster metadata.
+
+## Requests and errors
+
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/guests) and the [public type index](/reference/sdk/server/node/types).

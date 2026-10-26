@@ -1,25 +1,45 @@
 ---
 title: "Mixer scene schema"
-description: "Versioned canvas layers, source bindings, overlays and audio policies."
+description: "Define canvas layers, source bindings, audio and versioned scene activation."
 section: "Streaming"
 ---
 
-MixerScene contains name, layout, background, layers, overlays, texts, audio, ducking and transition. Source IDs refer to the mixer's immutable registry; primary always means the original broadcast stream source. Additional bindings use an opaque ID and an authorized independent streamId in the same project/environment. Participant/guest IDs alone do not grant media access.
+A scene defines the program layout and audio mix. Source IDs must belong to the mixer's fixed registry: `primary` is its original broadcast source, and additional IDs are bindings created with the mixer. Participant or guest IDs are not stream bindings and do not grant media access.
+
+## Scene fields
 
 | Field | Rules |
 | --- | --- |
-| name | Trimmed, 1–100 characters |
-| layout | single, grid, pip or custom |
-| background | Six-digit hexadecimal color |
-| video layer | sourceId, x/y, width/height, z, fit (contain/cover), opacity |
-| image layer | overlayId and canvas box/z/opacity; asset must be ready and mixer-owned |
-| text layer | id, text, box/z/opacity, fontSize and color; fixed DejaVu Sans |
-| audio | Unique sourceId, gainDb (-60 to +12), muted |
-| ducking | Null, or sourceId from audio, threshold (0.01–1) and attenuationDb (0–30) |
-| transition | cut |
+| `name` | Trimmed text, 1–100 characters |
+| `layout` | `single`, `grid`, `pip` or `custom` |
+| `background` | Six-digit hexadecimal color |
+| `layers` | Video source, canvas box, z-order, fit and opacity |
+| `overlays` | Ready mixer-owned image asset, canvas box, z-order and opacity |
+| `texts` | Text, canvas box, z-order, opacity, font size and color |
+| `audio` | Unique source ID, gain from -60 to +12 dB, and mute flag |
+| `ducking` | `null`, or an audio source ID, threshold from 0.01–1 and attenuation from 0–30 dB |
+| `transition` | `cut` |
 
-Boxes use integer coordinates on a 640×360 canvas. Width/height are at least two pixels, boxes cannot leave the canvas and z must be unique across all layers (0–15). Opacity is 0–1. Single permits at most one video; picture-in-picture two; grid/custom four. Preset layouts deterministically assign video boxes; custom honors supplied boxes. Image and text boxes always use their explicit positions. Four image and four text layers are allowed. Text is at most 120 non-control characters, size 10–48. Unknown JSON properties, source IDs, overlays and unsupported transitions are rejected.
+Unknown fields and unsupported IDs or transitions are rejected. Use the [Node types](/reference/sdk/server/node/mixers) and [REST schema](/reference/api/v1/mixers) for complete request shapes.
 
-PUT scene requires its current version, using zero for creation. The API increments that scene version and preserves active snapshots. Activation separately requires the current mixer version, scene ID and saved scene version; it increments the mixer's desired program revision and stores an immutable snapshot. appliedVersion is a program revision, not the scene editor's version number. Editing a saved scene does not silently change a pending or applied revision. Re-read state after a version conflict and decide whether to apply the new draft.
+## Canvas and layers
 
-Draft browser layout is not authoritative program composition. Use the [mixer guide](/guides/cloud-video-mixer) for timing, loss, resources and deployment.
+Coordinates are integer pixels on a 640 × 360 canvas. Width and height must be at least two pixels, and boxes must stay inside the canvas. Each layer needs a unique z-order from 0–15 across video, images and text. Opacity ranges from 0–1.
+
+`single` permits one video layer, `pip` two, and `grid` or `custom` four. Presets assign video boxes deterministically; `custom` uses the supplied boxes. Image and text layers always use explicit positions. `contain` preserves the entire source; `cover` crops it to fill its box.
+
+Scenes support up to four image layers and four text layers. Text uses the bundled DejaVu Sans font, permits up to 120 non-control characters, and supports font sizes from 10–48. Image overlays must be approved, ready assets belonging to that mixer.
+
+## Audio
+
+Add each participating audio source once. Gain and mute apply independently of video visibility. Ducking reduces other audio while its selected source crosses the threshold. Muting the ducking source stops it from ducking the mix; its gain affects threshold detection.
+
+## Versions and activation
+
+`putScene` requires the scene's current version; use zero for creation. Saving increments that scene version and preserves active snapshots.
+
+`activateScene` separately requires the current mixer version, scene ID and saved scene version. It snapshots the requested scene and advances the desired program revision. `appliedVersion` is a program revision, not the scene editor's version number.
+
+Editing a saved scene does not modify an already pending or applied revision. On a version conflict, reload the scene/mixer and decide whether to activate the newer draft. Wait for the activation operation and observed applied revision before displaying the scene as on air.
+
+See [cloud video mixer](/guides/cloud-video-mixer) for a complete scene example, continuity behavior and rendering limits.

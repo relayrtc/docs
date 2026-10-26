@@ -4,10 +4,18 @@ description: "Cancel a call, change its deadline or disable GET retries."
 section: "Node SDK"
 ---
 
-## Import
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
+import { RelayApiError, RelayServer } from '@relayrtc/node'
 import type { RequestOptions } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
 ```
 
 ## Options
@@ -17,25 +25,32 @@ import type { RequestOptions } from '@relayrtc/node'
 | signal | AbortSignal | Optional | Caller cancellation. |
 | timeoutMs | integer | Client default | Override the total deadline, 1–300,000 ms. |
 | retry | false | Optional | Disable retry for this request. Per-request retry tuning is not supported. |
-| idempotencyKey | string | Optional, unreleased Phase 0 | Send a stable application command ID when retrying streaming commands. Streaming commands generate a UUID if omitted. |
+| idempotencyKey | string | Optional; matching streaming SDK/API required | Send the same command identity when retrying a streaming mutation. Command methods generate a UUID if omitted. |
 
 Pass options as the final method argument. When a method has an optional query or scope argument, pass `{}` for that argument first.
+
+An idempotency key contains 1 to 128 letters, digits, dots, underscores, colons or hyphens. Reuse the same key and request body after an uncertain command response; use a new key for a different command. The option sends the `Idempotency-Key` header. It does not make endpoints without idempotency support safe to repeat, and writes are not retried automatically.
 
 ## Example
 
 ```ts
 const controller = new AbortController()
-
 const request = relay.rooms.list(
   { limit: 20 },
   { signal: controller.signal, timeoutMs: 5000, retry: false },
 )
-
 controller.abort()
-await request.catch((error) => console.log(error.code))
+try {
+  await request
+} catch (error) {
+  if (!(error instanceof RelayApiError)) throw error
+  console.error(error.code)
+}
 ```
 
 ## Failures
 
 Cancellation throws `REQUEST_CANCELLED`. Deadline expiry throws `REQUEST_TIMEOUT`. The deadline includes attempts, backoff and reading the response body.
+
+Eligible GET retries honor `Retry-After`, including numeric seconds and HTTP dates. If its delay cannot fit inside the remaining deadline, the SDK returns the original HTTP error. `RelayApiError.retryAfterMs` contains the parsed delay in milliseconds, or `null` when unavailable. Preserve this cooldown when forwarding a failure to your application's caller.
 

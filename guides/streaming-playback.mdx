@@ -1,20 +1,84 @@
 ---
 title: "Private HLS playback"
-description: "Authorize viewers, renew grants and recover from source restarts."
+description: "Authorize viewers, renew playback grants and follow source recovery."
 section: "Streaming"
 ---
-## Application boundary
-Your backend authenticates the caller, checks entitlement to a fixed stream and calls `relay.streams.getPlayback(id)` for status. It calls `relay.streams.createPlaybackGrant(id)` to grant viewing. Neither endpoint should become an unauthenticated arbitrary management proxy. Return metadata from a same-origin status endpoint and a grant from an authenticated POST endpoint. For cookie authentication, enforce your trusted Origin on mutations.
 
-A grant contains `{ url, token, expiresAt }`. Default TTL is 300 seconds; supported range is 30..3600 seconds. The grant URL authorizes that stream/source session. Refresh by issuing another grant before expiry. Stop, deletion, configuration changes and explicit revocation invalidate old grants. Every child playlist, init object, segment and part is authorized, not only the first playlist.
+Streaming playback does not require joining an RTC room. Your application authenticates the viewer, checks their entitlement and returns short-lived playback access from its backend.
 
-## Browser and React
-Use [StreamPlaybackClient](/reference/sdk/client/javascript/stream-playback) or [BroadcastPlayer](/reference/sdk/client/react/broadcast-player). Provide stable `getPlayback(signal)` and `getGrant(signal)` callbacks to application endpoints. The client polls at five-second intervals, refreshes grants twenty seconds before expiry and reloads on source session/generation changes. Status polling reconciles after reconnect without a new signaling channel.
+## Authorize access on your backend
 
-Native HLS is used when supported. Else provide an optional application-owned HLS engine factory such as the hls.js adapter shown in the React reference. The player exposes loading, playing, paused, blocked, unavailable, unsupported and error states. Autoplay may require mute or a user gesture. Missing media waits for a live source; an explicit retry renews access. Unmount stops polling, aborts requests, clears media and destroys the engine.
+Implement application endpoints for metadata and grants. Each endpoint must resolve an authorized stream from your application's records. Do not expose an unrestricted proxy accepting arbitrary stream IDs.
 
-## Delivery
-The API supports query tokens for native HLS and Authorization Bearer where headers are available. Child references retain authorization. Responses are private/no-store with no-referrer and exact-origin CORS. Configure browsers, proxies and analytics to avoid recording token-bearing URLs. No shared CDN cache or public bucket is enabled.
+```ts
+import { relay } from './relay.js'
 
-The gateway delivers one fMP4 rendition with baseline HLS and LL-HLS parts/blocking reload. HTTPS, proxy timeouts, player support and source encoding affect latency. There is no numeric latency promise. Live-window snapshots are diagnostic storage, not VOD/DVR. Source changes may rebuffer. Only actual server observations drive source usage; browser player events do not establish billable audience traffic.
+// Call only after authenticating the viewer and checking stream entitlement.
+export async function readLivePlayback(authorizedStreamId: string) {
+  return relay.streams.getPlayback(authorizedStreamId)
+}
 
+export async function grantLivePlayback(authorizedStreamId: string) {
+  return relay.streams.createPlaybackGrant(authorizedStreamId, {
+    mode: 'live',
+    ttlSeconds: 300,
+  })
+}
+```
+
+Metadata reports source identity, generation and readiness without granting media access. A publisher can be connected while output is still starting; wait for viewer-ready playback. A grant contains `url`, `token` and `expiresAt`. TTL defaults to 300 seconds, with a supported range of 30–3600 seconds.
+
+Use authenticated same-origin endpoints such as GET `/api/live/playback` and POST `/api/live/grant`. For cookie-authenticated mutations, validate the trusted Origin and apply your application's CSRF controls. Keep management keys on the backend.
+
+## Render a React player
+
+The following component expects those two application endpoints. They must return the SDK metadata/grant objects directly as JSON. `createHlsEngine` is your optional HLS adapter, described in the [player reference](/reference/sdk/client/react/broadcast-player).
+
+```tsx
+import { useCallback, useState } from 'react'
+import { BroadcastPlayer } from '@relayrtc/react'
+import type { BroadcastPlayerProps } from '@relayrtc/react'
+import type { StreamPlaybackOptions } from '@relayrtc/client'
+
+async function readJson<T>(url: string, signal: AbortSignal, method = 'GET'): Promise<T> {
+  const response = await fetch(url, { method, signal, credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`Playback request failed (${response.status})`)
+  return response.json() as Promise<T>
+}
+
+export function LivePlayer({ createHlsEngine }: Pick<BroadcastPlayerProps, 'createHlsEngine'>) {
+  const [state, setState] = useState('loading')
+  const getPlayback = useCallback<StreamPlaybackOptions['getPlayback']>(
+    signal => readJson('/api/live/playback', signal), [],
+  )
+  const getGrant = useCallback<StreamPlaybackOptions['getGrant']>(
+    signal => readJson('/api/live/grant', signal, 'POST'), [],
+  )
+  return <section aria-label="Live broadcast">
+    <BroadcastPlayer
+      source={{ getPlayback, getGrant }}
+      {...(createHlsEngine ? { createHlsEngine } : {})}
+      onPlaybackState={setState}
+      autoPlay={false}
+      controls
+    />
+    <p role="status">{state}</p>
+  </section>
+}
+```
+
+`BroadcastPlayer` is independent of `RelayProvider` and `RelayRoom`. Native HLS is used where supported; other browsers need an application-owned HLS engine. The controls let the viewer start playback without depending on autoplay permission.
+
+## Renewal and recovery
+
+Keep callbacks stable. The client polls status every five seconds by default, renews grants before expiry, and follows source session/generation changes. Unmounting aborts requests, stops polling and releases playback resources.
+
+Transient source loss can rebuffer. For persistent failures, inspect the source readiness code and operation status instead of repeatedly minting grants. Authentication and entitlement errors must be resolved by your application.
+
+## Protect media URLs
+
+Every child playlist, initialization object, fragment and part is authorized. Source stop, deletion, configuration changes and explicit grant revocation can invalidate access before token expiry. Token-bearing URLs are secrets: use HTTPS, avoid logging them, and prevent referrer leakage.
+
+Playback uses private, non-cacheable responses and exact-origin CORS. A public bucket or shared CDN cache is not part of this access model. Delivery is single-rendition fragmented MP4 with HLS/LL-HLS; actual latency depends on encoding, proxies and player support.
+
+Use separate [VOD asset grants](/guides/recording-and-vod), [DVR grants](/guides/live-dvr) and [schedule viewer grants](/guides/scheduled-broadcasts) for those workflows.

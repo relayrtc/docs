@@ -9,20 +9,23 @@ StreamGuestClient takes stable application-authorized callbacks: getStatus(signa
 Snapshot fields are roster, room, activeGuestId, pending and a safe error. command supports invite/requestJoin/acceptInvite/declineInvite/cancelInvite/approveRequest/rejectRequest/mute/remove/leave with typed guest ID/version/media inputs. Commands expose no subject or role override: your backend binds the caller. Host callbacks must enforce delegated controls, not forward arbitrary management commands.
 
 ```ts
-const client = new StreamGuestClient({
-  getStatus: signal => appRequest('/guest/status', signal),
-  command: (action, input, context) => appCommand('/guest/command',
-    { action, ...input }, context.signal, context.idempotencyKey),
-  getJoinGrant: (guestId, version, signal) => appCommand('/guest/grant',
-    { guestId, version }, signal),
-})
-client.connect()
-// On a deliberate user click, after invitation acceptance or request approval:
-const room = await client.joinStage(approvedGuestId)
-// A separate user choice obtains microphone consent:
-await room?.localParticipant.microphone.enable()
+import { StreamGuestClient } from '@relayrtc/client'
+import type { StreamGuestOptions } from '@relayrtc/client'
+
+export function observeGuestSession(options: StreamGuestOptions, status: HTMLElement) {
+  const client = new StreamGuestClient(options)
+  const unsubscribe = client.subscribe(() => {
+    const snapshot = client.getSnapshot()
+    status.textContent = snapshot.error?.message ?? (snapshot.room ? 'On stage' : 'Viewing')
+  })
+  client.connect()
+  return {
+    client,
+    dispose() { unsubscribe(); client.dispose() },
+  }
+}
 ```
 
-joinStage uses the existing RelayClient, preserves approved participant identity during credential renewal/recovery, and starts with devices off. rtcOptions can provide approved ICE/TURN settings. A changed guest version, revoked state, disabled stage or expired reservation leaves RTC on reconciliation and releases local devices. Credential renewal cannot extend revoked permissions. Permission changes require explicit rejoin and device enablement; no automatic camera/microphone restart is performed by this guest wrapper.
+Call client.joinStage(approvedGuestId) from an explicit user action after acceptance/approval. Enable permitted media in a separate user action. joinStage uses the existing RelayClient, preserves approved participant identity during credential renewal/recovery, and starts with devices off. rtcOptions can provide approved ICE/TURN settings. A changed guest version, revoked state, disabled stage or expired reservation leaves RTC on reconciliation and releases local devices. Credential renewal cannot extend revoked permissions. Permission changes require explicit rejoin and device enablement; no automatic camera/microphone restart is performed by this guest wrapper.
 
 leaveStage stops local RTC promptly; command leave also releases the server reservation. RTC departure is reconciled if the application disconnects before that command. Hide delayed audience playback while snapshot.room exists and render RTC remote tracks instead. See [React hooks](/reference/sdk/client/react/stream-guests) and the runnable [guest guide](/guides/live-guests-and-cohosting).

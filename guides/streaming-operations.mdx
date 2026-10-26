@@ -1,0 +1,96 @@
+---
+title: "Operate self-hosted streaming"
+description: "Configure remote streaming access, understand worker capacity and maintain retained media."
+section: "Self-hosting"
+---
+
+Use this page after [installing RelayRTC](/self-hosting), which includes streaming. Run commands in that installation folder. All release commands use the same four Compose files as installation.
+
+## Configure public access
+
+| Setting | Required meaning |
+| --- | --- |
+| `STREAMING_PUBLIC_ORIGIN` | Browser-facing API origin, including the published port; use HTTPS remotely |
+| `STREAMING_PUBLIC_RTMP_ORIGIN` | Encoder-facing RTMP or RTMPS origin |
+| `STREAMING_GUEST_SIGNALING_URL` | Browser-facing signaling WebSocket URL including `/v1/connect` |
+| `STREAMING_ALLOWED_ORIGINS` | Exact console/application origins permitted to view media |
+| `STREAMING_INGEST_BIND` | Host interface for encoder/WHIP connectivity; loopback is the local default |
+| `STREAMING_WEBRTC_HOSTS` | Reachable addresses announced by the WHIP gateway |
+| `STREAMING_SOURCE_ALLOWED_HOSTS` | Exact public hosts for every upstream HLS manifest, segment and redirect; empty disables pulls |
+
+Preparation derives empty local API/signaling origins from the selected host ports. Those defaults do not configure public TLS. Review them explicitly for a remote installation, including after changing a port.
+
+Private gateway, worker and S3 addresses remain internal Docker addresses. Do not replace them with the public API hostname or expose the storage bucket.
+
+RTMP uses port 1935 TCP. RTMPS uses 1936 TCP when enabled with a trusted certificate. WHIP uses the authorized API HTTP path plus gateway media on 8189 UDP. A remote encoder needs those routes and firewall rules; HTTP connectivity alone does not establish WebRTC media. RTC guest stages additionally use the base media/TURN paths.
+
+For RTMPS, put the trusted certificate/key at the configured gateway certificate mount and set `STREAMING_RTMP_ENCRYPTION` to the desired supported mode. Changing an origin to `rtmps://` does not enable encryption by itself.
+
+## Services
+
+| Role | Image or service |
+| --- | --- |
+| Source encoding and composition | `streaming-worker`, using the `streaming` image |
+| HLS attachments and external destinations | `streaming-outputs`, same image with output-server command |
+| Probes and upstream pulls | `streaming-sources`, same image with restream-server command |
+| Recordings, clips and buffers | `streaming-recordings`, same image with recording-server command |
+| Object storage and setup | `streaming-storage` and `streaming-storage-init` images |
+| Encoder admission and canonical media | Pinned MediaMTX gateway |
+
+Always use the same four-file configuration for subsequent startup, stop, logs and upgrade commands. The streaming release override selects images without changing worker commands or resource limits. From a full matching source checkout, `pnpm docker:up` builds and starts the complete stack; it requires host Node/pnpm. `pnpm docker:status`, `pnpm docker:logs` and `pnpm docker:down` cover the same services.
+
+## Capacity and private delivery
+
+The canonical worker defaults to four source slots. The output worker defaults to four output slots; HLS itself occupies one. Input normalization, composition, external transcoding and recording finalization consume different resources. Increasing admission quotas does not provision more workers or CPU.
+
+The supplied topology uses a fixed RTP receiver address and per-job port ranges. Do not scale that container with duplicate static addresses. Additional worker hosts require an explicit network/receiver design. Keep FFmpeg guards, resource limits and private API/gateway/storage access in place.
+
+Live playback, DVR and VOD must pass through the authorized API origin. Preserve token queries, private/no-store response headers, streaming responses and suitable proxy timeouts. Keep gateway HLS/RTSP/API ports, worker health/metrics and storage ports private. Shared CDN caching and public buckets bypass this delivery model and are not configured by the supplied stack.
+
+The streaming monitoring configuration scrapes private endpoints with prepared credentials. Watch source/output readiness, queue age, expired leases, recording cleanup, buffer pressure, guest cleanup and usage coverage. Use resource IDs and safe error codes rather than logging grants or upstream URLs.
+
+## Upgrades and draining
+
+Before recreating services, prevent new event/room commands in your application. Cancel pending schedules, stop upstream registry jobs and broadcasts, finalize recordings, stop sources and wait for pending operations and retained-window cleanup as appropriate. Preserve access needed for bounded cleanup.
+
+`STREAMING_BROADCASTS_ENABLED=false` blocks new broadcast admission and drains runs while source cleanup remains active. Feature controls for guests, DVR and mixers have their own draining semantics. Keep streaming control services running while broadcasts, recordings and retained-data cleanup drain. The standard stack keeps streaming enabled.
+
+Take coordinated backups and download matching target configuration/images. With PostgreSQL and storage available, stop the application and workers, run the target migrator, then start the complete release stack:
+
+```bash
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml stop console api signaling media streaming-worker streaming-outputs streaming-sources streaming-recordings streaming-gateway
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml run --rm --no-deps migrate
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml up -d --no-build --wait
+```
+
+Run commands sequentially and leave application services stopped if migration fails. Keep the database and object storage schemas compatible with the chosen release; removing tables while active cleanup depends on them is unsupported. Recheck media and asset access after the upgrade before admitting new events.
+
+## Backups and restore
+
+Drain work and quiesce API/worker writes before creating coordinated database/storage backups. Use the [PostgreSQL backup procedure](/self-hosting#backups), and save `.env`, Compose overrides, TLS material and original encryption/signing keys privately.
+
+For the supplied local storage volume, stop storage after application/worker writes have stopped. A Bash example copies that stopped container's data read-only:
+
+```bash
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml stop streaming-storage
+storage_container=$(docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml ps --all --quiet streaming-storage)
+docker run --rm --volumes-from "$storage_container:ro" --mount "type=bind,source=$PWD,target=/backup" alpine:3.22 tar -C /data -czf /backup/streaming-storage.tar.gz .
+```
+
+Check that exactly one storage container was selected and use a unique backup destination. For external object storage, use the provider's consistent backup/snapshot procedure instead. Do not expose administrator credentials in command history or backups shared with support.
+
+Restore database, objects and keys as one compatible set on an isolated installation. Keep source/output/recording workers and the ingest gateway stopped while control services reconcile stale leases. Admit publishers and resume jobs deliberately; do not restore a running worker snapshot. Test grant revocation, retained asset playback and cleanup before returning traffic.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Missing image or attempted build | Both release overrides, published tag, registry visibility and `--no-build` |
+| Encoder connects but video is unavailable | `readiness`, source production, worker capacity and private gateway access |
+| WHIP fails remotely | Exact browser origin, SDP limits, announced gateway address and UDP 8189 |
+| Asset never becomes ready | Recording-worker capacity, storage health, safe lastError and partial-output policy |
+| HLS pull rejected | Every allowed hostname/redirect, public DNS, TLS and supported input profile |
+| DVR stalls | Actual retained range, pins, byte pressure and shared capture capacity |
+| Scene remains pending | Required inputs, saved versions and observed activation operation |
+
+For access and lifecycle details, use the feature guides rather than modifying database state or manually completing operations.

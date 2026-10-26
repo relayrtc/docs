@@ -20,21 +20,29 @@ Get a secret key from your project's API keys page. The key belongs to one envir
 | `rooms:create` | Create rooms. |
 | `rooms:read` | List/read rooms and inspect their cleanup operation. |
 | `rooms:end` | End rooms. |
-| `tokens:create` | Issue participant tokens and TURN credentials. |
+| `tokens:create` | Issue and renew participant tokens; issue TURN credentials. |
 | `participants:read` | List/read participants and inspect cleanup. |
 | `participants:remove` | Remove a participant. |
 | `usage:read` | Read environment usage and project usage reports. |
 | `analytics:read` | Read project analytics. |
 | `webhooks:read` | Read webhook endpoints, delivery logs and signing contract. |
 | `webhooks:write` | Create/update/remove endpoints, rotate secrets and replay deliveries. |
+| `streams:read` | Read streams, broadcasts, destinations and related streaming status. |
+| `streams:write` | Configure streams and manage broadcasts, schedules and related resources. |
+| `streams:publish` | Start room sources, issue ingest credentials and authorize publishing operations. |
+| `streams:playback` | Issue and revoke live, scheduled and DVR playback grants. |
+| `recordings:read` | Read recordings, clips and assets; issue authorized asset access grants. |
+| `recordings:create` | Start and manage recordings, clips, buffer policies and asset revocation. |
 
 Participant token permissions are separate from API key scopes. See [keys and permissions](/security).
 
+Some streaming commands require more than one scope. For example, starting an automatically recorded broadcast also requires `recordings:create`. Check the resource reference for the complete requirements. Streaming routes require an enabled streaming deployment and matching API/SDK versions.
+
 ## Project and environment
 
-Paths and optional scope query parameters cannot override the key's project or environment. Mismatches return `403`.
+Paths and optional scope query parameters cannot override the key's project or environment. Depending on the route, a mismatch returns `403` or an inaccessible resource is hidden with `404`.
 
-Optional `x-relayrtc-project-id` and `x-relayrtc-environment-id` headers are assertions of scope. If supplied, they must match the key.
+Optional `x-relayrtc-project-id` and `x-relayrtc-environment-id` headers are assertions of scope. If supplied, they must match the key; mismatched assertions return `403`.
 
 ## Console routes
 

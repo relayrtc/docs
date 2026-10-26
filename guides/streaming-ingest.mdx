@@ -1,27 +1,56 @@
 ---
-title: "WHIP, RTC and OBS ingest"
-description: "Connect an authorized publisher and understand source lifecycle."
+title: "Streaming ingest"
+description: "Publish from a room, an RTMP encoder or a WHIP client."
 section: "Streaming"
 ---
-## Provision an external source
+
+Choose a source when creating the stream. ROOM uses existing RTC publications; WHIP and RTMP use short-lived encoder credentials. For deployment and SDK prerequisites, see [live streaming](/guides/live-streaming).
+
+## Room sources
+
+Create a room in the same project and environment, join it through your application's token flow, and publish the desired tracks. Then create a stream with `source: { kind: 'room', roomId }` and call `streams.start(streamId)` on your backend.
+
+Optional `videoTrackIds` and `audioTrackIds` restrict selection to tracks belonging to that room. They are not credentials. Start participants' capture through explicit device controls; creating a stream does not activate cameras or microphones.
+
+## RTMP and WHIP credentials
+
+This server helper creates an RTMP stream and one credential. Change `kind` to `whip` for a WHIP publisher.
+
 ```ts
-const stream = await relay.streams.create({ name: 'Encoder', source: { kind: 'rtmp' } })
-const credential = await relay.streams.createIngestCredentials(stream.id, { ttlSeconds: 3600 })
-// Display the returned URL and secret only in an authorized encoder setup flow.
+import { relay } from './relay.js'
+
+export async function createEncoderStream() {
+  const stream = await relay.streams.create({
+    name: 'Studio encoder',
+    source: { kind: 'rtmp' },
+  })
+  const credential = await relay.streams.createIngestCredentials(stream.id, {
+    ttlSeconds: 3600,
+  })
+  return { stream, credential }
+}
 ```
-Use `kind: 'whip'` for WHIP. Ingest credentials live for one hour by default, configurable from 60 seconds to one day. At most five unexpired credentials may be active per stream. Ordinary reads never return stored secrets.
 
-## OBS and RTMPS
-The RTMP URL includes the complete `ingest_{streamId}` path. Configure the encoder to publish that exact path. With a server/stream-key split, put the scheme and host/port in Server and the returned path in Stream Key. Enable authentication with username `publisher` and the issued secret as password. Encoders supporting a complete authenticated URL may add `?user=publisher&pass=SECRET` to the path. Keep that URL out of logs and screenshots. OBS settings differ by version; use the encoder's supported authentication fields.
+Return the credential only to an authorized publisher. `secret` is shown on creation or rotation; listing credentials returns the latest 50 records without secrets. Credentials default to one hour and accept 60–86400 seconds. At most five active credentials can exist for a stream.
 
-Production deployments should return an `rtmps://` URL with a trusted gateway certificate and an optional/strict TLS listener. Local loopback RTMP is for development. Use H.264 video and AAC audio within the profile matrix. A second publisher is rejected. A disconnected publisher can reclaim its session using the same credential during bounded reconnect.
+## Connect an RTMP encoder
 
-## WHIP
-Send an SDP offer using `POST credential.url`, `Content-Type: application/sdp` and `Authorization: Bearer credential.secret`. A successful negotiation returns 201 with an SDP answer, Location and gateway ETag/ICE-server headers. Send supported trickle ICE updates to Location with PATCH and the negotiated conditional headers; DELETE Location to end the session. The secret must remain current for each operation. Configure exact browser origins; offers are limited to 128 KiB. The API keeps the gateway session resource private. WHEP/SRT are deferred.
+Use the returned URL as the complete ingest path. If the encoder separates Server and Stream Key, split the URL into its origin and path. Authenticate with username `publisher` and the returned secret as password. For clients using URL authentication, supply the gateway's `user=publisher` and `pass` query parameters with properly encoded values.
 
-## Rotation and stop
-`relay.streams.rotateIngestCredentials(streamId, credentialId)` revokes the old credential and stops the active source. Store only the replacement returned by this explicit action. Stop revokes playback and stops source activity; reusable ingest credentials can later reconnect. Delete revokes all credentials.
+Send H.264 video and AAC audio. A second simultaneous publisher is rejected. RTMPS requires a deployment gateway with a trusted TLS certificate; an RTMP URL is not encrypted merely because the API uses HTTPS.
 
-## RTC publishing
-Use existing `RelayClient.join(token)` or `RelayProvider`/`RelayRoom`. Authenticate publishers on your backend and issue room-scoped participant tokens. Joining never enables camera/microphone automatically. Start the source only after intended publications exist. Explicit track selectors must belong to the room in the stream's own project/environment. Leave/unmount releases capture and subscriptions.
+Once the encoder connects, RelayRTC starts the source session. Do not call the ROOM source start workflow for an external encoder.
 
+## Connect a WHIP publisher
+
+POST the SDP offer to the returned URL with `Authorization: Bearer <secret>`. A successful response contains the SDP answer and a `Location` for that publishing session. Use the returned session URL and applicable ETag/ICE headers for supported trickle-ICE PATCH requests, and DELETE the session URL when leaving.
+
+Offer bodies are limited to 128 KiB. Browser origins must be explicitly allowed by the deployment. Continue authenticating session operations with the current credential. WHIP ingest does not imply WHEP playback or SRT ingest support.
+
+## Rotate and reconnect
+
+Rotation revokes the old credential and disconnects its publisher. The response includes `handover` with a `ready` or `pending` status and `retryAfterSeconds`. Wait as instructed, then reconnect the encoder using the new URL and secret. Rotation does not migrate an active encoder connection automatically.
+
+Inspect `streams.getPlayback(streamId)` after connecting. `publisherConnected`, `sourceProducing` and `viewerReady` describe different stages. Check its safe readiness code or the source session's `lastError` when connection succeeds but playback does not.
+
+Continue with [broadcast runs](/guides/broadcasts) or [private HLS playback](/guides/streaming-playback). Exact methods are in the [stream API reference](/reference/api/v1/streams).

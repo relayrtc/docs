@@ -1,32 +1,47 @@
 ---
-title: "Node DVR methods"
-description: "Configure retention and authorize a specific live or ended broadcast window."
+title: "DVR"
+description: "Configure rolling retention and inspect a broadcast-specific playback window."
 section: "Node SDK"
 ---
 
-The matching unreleased Node build exports DvrPolicy, DvrPolicyResource and DvrPlayback. Keep RelayServer and its secret key on your backend.
+These methods run on your backend and require a compatible API/SDK build; see [installation](/installation).
 
-| Method | Arguments | Result |
-| --- | --- | --- |
-| `streams.dvr.configure` | streamId, policy wrapper, request options | DvrPolicyResource |
-| `streams.dvr.getPolicy` | streamId, request options | DvrPolicyResource |
-| `streams.dvr.updatePolicy` | streamId, policy + version, request options | DvrPolicyResource |
-| `streams.dvr.getPlayback` | streamId, optional broadcastId query, request options | DvrPlayback |
-| `streams.createPlaybackGrant` | streamId, mode=dvr + broadcastId + ttlSeconds, request options | PlaybackGrant |
+## Import and client
+
+Set `RELAYRTC_API_URL` and `RELAYRTC_SECRET_KEY` in your backend environment. Keep the secret key on the server.
 
 ```ts
-const current = await relay.streams.dvr.getPolicy(streamId, { signal })
-if (current.policy) {
-  await relay.streams.dvr.updatePolicy(streamId, {
-    version: current.version,
-    policy: { ...current.policy, durationSeconds: 600 },
-  }, { signal, idempotencyKey })
-}
-const metadata = await relay.streams.dvr.getPlayback(streamId, { broadcastId }, { signal })
-// First authorize your application's viewer for broadcastId.
-const grant = await relay.streams.createPlaybackGrant(streamId, {
-  mode: 'dvr', broadcastId, ttlSeconds: 300,
-}, { signal })
+import { RelayServer } from '@relayrtc/node'
+
+const relay = new RelayServer({
+  apiUrl: process.env.RELAYRTC_API_URL!,
+  apiKey: process.env.RELAYRTC_SECRET_KEY!,
+})
 ```
 
-Request options support AbortSignal and stable mutation idempotency keys. Existing RelayApiError exposes safe typed API failures. Pick a broadcast explicitly for a viewer; omitted broadcastId selects the latest DVR run, not whichever older run still has media. Update changes apply to the next run; disabling drains the saved current window. See [DVR REST](/reference/api/v1/dvr) and [live DVR](/guides/live-dvr).
+## Authorization and inputs
+
+Policy reads and playback metadata require streams:read; policy changes require streams:write. DvrPolicy contains enabled, durationSeconds, maxBytes, endedRetentionSeconds and consentAcknowledged: true. updatePolicy also requires the current version.
+
+## Methods
+
+All methods return promises. Their final argument is optional [RequestOptions](/reference/sdk/server/node/request-options). Input and result names are public imports from `@relayrtc/node`.
+
+| Method | Signature |
+| --- | --- |
+| `streams.dvr.configure` | `(streamId: string, input: { policy: DvrPolicy; }, options?: RequestOptions): Promise<DvrPolicyResource>` |
+| `streams.dvr.getPolicy` | `(streamId: string, options?: RequestOptions): Promise<DvrPolicyResource>` |
+| `streams.dvr.updatePolicy` | `(streamId: string, input: { policy: DvrPolicy; version: number; }, options?: RequestOptions): Promise<DvrPolicyResource>` |
+| `streams.dvr.getPlayback` | `(streamId: string, query?: { broadcastId?: string; }, options?: RequestOptions): Promise<DvrPlayback>` |
+
+## Behavior and results
+
+A running broadcast is required for retained media. Pass an explicit broadcastId to getPlayback and bind grant renewal to it. Issue mode: dvr grants with streams.createPlaybackGrant; ordinary live grants do not authorize DVR. Later policy changes apply to a new run; disabling drains existing windows for saved ended retention. Shared buffer storage is already metered by recording infrastructure.
+
+## Requests and errors
+
+Streaming commands generate an idempotency key when omitted. Use an explicit stable key when retrying an uncertain application command; reuse its payload and target. Mutations do not retry automatically. Read retries and cancellation follow [RequestOptions](/reference/sdk/server/node/request-options). A canceled HTTP request does not undo committed server work.
+
+Failures throw [RelayApiError](/reference/sdk/server/node/RelayApiError). Reload resources after version conflicts; inspect asynchronous operation/processing states before reporting completion.
+
+See [REST parameters, defaults and errors](/reference/api/v1/dvr) and the [public type index](/reference/sdk/server/node/types).

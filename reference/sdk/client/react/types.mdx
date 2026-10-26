@@ -203,45 +203,7 @@ export interface RtcQualityStats {
 See [RoomError](/reference/sdk/client/react/RoomError) for behavior, defaults and an example.
 
 ```ts
-export type RoomErrorCode =
-  | "QUALITY_STATS_FAILED"
-  | MediaErrorCode
-  | "MEDIA_OPERATION_PENDING"
-  | "MEDIA_OPERATION_CANCELLED"
-  | "MEDIA_NOT_ENABLED"
-  | "MEDIA_PUBLISH_FAILED"
-  | "MEDIA_SUBSCRIBE_FAILED"
-  | "INVALID_PAYLOAD"
-  | "PAYLOAD_TOO_LARGE"
-  | "TOKEN_REFRESH_FAILED"
-  | "TURN_REFRESH_FAILED"
-  | "TURN_CREDENTIALS_EXPIRED"
-  | "CREDENTIALS_REVOKED"
-  | "RECONNECT_FAILED"
-  | "ICE_CONNECTION_LOST"
-  | "ICE_RECOVERY_FAILED"
-  | "MEDIA_RUNTIME_LOST"
-  | "INVALID_CONFIGURATION"
-  | "INVALID_TOKEN"
-  | "ALREADY_JOINED"
-  | "JOIN_CANCELLED"
-  | "NOT_CONNECTED"
-  | "CONNECTION_FAILED"
-  | "CONNECTION_CLOSED"
-  | "REQUEST_TIMEOUT"
-  | "PROTOCOL_ERROR"
-  | "SERVICE_UNAVAILABLE"
-  | "PERMISSION_DENIED"
-  | "RESOURCE_NOT_FOUND"
-  | "SESSION_CONFLICT"
-  | "RATE_LIMITED"
-  | "AUTHENTICATION_FAILED"
-  | "TOKEN_EXPIRED"
-  | "ROOM_ENDED"
-  | "RTC_STATE_CHANGED"
-  | "POLICY_VIOLATION"
-  | "PARTICIPANT_REMOVED"
-  | "RTC_SETUP_FAILED";
+export type RoomErrorCode = "QUALITY_STATS_FAILED" | MediaErrorCode | "MEDIA_OPERATION_PENDING" | "MEDIA_OPERATION_CANCELLED" | "MEDIA_NOT_ENABLED" | "MEDIA_PUBLISH_FAILED" | "MEDIA_SUBSCRIBE_FAILED" | "INVALID_PAYLOAD" | "PAYLOAD_TOO_LARGE" | "TOKEN_REFRESH_FAILED" | "TURN_REFRESH_FAILED" | "TURN_CREDENTIALS_EXPIRED" | "CREDENTIALS_REVOKED" | "RECONNECT_FAILED" | "ICE_CONNECTION_LOST" | "ICE_RECOVERY_FAILED" | "MEDIA_RUNTIME_LOST" | "INVALID_CONFIGURATION" | "INVALID_TOKEN" | "ALREADY_JOINED" | "JOIN_CANCELLED" | "NOT_CONNECTED" | "CONNECTION_FAILED" | "CONNECTION_CLOSED" | "REQUEST_TIMEOUT" | "PROTOCOL_ERROR" | "SERVICE_UNAVAILABLE" | "PERMISSION_DENIED" | "RESOURCE_NOT_FOUND" | "SESSION_CONFLICT" | "RATE_LIMITED" | "AUTHENTICATION_FAILED" | "TOKEN_EXPIRED" | "ROOM_ENDED" | "RTC_STATE_CHANGED" | "POLICY_VIOLATION" | "PARTICIPANT_REMOVED" | "RTC_SETUP_FAILED";
 ```
 
 ## RoomInputSnapshot
@@ -409,26 +371,23 @@ See [room](/reference/sdk/client/react/room) for behavior, defaults and an examp
 
 ```ts
 export interface Room extends RoomLocalMedia {
-  readonly quality: ConnectionQuality | null;
-  readonly qualityStats: RtcQualityStats | null;
-  readonly participantQualities: ReadonlyMap<string, ConnectionQualityEvent>;
-  readonly id: string;
-  readonly info: RoomInfo;
-  readonly localParticipant: RoomLocalParticipant;
-  readonly session: ParticipantSession;
-  readonly connectionState: RoomConnectionState;
-  readonly participants: ReadonlyMap<string, RoomRemoteParticipant>;
-  readonly remoteTracks: ReadonlyMap<string, RoomRemoteTrack>;
-  readonly messages: RoomMessages;
-  readonly events: RoomCustomEvents;
-  readonly presence: RoomPresenceSnapshot;
-  refreshCredentials(): Promise<void>;
-  getMediaConnectionStats(): Promise<MediaConnectionStats>;
-  on<Event extends keyof RoomEvents>(
-    event: Event,
-    listener: (value: RoomEvents[Event]) => void,
-  ): () => void;
-  leave(): Promise<void>;
+    readonly quality: ConnectionQuality | null;
+    readonly qualityStats: RtcQualityStats | null;
+    readonly participantQualities: ReadonlyMap<string, ConnectionQualityEvent>;
+    readonly id: string;
+    readonly info: RoomInfo;
+    readonly localParticipant: RoomLocalParticipant;
+    readonly session: ParticipantSession;
+    readonly connectionState: RoomConnectionState;
+    readonly participants: ReadonlyMap<string, RoomRemoteParticipant>;
+    readonly remoteTracks: ReadonlyMap<string, RoomRemoteTrack>;
+    readonly messages: RoomMessages;
+    readonly events: RoomCustomEvents;
+    readonly presence: RoomPresenceSnapshot;
+    refreshCredentials(): Promise<void>;
+    getMediaConnectionStats(): Promise<MediaConnectionStats>;
+    on<Event extends keyof RoomEvents>(event: Event, listener: (value: RoomEvents[Event]) => void): () => void;
+    leave(): Promise<void>;
 }
 ```
 
@@ -438,12 +397,14 @@ See [RelayProvider](/reference/sdk/client/react/RelayProvider) for behavior, def
 
 ```ts
 export interface RelayClientOptions extends RoomCredentialOptions {
-  readonly signalingUrl: string;
-  readonly requestTimeoutMs?: number;
-  readonly iceServers?: readonly RTCIceServer[];
-  readonly iceTransportPolicy?: RTCIceTransportPolicy;
-  readonly autoSubscribe?: boolean;
-  readonly reconnect?: false | RoomReconnectOptions;
+    readonly signalingUrl: string;
+    readonly requestTimeoutMs?: number;
+    readonly iceServers?: readonly RTCIceServer[];
+    readonly iceTransportPolicy?: RTCIceTransportPolicy;
+    readonly autoSubscribe?: boolean;
+    /** Default true. Broadcast stages may opt into one full-resolution video layer. */
+    readonly videoSimulcast?: boolean;
+    readonly reconnect?: false | RoomReconnectOptions;
 }
 ```
 
@@ -503,6 +464,20 @@ export interface MediaDeviceSnapshot {
 }
 ```
 
+## StreamPlaybackReadiness
+
+Matching React SDK builds re-export `StreamPlaybackReadiness` from the browser client. Its fields are `status`, `publisherConnected`, `sourceProducing`, `outputStarting`, `viewerReady`, `code` and `checkedAt`. [Playback metadata](/reference/api/v1/streams#playback-metadata) defines each observation.
+
+`StreamPlaybackMetadata.sourceState` and `readiness` are optional for application-owned playback callbacks. The API's stream endpoint supplies them, but a callback can return a smaller supported metadata object. They do not require joining an RTC room.
+
+```ts
+import type { StreamPlaybackMetadata } from '@relayrtc/react'
+
+function isViewerReady(playback: StreamPlaybackMetadata) {
+  return playback.readiness?.viewerReady ?? false
+}
+```
+
 ## Related field values
 
 | Field | Values |
@@ -515,3 +490,111 @@ export interface MediaDeviceSnapshot {
 
 Quality statistics use seconds for round-trip time and jitter, and bits per second for bitrates. Browser-specific values can be null. See [connection quality](/reference/sdk/client/react/hooks/useConnectionQuality).
 
+
+## Additional public types
+
+The package root also exports the following contracts. Import only the types your application needs. Callback contracts describe application endpoints. Re-exported room and media types come from the browser SDK; they do not grant management authority.
+
+### Hls playback config
+
+| Export | Contract |
+| --- | --- |
+| `HlsPlaybackConfig` | `lowLatencyMode`, `liveSyncMode`, `backBufferLength`, `maxBufferLength`, `maxMaxBufferLength`, `liveSyncDuration`, `liveMaxLatencyDuration`, and additional fields. |
+| `LivePlaybackOptions` | `liveSyncDuration`, `liveMaxLatencyDuration`, `maxLiveSyncPlaybackRate`, `liveSyncOnStallIncrease`. |
+
+### Broadcast client
+
+See the [broadcast client contract](/reference/api/v1/broadcasts) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `BroadcastClientOptions` | `getBroadcast`, `getOutputs`, `getOperation`, `start`, `stop`, `retryOutput`, `pollIntervalMs`. |
+| `BroadcastStatus` | `id`, `streamId`, `state`, `version`, `sourceSessionId`, `sourceGeneration`, `lastError`. |
+| `BroadcastOutputStatus` | `id`, `broadcastId`, `kind`, `destinationId`, `destinationName`, `outputSeconds`, `bytes`, and additional fields. |
+| `BroadcastOperationStatus` | `id`, `status`, `errorCode`. |
+| `BroadcastSnapshot` | `broadcast`, `outputs`, `operation`, `pending`, `pendingOutputId`, `error`. |
+| `BroadcastState` | `"created" \| "waiting_for_source" \| "starting" \| "live" \| "reconnecting" \| "degraded" \| "stopping" \| "stopped" \| "failed"` |
+
+### Broadcast
+
+See the [broadcast contract](/reference/api/v1/broadcasts) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `BroadcastPlayerProps` | `mode`, `source`, `createHlsEngine`, `onPlaybackState`. |
+
+### Stream playback
+
+| Export | Contract |
+| --- | --- |
+| `StreamPlaybackOptions` | `mode`, `getPlayback`, `getGrant`, `pollIntervalMs`. |
+| `StreamPlaybackGrant` | `url`, `expiresAt`, `token`. |
+| `StreamPlaybackSnapshot` | `playback`, `grant`, `error`. |
+| `HlsEngineFactory` | `(media: HTMLVideoElement, url: string, onError: () => void, onReady: () => void) => () => void` |
+| `BroadcastPlaybackState` | `"loading" \| "playing" \| "paused" \| "blocked" \| "unavailable" \| "unsupported" \| "error"` |
+
+### Room credentials
+
+| Export | Contract |
+| --- | --- |
+| `CredentialRefreshContext` | `roomId`, `participantId`, `sessionId`, `expiresAt`, `reason`, `signal`. |
+
+### Restream client
+
+See the [restream client contract](/reference/api/v1/restream-sources) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `RestreamSourceOptions` | `getSource`, `command`, `pollIntervalMs`. |
+| `RestreamSourceSnapshot` | `source`, `pending`, `error`. |
+
+### Restream
+
+See the [restream contract](/reference/api/v1/restream-sources) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `RestreamSource` | `id`, `streamId`, `projectId`, `environmentId`, `name`, `protocol`, `host`, and additional fields. |
+| `RestreamDetail` | `session`, `health`, `usage`. |
+| `RestreamProtocol` | `"hls_pull" \| "rtmp_push" \| "whip_push"` |
+| `RestreamState` | `"created" \| "probing" \| "ready" \| "connecting" \| "live" \| "recovering" \| "stopped" \| "failed"` |
+
+### Dvr
+
+See the [dvr contract](/reference/api/v1/dvr) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `DvrPlayback` | `streamId`, `broadcastId`, `windowId`, `sourceSessionId`, `generation`, `state`, `capture`, and additional fields. |
+| `DvrPolicy` | `enabled`, `durationSeconds`, `maxBytes`, `endedRetentionSeconds`, `consentAcknowledged`. |
+| `DvrPolicyResource` | `policy`, `version`, `effective`. |
+
+### Dvr playback
+
+See the [dvr playback contract](/reference/api/v1/dvr) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `DvrPlaybackState` | `start`, `end`, `position`, `behindLiveSeconds`, `isLive`, `paused`, `available`, and additional fields. |
+
+### Stream guest client
+
+| Export | Contract |
+| --- | --- |
+| `StreamGuestOptions` | `getStatus`, `command`, `getJoinGrant`, `rtcOptions`, `pollIntervalMs`. |
+| `StreamGuestSnapshot` | `roster`, `room`, `activeGuestId`, `pending`, `error`. |
+| `StreamGuestCommand` | `"invite" \| "requestJoin" \| "acceptInvite" \| "declineInvite" \| "cancelInvite" \| "approveRequest" \| "rejectRequest" \| "mute" \| "remove" \| "leave"` |
+
+### Guest
+
+See the [guest contract](/reference/api/v1/guests) for field requirements, defaults and errors.
+
+| Export | Contract |
+| --- | --- |
+| `GuestResource` | `id`, `kind`, `state`, `version`, `name`, `media`, `mutedAudio`, and additional fields. |
+| `GuestStage` | `enabled`, `version`, `maxGuests`, `occupied`, `layout`, `roomId`. |
+| `GuestRoster` | `data`, `nextCursor`, `stage`. |
+| `GuestJoinGrant` | `token`, `participantId`, `roomId`, `expiresAt`, `version`, `media`, `signalingUrl`. |
+| `GuestMedia` | `audio`, `video`, `screen`. |
+
+Use [live streaming](/guides/live-streaming) to select the relevant workflow. Exact method inputs and results appear on the resource pages; limits and validation remain authoritative on the API.

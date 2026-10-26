@@ -4,7 +4,7 @@ description: "Private native/HLS playback independent of an RTC room."
 section: "React SDK"
 ---
 ## Availability and source contract
-Unreleased additions to @relayrtc/react 0.1.0 require the matching unreleased @relayrtc/client 0.0.0 build. This player is independent of RelayProvider and RelayRoom; it does not create an RTC participant.
+Use compatible React and browser SDK builds; see [installation](/installation) for package availability. This player is independent of RelayProvider and RelayRoom; it does not create an RTC participant.
 
 ```tsx
 'use client'
@@ -47,9 +47,11 @@ Configure another live target with `getHlsPlaybackConfig('live', { liveSyncDurat
 ## Props and lifecycle
 source requires application-authorized getPlayback/getGrant callbacks and optional pollIntervalMs. createHlsEngine is optional. onPlaybackState receives loading/playing/paused/blocked/unavailable/unsupported/error. Standard video props apply except src/srcObject/onError, which are owned by the player. Controls, autoplay and playsInline are enabled by default. Mute preview to avoid delayed host feedback.
 
+The optional `StreamPlaybackMetadata.sourceState` and `readiness` fields can carry the API's source lifecycle and viewer-readiness observation through your backend. Matching React builds re-export `StreamPlaybackReadiness`; application callbacks may omit the additive fields. [Playback metadata](/reference/api/v1/streams#playback-metadata) describes their meanings.
+
 The player renews grants before expiry and reconciles session/generation changes. Autoplay denial exposes a Play stream button. Missing source waits for live media; errors expose Retry. Cleanup stops requests/subscriptions, removes source URLs, releases media and destroys the HLS engine. Keep source callbacks and engine factory stable to avoid intentional attachment replacement.
 
-useStreamPlayback(source) exports the same playback/grant/error snapshot, client and refresh for custom UIs. It starts its own client and stops it on unmount. Do not put management keys in callbacks. [Application authorization](/guides/streaming-playback) and the local streaming-foundation example show the backend boundary.
+useStreamPlayback(source) exports the same playback/grant/error snapshot, client and refresh for custom UIs. It starts its own client and stops it on unmount. Do not put management keys in callbacks. [Application authorization](/guides/streaming-playback) describes the backend boundary.
 
 
 ## Recorded video

@@ -1,24 +1,47 @@
 ---
 title: "useClip"
-description: "Request and follow application-authorized highlights, then play their VOD assets."
+description: "Create and publish retained highlights through authorized application endpoints."
 section: "React SDK"
 ---
 
+`useClip(options)` is independent of RelayProvider and RelayRoom. Supply stable callbacks to authenticated application endpoints. Keep management keys on the backend.
+
+## Options
+
+| Option | Contract |
+| --- | --- |
+| `getClip` | Required; receives AbortSignal and returns ClipResource or null. |
+| `create`, `publish`, `delete` | Optional application commands receiving `{ signal, idempotencyKey }`. |
+| `pollIntervalMs` | Integer 1000–60000 milliseconds; default 2500. |
+
+Forward command keys to your backend SDK calls. Callbacks must honor AbortSignal. isReady means ready; isProcessing means rendering and does not include queued work. Bind the selected recording and interval in your backend command. A ready clip needs explicit publication before viewer grants; operator preview uses a separate audience. Use VOD playback for the resulting asset.
+
+## Returns
+
+The hook returns clip, pending, error, isReady, isProcessing, create, publish, delete and refresh. `pending` covers the application request, not completion of asynchronous server work. Errors are sanitized in the snapshot.
+
+## Example
+
+The parent supplies memoized options bound to one selected resource.
+
 ```tsx
-const clip = useClip({
-  getClip: signal => app.getClip({ signal }),
-  create: context => app.createClip({ ...context, recordingId, interval: { kind: 'last', seconds: 30 } }),
-  publish: context => app.publishClip(context),
-  delete: context => app.deleteClip(context),
-})
-return <>
-  <button disabled={!!clip.pending} onClick={() => { void clip.create() }}>Save last 30 seconds</button>
-  <p>{clip.clip?.state}</p>
-</>
+import { useClip } from '@relayrtc/react'
+
+export function ClipPanel({ options }: { options: Parameters<typeof useClip>[0] }) {
+  const highlight = useClip(options)
+  return <section>
+    <p>{highlight.clip?.state ?? 'No selected clip'}</p>
+    <button disabled={!options.create || !!highlight.pending}
+      onClick={() => { void highlight.create() }}>Create highlight</button>
+    <button disabled={!options.publish || !highlight.isReady || !!highlight.pending}
+      onClick={() => { void highlight.publish() }}>Publish</button>
+    {highlight.error && <p role="alert">{highlight.error.message}</p>}
+  </section>
+}
 ```
 
-Keep callback identities stable with useCallback and update them when selecting a different source/range. Command callbacks receive signal and idempotencyKey and return ClipResource; getClip returns ClipResource or null. Your backend authorizes the caller, resolves the allowed source, forwards the request key and stores the selected clip ID. Browser code must never receive a secret management key. The hook returns clip, pending, error, isReady, isProcessing, create, publish, delete and refresh. ClipClient exposes the same behavior without React. Polling is canceled on unmount; request revisions prevent stale poll results overwriting commands. An uncertain command retains its idempotency key for retry.
+## Lifecycle and retries
 
-Range selection is application UI: use last-N seconds or numeric media boundaries from an authorized clip-window endpoint. The runnable streaming-foundation ClipPanel includes both. Display resolved segment boundaries for fast keyframe cuts, which can expand the interval. CLIP_RANGE_EXPIRED means the requested range is no longer fully retained.
+Unmounting stops polling and aborts outstanding callbacks. Status revisions prevent stale polling from overwriting a newer command result. An uncertain command retains its idempotency key; retry the same action/payload rather than reusing it for another resource. HTTP cancellation does not undo committed server work.
 
-Once ready, use BroadcastPlayer with mode: vod, metadata from recordings.getPlayback(clip.recordingId) and an authorized asset grant. HLS engines are application-provided as with other playback. Publication is required for viewer grants; hosts can use the explicit preview audience. Replaying a clip is finite VOD playback, separate from live DVR. See [clips and replay](/guides/clips-and-replay) for the example and operational limits.
+See the [workflow](/guides/clips-and-replay) for backend setup, retention and authorization. The browser SDK exposes the corresponding client without React.

@@ -41,12 +41,16 @@ const { room } = useRoom()
 ## Example
 
 ```tsx
-useEffect(() => {
-  if (!room) return
-  return room.on('participantJoined', (participant) => {
-    console.log(participant.name)
-  })
-}, [room])
+import { useEffect } from 'react'
+
+export function ParticipantNotifications() {
+  const { room } = useRoom()
+  useEffect(() => {
+    if (!room) return
+    return room.on('participantJoined', participant => console.log(participant.name))
+  }, [room])
+  return null
+}
 ```
 
 Import `useEffect` from React and clean up listeners when the room changes.
@@ -57,7 +61,6 @@ Call `room.getMediaConnectionStats()` while the room is active to inspect the ac
 
 ```tsx
 import { useState } from 'react'
-import { useRoom } from '@relayrtc/react'
 import type { MediaConnectionStats } from '@relayrtc/react'
 
 function MediaConnectionDetails() {

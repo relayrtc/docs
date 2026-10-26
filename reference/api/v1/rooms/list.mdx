@@ -17,10 +17,14 @@ A secret API key with `rooms:read`. Resources are restricted to the key's projec
 | cursor | string | Optional | Opaque endCursor from the previous page. |
 | limit | integer | 50 | From 1 to 100. |
 | status | string | Optional | created, active, ending, ended or failed. |
+| search | string | Optional | Trimmed, at most 120 characters. Case-insensitive substring match against room name or ID. |
+| joinable | true or false | Optional | `true` restricts results to created or active rooms. `false` applies no additional status filter. |
+
+Send boolean query values as `joinable=true` or `joinable=false`. Filters combine with each other: `status=ended&joinable=true` returns no matching rooms. Joinable filters lifecycle state; it does not guarantee spare participant capacity.
 
 ## Example
 
-Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8082/v1`.
+Set `RELAYRTC_API_URL` to your API base including `/v1`, such as `http://localhost:8080/v1`.
 
 ```bash
 curl -X GET "$RELAYRTC_API_URL/rooms?limit=20&status=active" \

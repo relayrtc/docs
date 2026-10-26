@@ -70,7 +70,7 @@ Use these statements in an async handler and catch errors. For camera-off button
 
 ## Limits
 
-Local mute does not signal a remote paused publication in the current server. Use disable for camera-off.
+Mute pauses the sender, requests a server publication pause and resolves after confirmation. Remote subscribers receive the paused publication state. Capture remains open; use disable to release the camera and remove its publication.
 
 Operations can fail with MEDIA_OPERATION_PENDING, MEDIA_PERMISSION_DENIED or another media error. Catch enable/disable/device-switch promises and avoid starting another operation while `pending` is true.
 

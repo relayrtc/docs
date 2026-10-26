@@ -1,94 +1,142 @@
 ---
 title: "Camera and microphone"
-description: "Enable media, show previews and switch input devices."
+description: "Capture devices, show a local preview and distinguish mute from turning capture off."
 section: "Build calls"
 ---
 
-## Imports
+Enable capture after joining a room, from a button the user controls. The participant token needs `video:publish` for camera video and `audio:publish` for microphone audio. Browser permission is also required; use HTTPS or localhost.
 
-```tsx
-import { MediaLoader, useLocalMedia, useLocalParticipant, useMediaTrack, useTracks, useRoom } from '@relayrtc/react'
-```
+Render the examples below inside the provider and room from the [quickstart](/quickstart).
 
 ## Enable capture
 
-Get the local participant from [useLocalParticipant](/reference/sdk/client/react/hooks/useLocalParticipant). Wait until the room is connected.
+`camera.enable` and `microphone.enable` capture and publish media. Catch errors where the user starts the operation so a denied permission or unavailable device produces useful feedback.
 
 ```tsx
-const local = useLocalParticipant()
-const { room } = useRoom()
+'use client'
 
-await local?.camera.enable({
-  width: { ideal: 1280 },
-  height: { ideal: 720 },
-  frameRate: { ideal: 30 },
-})
-await local?.microphone.enable({
-  echoCancellation: true,
-  noiseSuppression: true,
-  autoGainControl: true,
-})
-```
+import { useState } from 'react'
+import { useLocalMedia, useLocalParticipant, useRoom } from '@relayrtc/react'
 
-Use these calls in an event handler and catch rejected promises. Browser constraints are requests; device support determines the actual capture.
+export function EnableDevices() {
+  const local = useLocalParticipant()
+  const { connectionState } = useRoom()
+  const { camera, microphone } = useLocalMedia()
+  const [error, setError] = useState<string | null>(null)
 
-## Show your preview
+  async function enable(kind: 'camera' | 'microphone') {
+    if (!local) return
+    setError(null)
+    try {
+      if (kind === 'camera') {
+        await local.camera.enable({
+          width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 },
+        })
+      } else {
+        await local.microphone.enable({ echoCancellation: true, noiseSuppression: true })
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to start the device')
+    }
+  }
 
-```tsx
-const { camera } = useLocalMedia()
-const preview = useMediaTrack(camera?.track, { paused: camera?.muted })
-
-return (
-  <div>
-    <video ref={preview.ref} autoPlay muted playsInline hidden={!camera?.enabled || camera.muted} />
-    {(camera?.pending || preview.isLoading) && <MediaLoader label="Starting camera" />}
-  </div>
-)
-```
-
-The local preview must be muted to avoid feeding your microphone back through the speakers.
-
-## Camera off
-
-```ts
-await local?.camera.disable()
-await local?.camera.enable()
-```
-
-Disable stops capture and removes the publication. Other participants see the track disappear, so their UI can show a camera-off placeholder.
-
-```tsx
-const cameras = useTracks({ participantId, types: ['camera_video'] })
-
-return cameras[0]
-  ? <RemoteCamera track={cameras[0]} />
-  : <p>Camera is off</p>
-```
-
-`RemoteCamera` is your component using [useMediaTrack](/reference/sdk/client/react/hooks/useMediaTrack).
-
-<Callout type="warning" title="Mute and camera-off behave differently">
-`await camera.mute()` pauses sending and waits for the server to confirm the paused publication. Other participants receive its paused state. Capture stays open; use disable/enable for camera-off controls that release the device.
-</Callout>
-
-## Microphone mute
-
-```ts
-await local?.microphone.mute()
-await local?.microphone.unmute()
-```
-
-Mute keeps the capture device open and stops sending its media. Await mute/unmute to handle server confirmation or failure. Muted publications do not accrue active audio/video duration; connected participant time is measured separately. Use `microphone.disable()` to release capture.
-
-## Device selection
-
-```ts
-if (room) {
-  const devices = await room.devices.enumerate()
-  const firstCamera = devices.cameras[0]
-  if (firstCamera) await local?.camera.switchDevice(firstCamera.deviceId)
+  return (
+    <div>
+      <button disabled={!local || connectionState !== 'connected' || camera?.pending}
+        onClick={() => void enable('camera')}>Enable camera</button>
+      <button disabled={!local || connectionState !== 'connected' || microphone?.pending}
+        onClick={() => void enable('microphone')}>Enable microphone</button>
+      {error && <p role="alert">{error}</p>}
+    </div>
+  )
 }
 ```
 
-Device labels can be empty before permission is granted. See the complete [camera settings](/reference/sdk/client/react/media/camera), [microphone settings](/reference/sdk/client/react/media/microphone) and [device API](/reference/sdk/client/react/media/devices).
+Capture constraints are requests to the browser. `ideal` allows fallback; `exact` can reject a device that cannot satisfy the constraint. Actual dimensions and frame rates depend on the device and browser.
 
+## Show your preview
+
+Attach the local camera's `MediaStreamTrack` with `useMediaTrack`. Keep the preview muted to avoid local audio feedback.
+
+```tsx
+'use client'
+
+import { MediaLoader, useLocalMedia, useMediaTrack } from '@relayrtc/react'
+
+export function CameraPreview() {
+  const { camera } = useLocalMedia()
+  const preview = useMediaTrack(camera?.track, { paused: camera?.muted ?? false })
+
+  return (
+    <div>
+      <video ref={preview.ref} autoPlay muted playsInline hidden={!camera?.enabled || camera.muted} />
+      {(!camera?.enabled || camera.muted) && <p>Camera off or paused</p>}
+      {(camera?.pending || preview.isLoading) && <MediaLoader label="Starting camera" />}
+      {preview.error && <p role="alert">{preview.error.message}</p>}
+    </div>
+  )
+}
+```
+
+## Camera off
+
+Choose the operation that matches your interface:
+
+| Operation | Capture | Publication |
+| --- | --- | --- |
+| `await local.camera.mute()` | Stays open | Paused after server confirmation; remote participants receive the paused state. |
+| `await local.camera.unmute()` | Stays open | Sending resumes after server confirmation. |
+| `await local.camera.disable()` | Stops | Removed from the room. |
+| `await local.camera.enable()` | Starts | A camera publication becomes available. |
+
+Use disable for a camera-off action that releases the device. Await mute/unmute rather than treating the button click as confirmed state. For a remote camera, `useMediaTrack(...).isPaused` identifies a paused publication; when disabled, the track disappears from `useTracks` and your participant tile can show a placeholder.
+
+## Microphone mute
+
+Microphone controls have the same distinction. `mute()` pauses sending while capture stays open; `unmute()` resumes it. `disable()` releases capture and removes the publication. Run these methods in an async handler and show any rejection.
+
+Muted publications do not accrue active-media duration. Participant connection time is measured separately and can continue while all devices are muted. See [usage](/guides/usage).
+
+## Device selection
+
+The following component lists available cameras and switches the active input. Device labels may be empty before permission has been granted.
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+import { useLocalParticipant, useRoom } from '@relayrtc/react'
+import type { MediaInputDevice } from '@relayrtc/react'
+
+export function CameraPicker() {
+  const { room } = useRoom()
+  const local = useLocalParticipant()
+  const [cameras, setCameras] = useState<readonly MediaInputDevice[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  async function choose(deviceId?: string) {
+    if (!room || !local) return
+    setError(null)
+    try {
+      if (deviceId) await local.camera.switchDevice(deviceId)
+      else setCameras((await room.devices.enumerate()).cameras)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to change camera')
+    }
+  }
+
+  return (
+    <div>
+      <button disabled={!room} onClick={() => void choose()}>List cameras</button>
+      {cameras.map((camera, index) => (
+        <button key={camera.deviceId} onClick={() => void choose(camera.deviceId)}>
+          {camera.label || `Camera ${index + 1}`}
+        </button>
+      ))}
+      {error && <p role="alert">{error}</p>}
+    </div>
+  )
+}
+```
+
+Use the corresponding microphone list and `microphone.switchDevice` for audio inputs. For live device-change subscriptions and permission inspection, see [devices and permissions](/reference/sdk/client/react/media/devices).

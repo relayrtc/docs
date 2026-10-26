@@ -13,12 +13,16 @@ import { verifyWebhookRequest } from '@relayrtc/node'
 ## Signature
 
 ```ts
-declare function verifyWebhookRequest(
+import type { WebhookHeaders, WebhookVerificationOptions } from '@relayrtc/node'
+
+type VerifySignature = (
   secret: string,
   rawBody: string | Uint8Array,
   headers: WebhookHeaders,
   options?: WebhookVerificationOptions,
-): boolean
+) => boolean
+
+const verify: VerifySignature = verifyWebhookRequest
 ```
 
 ## Parameters
@@ -34,18 +38,15 @@ declare function verifyWebhookRequest(
 ## Example
 
 ```ts
-const valid = verifyWebhookRequest(
-  process.env.RELAYRTC_WEBHOOK_SECRET!,
-  rawRequestBody,
-  request.headers,
-)
-
-if (!valid) {
-  throw new Error('Invalid webhook signature')
+export async function verifyIncomingRequest(request: Request, secret: string) {
+  const rawRequestBody = new Uint8Array(await request.arrayBuffer())
+  const valid = verifyWebhookRequest(secret, rawRequestBody, request.headers)
+  if (!valid) throw new Error('Invalid webhook signature')
+  return rawRequestBody
 }
 ```
 
-`rawRequestBody` must be captured before a JSON parser rewrites the body. See the [Express receiver](/guides/webhooks#verify-before-parsing).
+`rawRequestBody` must be captured before a JSON parser rewrites the body. See the [receiver example](/guides/webhooks#verify-before-parsing).
 
 ## Returns
 

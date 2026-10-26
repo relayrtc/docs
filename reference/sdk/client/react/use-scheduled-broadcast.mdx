@@ -7,25 +7,26 @@ section: "React SDK"
 The hook works without joining an RTC room. All callbacks call your application's authenticated backend; never place management credentials in React.
 
 ```tsx
-const event = useScheduledBroadcast({
-  getSchedule: app.getSchedule,
-  getPlayback: app.getScheduledPlayback,
-  cancel: app.cancelSchedule,
-  startNow: app.startScheduleNow,
-  update: app.updateSchedule,
-  pollIntervalMs: 2500,
-})
-return <>
-  <p>{event.isWaiting ? 'Waiting for the publisher' : event.schedule?.state}</p>
-  <p>{event.countdownSeconds} seconds until start</p>
-  {event.isLive && <BroadcastPlayer source={scheduledSource} createHlsEngine={createHlsEngine} />}
-</>
+import { useScheduledBroadcast } from '@relayrtc/react'
+
+export function ScheduledEventStatus({ options }: {
+  options: Parameters<typeof useScheduledBroadcast>[0]
+}) {
+  const event = useScheduledBroadcast(options)
+  return <section>
+    <p>{event.isWaiting ? 'Waiting for publisher' : event.schedule?.state ?? 'Loading'}</p>
+    <p>{event.countdownSeconds ?? 'Loading'} seconds until start</p>
+    <button disabled={!options.cancel || !!event.pending}
+      onClick={() => { void event.cancel() }}>Cancel event</button>
+    {event.error && <p role="alert">{event.error.message}</p>}
+  </section>
+}
 ```
 
 getSchedule/getPlayback receive AbortSignal. The optional update callback receives `{version, timing, idempotencyKey}` and AbortSignal; cancel/startNow receive `{version, idempotencyKey}` and AbortSignal. They return the observed ScheduledBroadcast. Forward the key and expected version through your backend. Command identities persist after uncertain responses and stale poll results cannot overwrite a newer command result. Recreate callbacks when changing the selected event. Browser consumers may use ScheduledBroadcastClient directly with the same options.
 
-The hook returns schedule, playback, pending, error, countdownSeconds, isWaiting, isLive, update, cancel, startNow and refresh. Countdown uses serverTime when authorized playback metadata is available, and does not control execution. Polling and the countdown timer stop on unmount. Missing playback metadata, including a closed access window, does not enable the player.
+The hook returns schedule, playback, pending, error, serverOffsetMs, countdownSeconds, isWaiting, isLive, update, cancel, startNow and refresh. Countdown is null before the first clock tick or without a schedule. It uses serverTime when authorized playback metadata is available and does not control execution. isWaiting means schedule state starting; isLive means playback state live. Polling defaults to 2500 ms and accepts 1000–60000 ms; polling and the one-second countdown timer stop on unmount. Missing playback metadata, including a closed access window, does not enable the player.
 
-scheduledSource is a normal StreamPlaybackOptions object whose callbacks call your backend's schedules.getPlayback and schedules.createPlaybackGrant. The player is mounted when the event becomes live and uses only event-scoped grants. Reschedule/cancellation clears playback and revokes media access. Use explicit device controls in a separate host stage; this hook never starts a camera or OBS.
+For playback, pass a normal StreamPlaybackOptions object to BroadcastPlayer whose callbacks call your backend's schedules.getPlayback and schedules.createPlaybackGrant. The player is mounted when the event becomes live and uses only event-scoped grants. Reschedule/cancellation clears playback and revokes media access. Use explicit device controls in a separate host stage; this hook never starts a camera or OBS.
 
-See the [guide and runnable example](/guides/scheduled-broadcasts) for local-time conversion, source deadlines, reminders, window policies and cancellation handling.
+See the [scheduling guide](/guides/scheduled-broadcasts) for local-time conversion, source deadlines, reminders, window policies and cancellation handling.

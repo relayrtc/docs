@@ -1,53 +1,64 @@
 ---
 title: "Scheduled broadcasts"
-description: "Plan a broadcast, admit its publisher and follow automatic start or missed outcomes."
+description: "Plan an event with explicit publisher and viewer access windows."
 section: "Streaming"
 ---
 
-## Availability
-Schedules are implemented in matching local core and SDK builds. Apply migration 0036 after the earlier streaming migrations and upgrade API, console and SDKs together. Published packages/images may not contain this release. Live scheduled media, restart recovery and notification delivery have not yet been verified for this release.
+A schedule creates one broadcast and starts it at a UTC instant. Scheduling does not launch OBS, activate devices or publish RTC tracks. Prepare the publisher separately and allow enough staging time before the event.
 
-For local deployment, `pnpm docker:up:streaming` builds the matching services and runs migrations. The scheduler runs inside streaming-enabled API instances and uses PostgreSQL due claims, leases and fences. Multiple API instances can run it; a browser tab and a separate cron service are unnecessary. Keep database clocks synchronized. Source/output workers, storage, gateway and signing credentials remain the existing streaming setup.
+## Create a schedule
 
-For a code rollback, first cancel/drain scheduled events, revoke their ingest credentials and revoke stream playback grants for affected streams through the existing stream grant-revocation API. Older API builds cannot enforce the new schedule-specific grant/window fields. Keep the additive tables and history; do not drop them while any event or delivery is outstanding.
+Call this helper with UTC timestamps chosen by an authorized event operator. End must follow start within 24 hours.
 
-## Console workflow
-1. Create a stream and configure its source, destinations and recording policy.
-2. Open Schedules in your project and select the environment.
-3. Schedule broadcast with the stream ID, name, optional destination IDs, UTC start/end, display time zone and access policies.
-4. Before start, the publisher joins the RTC stage and starts the source, or connects using schedule-scoped external ingest credentials. A schedule cannot activate a camera, start OBS or turn on another person's devices.
-5. Open Details to follow scheduled, waiting for publisher, running, ending or terminal status. The private preview appears when running.
-6. Edit a pending schedule, start it now or confirm cancellation. Starting now preserves duration and shifts its start/end to the present. Editing or starting now revokes previous event credentials, so issue replacements.
+```ts
+import { relay } from './relay.js'
 
-The console accepts UTC clock entries explicitly and displays the event in the chosen IANA zone. For applications accepting local wall times, convert on the backend with resolveScheduleLocalTime. It rejects nonexistent DST times and requires an explicit UTC offset for repeated times. REST accepts UTC timestamps ending in Z and does not guess a zone from a browser locale.
+export async function scheduleEvent(streamId: string, startsAt: string, endsAt: string) {
+  return relay.schedules.create({
+    broadcast: { streamId, name: 'Town hall', waitTimeoutSeconds: 120 },
+    timing: {
+      startsAt,
+      endsAt,
+      timeZone: 'UTC',
+      sourceWaitSeconds: 120,
+      catchUpSeconds: 300,
+      publisherEarlySeconds: 900,
+      viewerEarlySeconds: 900,
+      viewerAfterSeconds: 0,
+      notifyBeforeSeconds: null,
+    },
+  })
+}
+```
 
-## Saved configuration and admission
-Each schedule creates one broadcast in created state, saving the stream version, profile, selected destination credentials and automatic recording policy. Later configuration edits do not change that snapshot. A changed stream version prevents execution; create a replacement schedule using the new configuration. Timing and access policy may be updated while scheduled, with the current version and a new idempotency key. Stream, run and creator identity stay fixed. Ordinary broadcast start is blocked for scheduled runs; use the schedule API.
+REST accepts UTC timestamps ending in `Z`. `timeZone` is an IANA display zone, not permission to submit an ambiguous local timestamp. Convert local wall times on the backend; `resolveScheduleLocalTime` rejects nonexistent DST times and requires an explicit offset for repeated times.
 
-Execution rechecks the original creator's active key/scopes or organization owner/admin membership, active ownership, stream version, broadcast capacity and automatic recording admission. Revoking the creator's authority prevents a future automatic start. Rescheduling by another administrator does not transfer creator authority; create a replacement schedule to change it. Automatic recording requires recordings:create as well as streams:write.
+The schedule snapshots the stream configuration, selected destinations and automatic recording policy. A later stream-version change prevents execution; create a replacement schedule for the new configuration.
 
-Default schedule limits are 100 per environment and 1000 globally. A planned schedule reserves control-plane capacity, not a running encoder. Publisher windows on the same stream must not overlap. Live media/output reservations start through existing broadcast admission and worker claims. Waiting for an absent source does not allocate media indefinitely. Broadcast and output usage use existing authoritative observations; the scheduler does not invent media time or duplicate charges on retry.
+## Prepare publishers and viewers
 
-## Downtime, source readiness and end policy
-catchUpSeconds bounds how late an unstarted event may be admitted after downtime; zero allows only the normal scheduler tick tolerance of two seconds. Outside this window, the event is missed. A successful admission persists a source deadline bounded by sourceWaitSeconds and the event end. Retries never extend a started event's deadline. Default values are 300 seconds catch-up and 120 seconds waiting for source.
+For WHIP/RTMP, use `schedules.createIngestCredentials(scheduleId)`. These credentials open at `startsAt - publisherEarlySeconds` and expire at event end. Editing, cancelling or completing the event revokes event credentials. For ROOM, issue room tokens through your application and enforce the event window there.
 
-Claims have a 15-second lease and incrementing fence with durable attempt history. Five bounded admission attempts are allowed for transient capacity/configuration availability; failures and interrupted claims cannot create another intended run. Cancel/reschedule/start-now serialize against execution. The API starts the saved run once, observes its worker-reported readiness, and exposes the associated operation and broadcast IDs. Capacity or permission failure is visible; an absent source becomes missed. Running failures remain failed rather than successful completion.
+Use `schedules.getPlayback(scheduleId)` for countdown and state, and `schedules.createPlaybackGrant(scheduleId)` after viewer authorization. Schedule grants only authorize the live scheduled run and cannot outlast its end. A generic stream grant bypasses this event-specific audience flow and should remain an operator capability.
 
-At endsAt the scheduler requests broadcast stop and drains output workers. A room publisher retains control of its devices. Independent source sessions are not stopped just because an output run ends. Source duration limits include pre-event staging time, so configure the source limit to cover staging plus the planned event. Sessions using schedule-scoped ingest credentials stop when those credentials expire or are revoked. Cancellation revokes event access immediately and requests output cleanup; it does not wait for all worker processes before returning cancelled. Existing worker lease/cleanup limits still apply.
+`viewerAfterSeconds` extends ended-event metadata access; it does not extend live media or grant recording access. Authorize [recorded playback](/guides/recording-and-vod) or [DVR](/guides/live-dvr) separately.
 
-## Access windows
-Publisher credentials can be prepared in advance, but their notBefore is startsAt minus publisherEarlySeconds. They expire at endsAt and are revoked on cancel/reschedule/missed/failed/completion. WHIP and RTMP admission check the schedule on every authentication attempt; active credential expiry uses existing source cleanup. Up to five active/future ingest credentials share the stream's existing credential limit. Room publisher tokens remain your application's existing room authorization flow; enforce the event window in your backend before issuing them. RelayRTC does not silently replace RTC roles or device consent.
+## Follow execution
 
-Viewer waiting metadata opens at startsAt minus viewerEarlySeconds. getPlayback provides state, serverTime, countdownSeconds and source identity without a media URL. Playback grants are issued only for the live scheduled run, expire no later than its end, and are checked against persisted schedule state/epoch on every playlist and fragment request. Cancellation/rescheduling invalidates them even if the signature has time left. A generic operator stream grant remains separate privileged stream access; do not use it to implement event viewer windows.
+The scheduler runs in the API; it does not require an open browser tab or your own cron job. States progress through `scheduled`, `starting`, `running`, `ending`, then `completed`, `missed`, `failed` or `cancelled`.
 
-viewerAfterSeconds extends access to ended-event metadata only. It does not extend live media or automatically authorize recording assets. Use separate recording/VOD asset grants for recorded playback. Your application must authenticate viewers and enforce its own audience entitlement before returning metadata or grants. The example limits viewer metadata to the event window. Never give management keys to a browser.
+`catchUpSeconds` bounds late admission after downtime. Once admitted, the source must become ready within `sourceWaitSeconds` and before event end. An absent publisher can make an event missed. The scheduler also rechecks the original creator's current authority and resource capacity; revoked access can prevent automatic start.
 
-## Optional reminders and webhooks
-Notifications are off by default. The supported provider is the existing signed durable webhook system; email/SMS delivery is not assumed. Enable STREAMING_SCHEDULE_NOTIFICATIONS_ENABLED=true, configure an enabled schedule.reminder endpoint subscription in the same project/environment, then set notifyBeforeSeconds. Without a configured provider, reminder admission fails explicitly.
+Read the schedule, its operation and associated broadcast when diagnosing failures. A successful command response is not confirmation that media is playing.
 
-A versioned reminder job queues schedule.reminder once into the webhook outbox. Normal webhook retries, signature verification and dead-letter handling apply; emitted means queued, not recipient-delivered. Your application may use its own configured email/SMS provider after accepting the webhook. Cancel/reschedule removes obsolete pending reminders. Start-now removes the old reminder; a reminder whose time has already passed may be queued immediately while the event is still scheduled. Lifecycle events are schedule.created, updated, starting, started, missed, cancelled, failed and completed. Deduplicate event IDs and re-read schedule state before taking action on a reminder or readiness event.
+## Edit, start now or cancel
 
-## Example and troubleshooting
-The existing examples/streaming-foundation app includes an event form, explicit backend time-zone conversion, countdown/waiting state, reschedule/cancel/start-now and transition to private scheduled playback. The host separately joins and starts the source. Optionally select an existing event with RELAYRTC_SCHEDULE_ID. The demo uses in-memory selection/session state; production applications need durable event selection and audience authorization.
+Pending schedule updates, `startNow` and `cancel` require the current schedule version. Reload after conflicts. Start-now shifts the start/end while preserving duration. These changes can revoke earlier event credentials, so issue replacements when needed.
 
-For missed events, inspect lastError, readinessDeadline and the correlated broadcast/operation. For permission failures, inspect the original creator's current access. For configuration changes, create a replacement schedule. For reminders, inspect the webhook delivery queue and provider enablement. Internal metrics expose schedule states, due lag and expired claims without tenant names or credentials. See the [REST API](/reference/api/v1/scheduled-broadcasts), [Node methods](/reference/sdk/server/node/schedules) and [React hook](/reference/sdk/client/react/use-scheduled-broadcast).
+At event end the scheduler stops broadcast outputs. It preserves independently managed source sessions and participants' devices. Source duration limits include staging time; configure them to cover staging plus the event. Cancellation revokes event access immediately while worker cleanup completes asynchronously.
+
+## Reminders
+
+Reminders use signed webhooks, not built-in email or SMS. Enable schedule notifications on the deployment, subscribe a webhook endpoint to `schedule.reminder`, then set `notifyBeforeSeconds`. Your application can deliver its own email after accepting the webhook.
+
+Deduplicate webhook IDs and reload current state before acting on a reminder. Rescheduling invalidates obsolete reminders. See [schedule REST contracts](/reference/api/v1/scheduled-broadcasts), [Node methods](/reference/sdk/server/node/schedules) and [webhooks](/guides/webhooks).
