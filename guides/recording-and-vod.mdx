@@ -1,52 +1,74 @@
 ---
 title: "Recording and VOD"
-description: "Save broadcast output, follow processing and authorize playback or downloads."
+description: "Capture a broadcast and authorize private playback or MP4 downloads."
 section: "Streaming"
 ---
 
-## Availability
-Recording is available in matching local core, Node, browser and React builds. Published packages and tagged images may not include these changes. Upgrade the API, console and streaming image together and apply migration 0035 after 0033 and 0034 through your normal deployment process. Live media and interrupted-worker acceptance have not yet been verified for this release.
+Recording captures a broadcast's canonical H.264/AAC program. It does not save isolated participant tracks or recover media from before capture. A recording worker and private storage must be available on the deployment.
 
-For a local installation, `pnpm docker:up:streaming` builds the services and runs the migration service. The new `streaming-recordings` worker uses private storage through the API; it never receives bucket credentials. Keep the existing signing secret and S3 configuration across restarts.
+## Start capture
 
-## Console workflow
-1. Start a source and a broadcast using that source.
-2. Open Recordings in the project sidebar and choose the environment.
-3. Open Recording settings, paste the stream ID and load its saved policy. For a manual capture, enter the broadcast ID; omitting it works only when exactly one broadcast for the stream is running.
-4. Set retention, duration, storage region, MP4 export and partial recovery. Confirm that participants have been informed and the required consent has been obtained.
-5. Click Start recording now. Inspect recording status and saved segment count in Details.
-6. Stop and finalize, or stop the broadcast. Wait for ready before previewing or preparing the MP4 download.
-7. Delete through the confirmation dialog to revoke access immediately and remove the saved objects asynchronously.
+Obtain the required participant consent before acknowledging it in the policy. This backend helper takes the stream and broadcast IDs stored for an authorized event. `region` must match the deployment's storage region.
 
-Saving an automatic policy affects subsequently created broadcasts. A broadcast keeps its creation snapshot, including the consent acknowledgment. Starting that broadcast reserves recording capacity atomically; if capacity is full, the broadcast start is rejected. Turning off automatic recording means saving mode `manual` and creating a new run.
+```ts
+import { relay } from './relay.js'
 
-## What is recorded
-Capture saves complete H.264/AAC fragmented MP4 segments from the broadcast's canonical program. When the packager supplies separate video and audio playlists, both are saved at the same source-sequence checkpoint and finalized into a VOD master with protected child playlists. Audio-only AAC programs are supported and do not receive a video thumbnail. Individual participant tracks, source archives from before capture, arbitrary uploads and other codecs are not included. Initial capture starts with the latest two complete segments, so the beginning can precede the observed start by several seconds.
+export async function recordEvent(streamId: string, broadcastId: string, region: string) {
+  return relay.streams.recordings.start(streamId, {
+    broadcastId,
+    policy: {
+      mode: 'manual',
+      maxDurationSeconds: 3600,
+      retentionSeconds: 604800,
+      region,
+      allowPartial: false,
+      exportMp4: true,
+      segmentEvents: false,
+      consentAcknowledged: true,
+    },
+  })
+}
+```
 
-The recorder follows the selected broadcast source session and generation. Missing source sequences or source-generation changes are represented as partial output with HLS discontinuities. A worker interruption that resumes at the next retained sequence does not itself mark media partial. If capture stops after an unresolved interruption, incomplete media is treated according to the partial-output policy. `allowPartial` defaults to false: incomplete output fails without playback access. Opting in permits recovery and finalization of captured media; it does not guarantee an MP4 can be remuxed across incompatible source changes. A requested export that cannot be finalized leaves the recording failed, rather than reporting an unusable ready variant. HLS-only recording can be selected with `exportMp4: false`.
+The consent flag records your application's acknowledgment; RelayRTC does not obtain consent by joining a room. Show an observed recording indicator to participants and provide the controls your workflow requires.
 
-Capture state is queued, recording, finalizing, ready, failed, deleting or deleted. Capture stopping does not imply that playback is ready. Finalization creates an ended VOD playlist, probes codecs and duration, remuxes, probes and fully decodes the requested MP4, and produces a JPEG thumbnail for video. Transient control/upload requests receive bounded retries. Five worker attempts with bounded backoff are allowed per capture/finalization stage. Completion acknowledgment can be replayed without creating another asset or processing charge. Invalid codecs, oversized exports and verified truncation fail explicitly. Named pending objects, immutable checksums and unique source-sequence checkpoints permit a replacement worker to resume without duplicating saved duration.
+For automatic capture, save an `automatic` policy with `streams.recordings.setPolicy` before creating a broadcast. The run keeps that policy snapshot. Automatic recording reserves capacity during broadcast admission; insufficient capacity rejects the start rather than silently omitting capture.
 
-## Consent and indicators
-The backend requires `policy.consentAcknowledged: true` for manual capture and automatic policy configuration. Only a scoped secret key or authorized owner/admin may request capture. Applications must obtain whatever consent their workflow requires before sending that acknowledgment, and inform everyone whose media is included. RelayRTC does not infer consent from joining a room. Use application-backed `useRecording` and `RecordingIndicator` inside your room UI; the indicator shows observed recording state and does not obtain consent itself.
+## Stop and finalize
 
-## Private playback and downloads
-`getPlayback` returns metadata. Your application authorizes the viewer, then issues a short-lived asset access grant using its backend. Feed the application's metadata/grant callbacks into `BroadcastPlayer` with mode `vod`. Grant renewal keeps the playback position and paused state. Native HLS and an application-supplied HLS engine use the same protected paths.
+Use `recordings.get(recordingId)` to follow `queued`, `recording`, `finalizing`, `ready` or `failed`. Call `recordings.stop(recordingId)` to stop capture; stopping its broadcast also ends capture. Wait for `ready` before offering playback or downloads.
 
-Every manifest, initialization fragment, media fragment, thumbnail and MP4 download requires a valid, unrevoked grant and an active owning stream/project/environment/organization. Playback grants cannot download MP4 exports. Signed URLs are sensitive: keep them out of logs, use HTTPS and `Referrer-Policy: no-referrer`, and do not make the bucket public. Responses are private and not cacheable. MP4 delivery supports a single byte range, and rechecks authorization between bounded chunks; use a fresh download grant to resume after expiry.
+Capture saves complete fragments and can include the latest two retained segments at startup. Gaps and source-generation changes can produce partial output. With `allowPartial: false`, incomplete output fails without playback access. Opting in allows recovery of available media, but does not guarantee a compatible MP4 export across source changes.
 
-## Retention, limits and usage
-Retention starts when an asset becomes ready; failed recordings also expire after their configured retention. Expiry and owner deletion revoke access and stop capture before deletion. Cleanup waits for worker leases and bounded uploads to finish, retries object removal, and retains recording metadata and cumulative usage. Failed results stay private until deletion. No S3 multipart upload is started: fragments and export chunks are bounded immutable objects, so cleanup removes their named pending objects instead.
+## Authorize playback or downloads
 
-The storage region must equal `STREAMING_S3_REGION`; region selection is admission validation, not cross-region replication. Defaults are four in-flight recordings globally, two per environment, 512 MiB total objects per recording, and one finalize process per recording worker. A worker handles up to four recording jobs; additional workers may be deployed with unique process identities. Capture with MP4 reserves about half the byte budget for the export. The export file cap is half the configured object budget, never above 512 MiB. Capture stops at its byte or duration cap; an empty recording fails. Linux containers are required for the FFmpeg network guard. The Compose worker has 2 GiB RAM, one CPU and a 768 MiB temporary filesystem; completed and failed local export files are removed.
+After authenticating a viewer and checking access to the saved recording:
 
-Recorded seconds sum committed fragment durations once per source/session/generation/sequence. Processing seconds are bounded observations of finalization worker wall time, including probing/upload work, not CPU billing. Stored bytes include saved media, manifests, initialization fragments, thumbnails and MP4 chunks. Storage byte-seconds integrate actual committed bytes until deletion; counters remain after deletion. These definitions are distinct from source and destination egress usage.
+```ts
+import { relay } from './relay.js'
 
-Lifecycle webhooks are recording.started, recording.finalizing, recording.ready, recording.failed and recording.deleted. Per-fragment recording.segment_committed requires both a policy with `segmentEvents: true` and an endpoint subscription; it is off by default because it produces substantial event volume. Verify webhook signatures, deduplicate event IDs and re-read asset state before publishing a result.
+export async function getRecordedPlayback(authorizedRecordingId: string) {
+  const recording = await relay.recordings.get(authorizedRecordingId)
+  if (recording.state !== 'ready') throw new Error('Recording is not ready')
+  const playback = await relay.recordings.getPlayback(recording.id)
+  const grant = await relay.assets.createAccessGrant(recording.assetId, {
+    action: 'playback',
+    ttlSeconds: 300,
+  })
+  return { playback, grant }
+}
+```
 
-## Runnable example
-The existing `examples/streaming-foundation` app now includes manual recording, automatic policy configuration, observed indicators, private VOD and authorized downloads. Use the matching local SDK builds. Its backend restricts recording selection to the configured stream and host actions to the demo host session. Optionally configure `DEMO_WEBHOOK_SECRET` and deliver recording.ready to `/app-api/recording-ready` on the example backend; the callback verifies the signature and recording ownership before accepting readiness. Demo sessions and event deduplication are in memory; production applications need durable application authorization and event deduplication.
+Provide these operations through application endpoints to `BroadcastPlayer` with `mode="vod"`, using the [private playback pattern](/guides/streaming-playback). Return metadata and grants separately so the player can renew access. Grant renewal preserves position and pause state.
 
-See the [REST recording API](/reference/api/v1/recordings), [assets API](/reference/api/v1/assets), [Node methods](/reference/sdk/server/node/recordings) and [React hook](/reference/sdk/client/react/use-recording).
+For MP4, first check the asset's formats, then issue a separate `action: 'download'` grant. A playback grant cannot download an export. Keep grant URLs out of logs; use HTTPS and a no-referrer policy. Storage remains private.
 
-Use **Revoke existing links** in recording details to invalidate issued links without deleting the recording. Deletion and retention expiry disable access before physical cleanup finishes. Cleanup retries independently for each asset; storage byte-time continues while its objects remain and stops as removal is acknowledged. Historical totals remain available after cleanup.
+## Retention and deletion
+
+Retention begins when an asset becomes ready. Expiry and deletion revoke access before asynchronous storage cleanup finishes. Metadata and cumulative usage remain after objects are removed. Revoking existing asset links can preserve the recording while invalidating previously issued URLs; see [asset access](/reference/api/v1/assets).
+
+Defaults allow four in-flight recordings globally, two per environment and 512 MiB of objects per recording. MP4 export consumes part of that budget. A duration or storage cap can stop capture; empty output fails.
+
+Recorded seconds, finalization elapsed seconds, stored bytes and storage byte-seconds are separate measurements. They do not measure CPU time or audience delivery. Use `recording.ready` and failure webhooks for application workflows, and reload the resource before publishing a result.
+
+See [recording REST APIs](/reference/api/v1/recordings), [Node methods](/reference/sdk/server/node/recordings) and [React recording state](/reference/sdk/client/react/use-recording).
