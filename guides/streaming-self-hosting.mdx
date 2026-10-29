@@ -1,90 +1,47 @@
 ---
 title: "Streaming configuration"
-description: "Check the streaming services, public addresses and playback included with RelayRTC."
+description: "Configure the streaming services already included in your RelayRTC installation."
 section: "Self-hosting"
 ---
 
-Streaming is included in the standard [RelayRTC installation](/self-hosting). The normal `pnpm docker:up` source command starts calls, streaming workers, the ingest gateway and private storage together. Release installations start the same services with prebuilt images.
+Streaming is part of the standard [RelayRTC installation](/self-hosting). The setup image starts its workers, ingest gateway and private storage together with rooms. There is no additional streaming download, installation or enablement command.
 
-Use this page to check addresses and media flow after installation. There is no separate streaming installation or enablement step.
+## Services and credentials
 
-## Download streaming configuration
+The complete stack has 16 services. Streaming uses source, output, recording and room-export workers, a MediaMTX ingest gateway and private object storage. The installer generates their credentials and keeps the original values across restarts.
 
-The [v0.1.2 release ZIP](https://github.com/relayrtc/relayrtc/archive/refs/tags/v0.1.2.zip) already includes the complete configuration. The installation guide uses `docker-compose.yml`, `docker-compose.streaming.yml` and both release image overrides.
+Inspect the stack with the setup image's `status` or `logs` command from [installation](/self-hosting#start-inspect-or-stop). Successful `migrate` and `streaming-storage-init` containers exit with code 0. A healthy container does not by itself establish working ingest or playback.
 
-Keep these files together with `.env`, `.streaming` and the `infrastructure` directory.
-
-## Prepare credentials and monitoring
-
-The [standard settings preparation](/self-hosting#4-create-your-settings-file) generates all call and streaming credentials and prepares `.streaming` automatically. `pnpm env:configure` and `pnpm docker:up` do the same from a source checkout.
-
-Preparation keeps configured provider credentials, signing/encryption keys and public addresses. An older `RELAYRTC_STREAMING_ENABLED=false` value is updated to the standard enabled setting. Keep `.env` and `.streaming` private.
-
-## Review the local addresses
-
-For testing on this computer, generated settings use these addresses:
+## Default local addresses
 
 | Setting | Default |
 | --- | --- |
 | `STREAMING_PUBLIC_ORIGIN` | `http://localhost:8080` |
 | `STREAMING_PUBLIC_RTMP_ORIGIN` | `rtmp://localhost:1935` |
 | `STREAMING_GUEST_SIGNALING_URL` | `ws://localhost:8081/v1/connect` |
-| `STREAMING_INGEST_BIND` | `127.0.0.1`, for an encoder on this computer |
+| `STREAMING_INGEST_BIND` | `127.0.0.1` |
 | `STREAMING_WEBRTC_HOSTS` | `127.0.0.1` |
 
-The API and signaling addresses are derived from the base ports when first prepared. Existing values are preserved, so review them after changing a port or moving to a VPS.
+`STREAMING_ALLOWED_ORIGINS` must contain the viewing application's exact origin. External HLS pulls require `STREAMING_SOURCE_ALLOWED_HOSTS`; an empty value disables those pulls. Internal API, gateway and storage endpoints remain private Docker addresses.
 
-`STREAMING_ALLOWED_ORIGINS` must include your viewing application's exact origin, such as `http://localhost:3005`. Internal worker, gateway and storage addresses remain private Docker addresses. External HLS pulling requires an explicit source-host allowlist.
+Use [settings management](/guides/self-hosting-operations#change-settings) to change these values. Existing public addresses are preserved; changing a host port does not automatically rewrite them.
 
-For encoders or viewers on another device, configure [public streaming access](/guides/streaming-operations#configure-public-access).
-
-## Check the services
-
-For a source checkout:
-
-```sh
-pnpm docker:status
-```
-
-For a release installation, use the same configuration as startup:
-
-```sh
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml ps -a
-```
-
-The standard stack contains 16 services. Long-running services should be running, with healthy results where health checks are configured. `migrate` and `streaming-storage-init` are one-time setup services; `Exited (0)` is expected.
-
-## Publish and play a stream
+## Publish and play
 
 1. Connect a [room or encoder](/guides/streaming-ingest).
 2. Create and start a [broadcast](/guides/broadcasts).
-3. Wait for playback metadata to report `readiness.viewerReady`.
-4. Authorize a viewer and render [private playback](/guides/streaming-playback).
+3. Wait for `readiness.viewerReady`.
+4. Authorize a viewer using [private playback](/guides/streaming-playback).
 
-Test recordings, clips, DVR and other capabilities separately when using them. A connected encoder or healthy container does not establish playable media.
+For remote encoders and viewers, use [public streaming access](/guides/streaming-operations#configure-public-access) together with [public hosting](/guides/self-hosting-operations#public-hosting-and-ports).
 
-## Stop or inspect the stack
+## Operations
 
-Use `pnpm docker:logs` and `pnpm docker:down` in a source checkout. For release images, use all four Compose files as described in [installation](/self-hosting#stop-and-troubleshoot).
+- [Capacity and private delivery](/guides/streaming-operations#capacity-and-private-delivery)
+- [Draining before upgrades](/guides/streaming-operations#upgrades-and-draining)
+- [Backups and restore](/guides/streaming-operations#backups-and-restore)
+- [Troubleshooting](/guides/streaming-operations#troubleshooting)
 
-End active calls, broadcasts and recordings before stopping services. For a deployment serving users, follow the [draining procedure](/guides/streaming-operations#upgrades-and-draining).
+Installer-managed gateway configuration, certificates and monitoring files live in isolated subdirectories of the persistent configuration volume. No source-checkout bind mounts are needed. See [configuration storage](/guides/self-hosting-operations#configuration-and-data) before supplying custom certificates.
 
-## Configure public access
-
-Follow [public streaming access](/guides/streaming-operations#configure-public-access) for HTTPS, RTMPS, remote encoders and source-host settings.
-
-## Capacity and private delivery
-
-See [worker capacity and delivery](/guides/streaming-operations#capacity-and-private-delivery) before adjusting quotas or exposing playback publicly.
-
-## Upgrades and draining
-
-Use the [streaming upgrade procedure](/guides/streaming-operations#upgrades-and-draining), which preserves the services needed to finish cleanup.
-
-## Backups and restore
-
-Save the database, retained objects and original keys together using [streaming backups](/guides/streaming-operations#backups-and-restore).
-
-## Troubleshooting
-
-Use [streaming troubleshooting](/guides/streaming-operations#troubleshooting) for ingest, storage, playback, DVR and worker failures.
+For source development, `pnpm docker:up` still starts the same complete stack using the repository's Compose definitions. The streaming-named script aliases remain compatibility aliases, not separate deployments.

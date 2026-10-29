@@ -1,199 +1,93 @@
 ---
 title: "Install RelayRTC"
-description: "Run RelayRTC calls and streaming, open the console and create your first API key."
+description: "Start rooms, streaming, storage and monitoring with one Docker command."
 section: "Self-hosting"
 ---
 
-This guide installs the complete RelayRTC stack using Docker: the console, API, calls, streaming workers, ingest gateway and private media storage. You will get a console at [localhost:3002](http://localhost:3002) and an API key for your application.
+The RelayRTC `0.1.3` setup image generates configuration and starts the complete stack. Rooms, streaming, recording workers, private storage, TURN and monitoring are included. There is no separate streaming installation.
 
-Start here for local testing. To make the installation accessible to other devices, follow [public hosting](/guides/self-hosting-operations#public-hosting-and-ports) afterward.
+## 1. Start Docker
 
-<Callout title="v0.1.2 release">
-These instructions target v0.1.2. Its tag and container images must be published before downloading and starting this version. A missing download or image means the release is unavailable; use matching files and images from the same release.
-</Callout>
+Install and open Docker Desktop on Windows or macOS, using Linux containers. On Linux, start Docker Engine. The installer bundles its own Docker CLI and Compose plugin. You do not need Node.js, pnpm, npm, Bun, Go, Git or a source ZIP.
 
-## 1. Install and open Docker
+Use Docker Engine 26 or newer (API 1.45+) for named-volume subdirectory mounts, with a Linux AMD64 or ARM64 engine. Windows containers are not supported.
 
-Install [Docker Desktop](https://docs.docker.com/get-started/get-docker/) on Windows or macOS. Open it and wait for Docker to finish starting. On Windows, use Linux containers. Linux users can use Docker Engine with the Compose plugin.
+## 2. Run setup
 
-The supplied release images target Linux AMD64. Check the release's supported architectures before using an ARM computer, including Apple Silicon. You do not need to install Node.js, Go or pnpm for this guide.
-
-## 2. Download RelayRTC
-
-1. Download the [v0.1.2 ZIP](https://github.com/relayrtc/relayrtc/archive/refs/tags/v0.1.2.zip) in your browser.
-2. Extract the ZIP.
-3. Open the extracted folder containing `docker-compose.yml`. Your ZIP program may put it inside another folder with the same name.
-
-You should see these files, along with the rest of the release:
-
-```text
-relayrtc-0.1.2/
-  .env.example
-  docker-compose.yml
-  docker-compose.streaming.yml
-  docker-compose.release.yml
-  docker-compose.streaming.release.yml
-  infrastructure/
-  scripts/
-    configure-env.mjs
-    prepare-streaming.mjs
-```
-
-Keep this folder for future starts and updates. Docker will download prebuilt services; you do not need to build the downloaded source.
-
-## 3. Open a terminal in that folder
-
-A terminal is the window where you paste the commands below. Run commands one at a time and wait for each to finish.
-
-**Windows:** in File Explorer, open the folder from step 2. Click the address bar, type `powershell`, and press Enter. Use that PowerShell window throughout this guide.
-
-**macOS or Linux:** open Terminal, type `cd ` with a space after it, drag the extracted folder into the terminal, and press Enter.
-
-Check that Docker Compose is installed:
+Run this single command in macOS Terminal, a Linux terminal or Windows PowerShell with Docker Desktop:
 
 ```sh
-docker compose version
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3
 ```
 
-You should see a version number. If Docker is not found, finish its installation before continuing.
+The Docker socket gives setup access to create the application containers on this Docker engine. The named volume keeps configuration and secrets after the temporary installer exits. No host folder is required. Use the same trusted release for the installer and services.
 
-## 4. Create your settings file
+Setup automatically:
 
-Copy the command for your operating system. It creates `.env`, fills in the internal and streaming credentials, and prepares private monitoring files in `.streaming`. Streaming is included automatically.
+1. Detects Docker and acquires an installation lock.
+2. Generates missing credentials and saves them in `relayrtc-config`.
+3. Downloads matching published images.
+4. Starts PostgreSQL, private storage, database migration and all application services.
+5. Waits for configured health checks and prints the console address.
 
-### Windows PowerShell
+Progress appears in the terminal. There is no installation wizard or temporary port `9095`. If setup stops early, its exit code is nonzero. Inspect the message before continuing. Configuration and data are retained.
 
-```powershell
-docker run --rm --mount "type=bind,source=$PWD,target=/workspace" --workdir /workspace node:24-alpine node scripts/configure-env.mjs
-```
+For rootless Docker or a different socket location, replace the source side of the socket mount with your actual Docker socket. Docker Desktop must expose its Linux engine socket. Git Bash/MSYS users may need to disable automatic path conversion or use PowerShell instead.
 
-### macOS or Linux
+## 3. Open the console
 
-```bash
-docker run --rm --user "$(id -u):$(id -g)" --mount "type=bind,source=$PWD,target=/workspace" --workdir /workspace node:24-alpine node scripts/configure-env.mjs
-```
+Visit [http://localhost:3002](http://localhost:3002), create your account through the normal signup screen, then create an organization and project.
 
-Docker may download the Node.js image first. When finished, you should see `Prepared .env; prepared .streaming. No services were started.` Repeating this command keeps your existing configured keys. Keep `.env` and `.streaming` private; on Windows, restrict their file permissions to your account and Docker.
+For a fresh localhost installation, email/password signup works without GitHub, Google or Resend credentials. Email verification is automatically skipped only when no email sender is configured for this local installation. Password-reset emails, email changes and invitations need email delivery. Unavailable operations return an explicit configuration error. OAuth buttons appear only for configured providers.
 
-## 5. Fill in your sign-in and email settings
+Create an environment-scoped secret API key in **Developer Controls > API keys**. Keep it in your application's backend. For the [first call](/quickstart), grant `rooms:create` and `tokens:create`, then use:
 
-Open `.env` in a text editor. On Windows, use the same PowerShell window:
-
-```powershell
-notepad .env
-```
-
-On macOS or Linux, open the file in your editor. Files beginning with a dot may be hidden in your file manager.
-
-Fill in these six settings. The [sign-in and email setup](/guides/self-hosting-authentication) explains where to get each value and gives the exact callback URLs.
-
-| Setting in `.env` | Value to enter |
+| Setting | Local value |
 | --- | --- |
-| `GITHUB_CLIENT_ID` | Your GitHub OAuth app's client ID |
-| `GITHUB_CLIENT_SECRET` | Your GitHub OAuth app's client secret |
-| `GOOGLE_CLIENT_ID` | Your Google web application's client ID |
-| `GOOGLE_CLIENT_SECRET` | Your Google web application's client secret |
-| `RESEND_API_KEY` | Your Resend email-sending API key |
-| `RESEND_FROM_EMAIL` | A sender on your verified domain, such as `"RelayRTC <noreply@your-domain.com>"` |
+| API base | `http://localhost:8080/v1` |
+| Signaling | `ws://localhost:8081/v1/connect` |
+| RTMP ingest | `rtmp://localhost:1935` |
 
-Put each value after its `=` sign. The current account service requires both OAuth providers and email configuration, even when you plan to sign in with email and password. Complete [provider setup](/guides/self-hosting-authentication) before continuing.
+Streaming is already included. Continue with [publishing a stream](/guides/streaming-ingest) or [broadcasts](/guides/broadcasts).
 
-Save the file as `.env`, keeping its exact name. Windows editors must not add `.txt`. For local testing, keep the generated keys, localhost addresses and other settings as supplied. Keep this file private and retain it across restarts.
+## Find your services
 
-## 6. Start RelayRTC
+Docker Desktop groups the 16 services under the `relayrtc` Compose project. The setup container disappears after successful installation. The application containers continue running. `migrate` and `streaming-storage-init` are one-time services, so `Exited (0)` is expected.
 
-Run each command separately in the same terminal. These commands work in both PowerShell and Bash.
+Application services use restart policies. Start Docker after a host reboot. Existing services then restart according to those policies. The installer itself does not need to remain running.
 
-**Check configuration:**
+## Start, inspect or stop
 
-```sh
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml config --quiet
-```
+Run the same command again to resume installation or reapply saved settings at the same version. Existing configured credentials are preserved. An installation from a different version requires the explicit upgrade procedure.
 
-Success produces no output. If a message names a missing setting, fill it in `.env` before continuing.
-
-**Download the release images:**
+Inspect status:
 
 ```sh
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml pull
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 status
 ```
 
-Wait for all downloads to finish. If an image is missing or access is denied, check that the release images are published.
-
-**Start the services:**
+Show recent service logs:
 
 ```sh
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml up -d --no-build --wait
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 logs
 ```
 
-This prepares the database and private storage, then starts calls and streaming in the background. The first run can take several minutes. Keep all four Compose files in these commands: the first two define the complete services, and the last two select the prebuilt release images.
-
-**Check the result:**
+After ending active calls and draining broadcasts/recordings, stop application services:
 
 ```sh
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml ps -a
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 stop
 ```
 
-Long-running services should be running, with healthy results where health checks are configured. Both `migrate` and `streaming-storage-init` are one-time setup services; `Exited (0)` is their successful result. The complete stack contains 16 services, including these two setup services.
+`stop` retains PostgreSQL, storage, TURN and monitoring so it does not remove supporting services during cleanup. It deletes no volumes. Start saved services again with the same command ending in `start`, or start the project through Docker Desktop.
 
-## 7. Open the console and create an API key
+## Settings, public hosting and upgrades
 
-1. Open [http://localhost:3002](http://localhost:3002).
-2. Create your account and follow the verification email.
-3. Create your organization and project. The project creates Development and Production environments for you.
-4. Open the project's **Developer Controls**, then **API keys**.
-5. Select **Development**, create a **Secret** key, and select `rooms:create` and `tokens:create` for the first-call example.
-6. Copy the secret when shown and store it in your application backend's environment.
+The initial defaults are for browsers on this computer. Public hosting needs reachable addresses, HTTPS, configured email and media/TURN ports. See [operate RelayRTC](/guides/self-hosting-operations) for settings, importing an existing installation, backups and upgrades. [Optional sign-in and email settings](/guides/self-hosting-authentication) explains provider configuration.
 
-Use these connection addresses in the [first-call guide](/quickstart):
-
-| Application setting | Local value |
-| --- | --- |
-| API base URL | `http://localhost:8080/v1` |
-| Signaling URL | `ws://localhost:8081/v1/connect` |
-
-Keep the secret key on your backend. Each caller receives their own participant token. Your frontend's origin must also appear in `RELAYRTC_SIGNALING_ALLOWED_ORIGINS`; the starter allows ports 3002 and 3005.
-
-## Stop and troubleshoot
-
-You can close the terminal after startup. Docker keeps the services running. End active calls, broadcasts and recordings before stopping the stack. Reopen a terminal in the installation folder and run:
+The setup image's `help` command lists supported operations:
 
 ```sh
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml down
+docker run --rm ghcr.io/relayrtc/setup:0.1.3 help
 ```
 
-This keeps your saved database and settings. To start again, use the `up` command from step 6.
-
-If the console does not open, inspect the service logs:
-
-```sh
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml logs --tail=100 api console migrate
-```
-
-| Problem | What to do |
-| --- | --- |
-| Docker cannot connect | Open Docker Desktop and wait for it to start |
-| Compose file or `.env` not found | Reopen the terminal in the folder containing `docker-compose.yml`; check that the settings file is not named `.env.txt` |
-| A required setting is missing | Complete the six provider settings in step 5 and save `.env` |
-| Image download fails | Confirm the matching release images are published |
-| Email is not arriving | Check the Resend sender and API key using [email setup](/guides/self-hosting-authentication#resend-email) |
-| Sign-in returns a callback error | Use the exact URLs in [sign-in setup](/guides/self-hosting-authentication) |
-| A port is already in use | Close the other application, or review [port settings](/guides/self-hosting-operations#local-endpoints) before changing `.env` |
-
-For camera, microphone or remote-media problems, use [call troubleshooting](/guides/troubleshooting). Streaming is already running; use [streaming configuration](/guides/streaming-self-hosting) to check its addresses and test ingest/playback. For a deployment serving users, follow the [draining procedure](/guides/streaming-operations#upgrades-and-draining) before shutdown.
-
-## Public hosting and ports
-
-For a VPS, domain names, HTTPS and access from other devices, follow [public hosting](/guides/self-hosting-operations#public-hosting-and-ports). The localhost settings above are for browsers on this computer.
-
-## Backups
-
-Before updates, save your database and original keys using the [backup procedure](/guides/self-hosting-operations#backups).
-
-## Upgrade
-
-Use the [upgrade procedure](/guides/self-hosting-operations#upgrade) for an existing installation.
-
-## Restore and rollback
-
-Use the [restore procedure](/guides/self-hosting-operations#restore-and-rollback) with a matching database backup, media and keys.
+Source developers can keep using `pnpm env:configure` and `pnpm docker:up` from the repository. That development path builds source. The setup image installs published images.
