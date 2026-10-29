@@ -4,7 +4,7 @@ description: "Configure remote streaming access, understand worker capacity and 
 section: "Self-hosting"
 ---
 
-Use this page after [installing RelayRTC](/self-hosting), which includes streaming. Run commands in that installation folder. All release commands use the same four Compose files as installation.
+Use this page after [installing RelayRTC](/self-hosting), which includes streaming. Use the setup image with the same configuration volume as installation; no source folder or separate streaming setup is needed.
 
 ## Configure public access
 
@@ -37,7 +37,7 @@ For RTMPS, put the trusted certificate/key at the configured gateway certificate
 | Object storage and setup | `streaming-storage` and `streaming-storage-init` images |
 | Encoder admission and canonical media | Pinned MediaMTX gateway |
 
-Always use the same four-file configuration for subsequent startup, stop, logs and upgrade commands. The streaming release override selects images without changing worker commands or resource limits. From a full matching source checkout, `pnpm docker:up` builds and starts the complete stack; it requires host Node/pnpm. `pnpm docker:status`, `pnpm docker:logs` and `pnpm docker:down` cover the same services.
+Use the installer's `status`, `logs`, `start` and `stop` commands for the saved installation. Its deployment manifest uses matching images while preserving worker commands and resource limits. From a full matching source checkout, `pnpm docker:up` builds and starts the complete stack; it requires host Node/pnpm. `pnpm docker:status`, `pnpm docker:logs` and `pnpm docker:down` cover the same services.
 
 ## Capacity and private delivery
 
@@ -55,29 +55,28 @@ Before recreating services, prevent new event/room commands in your application.
 
 `STREAMING_BROADCASTS_ENABLED=false` blocks new broadcast admission and drains runs while source cleanup remains active. Feature controls for guests, DVR and mixers have their own draining semantics. Keep streaming control services running while broadcasts, recordings and retained-data cleanup drain. The standard stack keeps streaming enabled.
 
-Take coordinated backups and download matching target configuration/images. With PostgreSQL and storage available, stop the application and workers, run the target migrator, then start the complete release stack:
+Take coordinated backups, then run the target setup image with `upgrade`. Use the verified release tag; `0.1.3` below is the initial installer candidate:
 
-```bash
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml stop console api signaling media streaming-worker streaming-outputs streaming-sources streaming-recordings streaming-gateway
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml run --rm --no-deps migrate
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml up -d --no-build --wait
+```sh
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 upgrade
 ```
+
+Setup pulls images before stopping application services and starts migration with database/storage available. It does not perform the application-level draining described above.
 
 Run commands sequentially and leave application services stopped if migration fails. Keep the database and object storage schemas compatible with the chosen release; removing tables while active cleanup depends on them is unsupported. Recheck media and asset access after the upgrade before admitting new events.
 
 ## Backups and restore
 
-Drain work and quiesce API/worker writes before creating coordinated database/storage backups. Use the [PostgreSQL backup procedure](/self-hosting#backups), and save `.env`, Compose overrides, TLS material and original encryption/signing keys privately.
+Drain work and quiesce API/worker writes before creating coordinated database/storage backups. Use the [PostgreSQL backup procedure](/guides/self-hosting-operations#backups), and save `.env`, Compose overrides, TLS material and original encryption/signing keys privately.
 
 For the supplied local storage volume, stop storage after application/worker writes have stopped. A Bash example copies that stopped container's data read-only:
 
 ```bash
-docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml stop streaming-storage
-storage_container=$(docker compose --env-file .env -f docker-compose.yml -f docker-compose.streaming.yml -f docker-compose.release.yml -f docker-compose.streaming.release.yml ps --all --quiet streaming-storage)
-docker run --rm --volumes-from "$storage_container:ro" --mount "type=bind,source=$PWD,target=/backup" alpine:3.22 tar -C /data -czf /backup/streaming-storage.tar.gz .
+docker stop relayrtc-streaming-storage-1
+docker run --rm --volumes-from relayrtc-streaming-storage-1:ro --mount "type=bind,source=$PWD,target=/backup" alpine:3.22 tar -C /data -czf /backup/streaming-storage.tar.gz .
 ```
 
-Check that exactly one storage container was selected and use a unique backup destination. For external object storage, use the provider's consistent backup/snapshot procedure instead. Do not expose administrator credentials in command history or backups shared with support.
+Use the actual storage container name for a customized project, a unique protected backup destination and the appropriate bind-path syntax for your host shell. For external object storage, use the provider's consistent backup/snapshot procedure instead. Do not expose administrator credentials in command history or backups shared with support.
 
 Restore database, objects and keys as one compatible set on an isolated installation. Keep source/output/recording workers and the ingest gateway stopped while control services reconcile stale leases. Admit publishers and resume jobs deliberately; do not restore a running worker snapshot. Test grant revocation, retained asset playback and cleanup before returning traffic.
 
@@ -85,7 +84,7 @@ Restore database, objects and keys as one compatible set on an isolated installa
 
 | Symptom | Check |
 | --- | --- |
-| Missing image or attempted build | Both release overrides, published tag, registry visibility and `--no-build` |
+| Missing image or attempted build | Matching setup/service release tags and registry visibility; installer deployments never build source |
 | Encoder connects but video is unavailable | `readiness`, source production, worker capacity and private gateway access |
 | WHIP fails remotely | Exact browser origin, SDP limits, announced gateway address and UDP 8189 |
 | Asset never becomes ready | Recording-worker capacity, storage health, safe lastError and partial-output policy |
