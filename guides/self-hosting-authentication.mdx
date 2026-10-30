@@ -4,11 +4,11 @@ description: "Configure optional social sign-in and email delivery after install
 section: "Self-hosting"
 ---
 
-A fresh localhost [installation](/self-hosting) starts without external provider credentials. Email/password signup is available through the console, with email verification skipped when no sender is configured locally. You do not need to register GitHub or Google applications to start RelayRTC.
+The [setup wizard](/self-hosting) lets you configure or skip each external provider. Email/password signup is available through the console, with email verification skipped when email delivery is not configured. You do not need to register GitHub or Google applications to start RelayRTC.
 
-GitHub and Google are optional and independent; configure both values for whichever provider you enable. Resend provides verification, password recovery and account/invitation emails. Public console addresses require email delivery; localhost installations can configure it later. Partial provider configuration is rejected instead of displaying a broken login option.
+GitHub and Google are optional and independent. Configure both values for whichever provider you enable. Resend provides verification, password recovery and account/invitation emails. Email delivery is optional for local and public installations. Skipping it disables verification and email-dependent recovery and invitations. Partial provider configuration is rejected instead of displaying a broken login option.
 
-Save the settings using [configuration management](/guides/self-hosting-operations#change-settings). Installer-managed settings live in the `relayrtc-config` Docker volume, not a downloaded source folder. These provider credentials are separate from the environment-scoped RelayRTC API key created in the console.
+Save the settings using [configuration management](/guides/self-hosting-operations#change-settings). Settings live in the generated `relayrtc/.env` file. These provider credentials are separate from the environment-scoped RelayRTC API key created in the console.
 
 The URLs below use the local console at `http://localhost:3002`. For a public installation, replace that origin with your console's HTTPS origin in both RelayRTC and the provider settings.
 
@@ -18,7 +18,7 @@ The URLs below use the local console at `http://localhost:3002`. For a public in
 2. Set its homepage to `http://localhost:3002`.
 3. Set its authorization callback URL to `http://localhost:3002/api/auth/callback/github`.
 4. Register the app, copy its client ID and generate a client secret.
-5. Save `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` using the configuration command below.
+5. Save `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in the wizard or `.env`.
 
 Use the OAuth app credentials, rather than a GitHub personal access token. GitHub's [OAuth app instructions](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) explain the registration fields.
 
@@ -28,7 +28,7 @@ Use the OAuth app credentials, rather than a GitHub personal access token. GitHu
 2. Complete the OAuth consent configuration requested for that project.
 3. Create an OAuth client with application type **Web application**.
 4. Add `http://localhost:3002/api/auth/callback/google` as an authorized redirect URI.
-5. Save the client ID and client secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` using the configuration command below.
+5. Save the client ID and client secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the wizard or `.env`.
 
 Google permits localhost redirect URIs for testing. The scheme, port and callback path must match exactly. See Google's [web application credential setup](https://developers.google.com/identity/protocols/oauth2/web-server#creatingcred) if you need help with its console.
 
@@ -62,8 +62,8 @@ RESEND_API_KEY=your-resend-api-key
 RESEND_FROM_EMAIL="RelayRTC <noreply@mail.your-domain.com>"
 ```
 
-This block shows names and formats, not usable credentials. Omit settings for unused OAuth providers. Apply the selected values with the installer's `configure` command, then rerun setup at the installed version. Generated infrastructure secrets are retained.
+This block shows names and formats, not usable credentials. Omit settings for unused OAuth providers. Save selected values in `.env`, then run `docker compose up -d --remove-orphans` from the installation folder. You can also reopen the same-version wizard and configure the integration there. Generated infrastructure secrets are retained.
 
-When email delivery is configured and `SKIP_EMAIL_VERIFICATION` is empty, email verification is enabled. Set `SKIP_EMAIL_VERIFICATION=false` explicitly if an older local installation had saved `true`. Without a sender, password recovery, email changes and invitations are unavailable; the API returns `EMAIL_NOT_CONFIGURED` rather than pretending to send mail.
+The wizard sets `SKIP_EMAIL_VERIFICATION=true` when email is skipped and `false` when a sender is configured. With email configured and the setting empty, verification is enabled. When enabling email by editing `.env`, also set `SKIP_EMAIL_VERIFICATION=false`. The wizard does this automatically when you configure a sender. Without a sender, password recovery, email changes and invitations are unavailable. the API returns `EMAIL_NOT_CONFIGURED` rather than pretending to send mail.
 
 Email verification depends on a working sender. After creating your RelayRTC account, check your inbox and spam folder. If no message arrives, inspect your Resend delivery logs and confirm the sender matches its verified domain.
