@@ -4,7 +4,7 @@ description: "Configure remote streaming access, understand worker capacity and 
 section: "Self-hosting"
 ---
 
-Use this page after [installing RelayRTC](/self-hosting), which includes streaming. Use the setup image with the same configuration volume as installation; no source folder or separate streaming setup is needed.
+Use this page after [installing RelayRTC](/self-hosting), which includes streaming. Run Compose from your generated `relayrtc` folder. There is no separate streaming setup.
 
 ## Configure public access
 
@@ -37,7 +37,7 @@ For RTMPS, put the trusted certificate/key at the configured gateway certificate
 | Object storage and setup | `streaming-storage` and `streaming-storage-init` images |
 | Encoder admission and canonical media | Pinned MediaMTX gateway |
 
-Use the installer's `status`, `logs`, `start` and `stop` commands for the saved installation. Its deployment manifest uses matching images while preserving worker commands and resource limits. From a full matching source checkout, `pnpm docker:up` builds and starts the complete stack; it requires host Node/pnpm. `pnpm docker:status`, `pnpm docker:logs` and `pnpm docker:down` cover the same services.
+Use `docker compose ps -a`, `docker compose logs`, `docker compose up -d` and `docker compose down` from the installation folder. The generated manifest pins matching images while preserving worker commands and resource limits. From a full matching source checkout, `pnpm docker:up` builds and starts the complete stack; it requires host Node/pnpm. `pnpm docker:status`, `pnpm docker:logs` and `pnpm docker:down` cover the same services.
 
 ## Capacity and private delivery
 
@@ -55,13 +55,7 @@ Before recreating services, prevent new event/room commands in your application.
 
 `STREAMING_BROADCASTS_ENABLED=false` blocks new broadcast admission and drains runs while source cleanup remains active. Feature controls for guests, DVR and mixers have their own draining semantics. Keep streaming control services running while broadcasts, recordings and retained-data cleanup drain. The standard stack keeps streaming enabled.
 
-Take coordinated backups, then run the target setup image with `upgrade`. Use the verified release tag; `0.1.3` below is the initial installer candidate:
-
-```sh
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 upgrade
-```
-
-Setup pulls images before stopping application services and starts migration with database/storage available. It does not perform the application-level draining described above.
+Take coordinated backups and follow the target release's [upgrade procedure](/guides/self-hosting-operations#upgrade). The wizard supports initial configuration and same-version changes. Do not generate fresh keys for existing metadata or object storage.
 
 Run commands sequentially and leave application services stopped if migration fails. Keep the database and object storage schemas compatible with the chosen release; removing tables while active cleanup depends on them is unsupported. Recheck media and asset access after the upgrade before admitting new events.
 
@@ -84,7 +78,7 @@ Restore database, objects and keys as one compatible set on an isolated installa
 
 | Symptom | Check |
 | --- | --- |
-| Missing image or attempted build | Matching setup/service release tags and registry visibility; installer deployments never build source |
+| Missing image or attempted build | Pinned Docker Hub service tags and public image visibility. Installer deployments use prebuilt images |
 | Encoder connects but video is unavailable | `readiness`, source production, worker capacity and private gateway access |
 | WHIP fails remotely | Exact browser origin, SDP limits, announced gateway address and UDP 8189 |
 | Asset never becomes ready | Recording-worker capacity, storage health, safe lastError and partial-output policy |

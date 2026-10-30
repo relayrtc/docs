@@ -1,54 +1,41 @@
 ---
 title: "Operate a self-hosted installation"
-description: "Manage the persistent Docker installation, configure public access and maintain your data."
+description: "Manage your generated RelayRTC folder, public addresses and persistent data."
 section: "Self-hosting"
 ---
 
-These procedures apply to the setup-image installation from [Install RelayRTC](/self-hosting). Rooms and streaming share one Compose project. Keep the same configuration volume and use the setup image matching the installed version for normal operations.
+These procedures apply to the browser [setup wizard](/self-hosting). Run Compose commands inside the generated `relayrtc` folder. Rooms and streaming share one project.
 
 ## Configuration and data
 
-The default project is `relayrtc`. The configuration volume is `relayrtc-config`; PostgreSQL, object storage, Grafana, monitoring and TURN accounting use separate persistent volumes.
-
-| Configuration path inside the setup container | Purpose |
+| Path in your installation folder | Purpose |
 | --- | --- |
-| `/setup/state/.env` | Original generated secrets and operator settings |
-| `/setup/state/compose.json` | Resolved deployment definition; also contains secrets |
-| `/setup/state/installation.json` | Installed version, project, configuration-volume identity and startup status |
-| `/setup/state/runtime/monitoring` | Monitoring configuration and its scoped credentials |
-| `/setup/state/runtime/streaming` | Gateway configuration and `certs/` directory |
-| `/setup/state/backups` | Configuration snapshots made before an installer apply/upgrade; not database or media backups |
+| `.env` | Settings and generated credentials |
+| `docker-compose.yml` | Complete stack with pinned service images |
+| `wizard.json` | Wizard version and nonsecret settings |
+| `runtime/monitoring` | Prometheus configuration and scoped credentials |
+| `runtime/streaming` | Gateway configuration and `certs/` |
+| `backups` | Configuration snapshots made when the wizard saves changes |
 
-Services receive only their required runtime subdirectories through read-only volume mounts. The entire `.env` is not mounted into the gateway or Prometheus. Repeating installation does not generate new values for configured secrets. The installer rejects concurrent owners of the same configuration volume and refuses an existing project's data volumes unless its original configuration has been imported.
+PostgreSQL, retained streaming objects, Grafana, Prometheus and TURN accounting use separate Docker volumes. Save the configuration folder as well as those volumes. Configuration snapshots are not database or media backups.
 
-Keep the configuration volume private. Setup has Docker-engine access and can manage containers; run a trusted image. Do not remove configuration or data volumes when stopping services.
+Gateway and Prometheus receive only the runtime subdirectories they need. Keep `.env`, the Compose file and configuration backups private. The wizard preserves configured infrastructure secrets when you reopen the same installation at the same version.
+
+The installer creates its child folder using the owner of the mounted parent directory on Linux. It does not change the parent directory's permissions. Keep the installation on a local filesystem supported by Docker Desktop or Docker Engine and restrict access to your account and Docker.
 
 ## Change settings
 
-Create a UTF-8 text file named `relayrtc-settings.env` containing only the changes you want, for example:
-
-```dotenv
-GITHUB_CLIENT_ID=your-real-client-id
-GITHUB_CLIENT_SECRET=your-real-client-secret
-```
-
-Send it to the configuration command. On macOS/Linux:
+Edit `.env` for service settings consumed by the generated Compose file, then apply them during a maintenance window:
 
 ```sh
-docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 configure < relayrtc-settings.env
+docker compose up -d --remove-orphans
 ```
 
-On Windows PowerShell:
+Existing secrets must remain unchanged unless you perform a coordinated rotation. Editing a database or storage password does not update an already initialized account. Keep signing and encryption keys with backups.
 
-```powershell
-Get-Content -Raw -Encoding utf8 relayrtc-settings.env | docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 configure
-```
+You can reopen the wizard at its installed version by running the installation command from the parent folder with `relayrtc/relayrtc:0.1.3`. It reads `relayrtc/wizard.json`, offers **Keep current credentials** for configured providers, and preserves infrastructure secrets. A different installer version is rejected rather than silently rewriting an existing deployment.
 
-This saves settings without changing running services. Rerun the normal installation command at the same version to apply them. Save changes during a maintenance window: recreating API, signaling or media interrupts their active sessions. Use `upgrade` explicitly for a different image version.
-
-`configure` accepts known settings from the starter and advanced environment templates. It cannot change the image version, project identity or initialized infrastructure credentials. PostgreSQL/storage passwords, signing/encryption keys and the initial Grafana password need coordinated rotation; changing a value alone does not update existing database/storage accounts. No credentials are printed by normal installation.
-
-Unknown existing settings imported from a previous deployment are retained. Values supplied through `configure` must be single-line dotenv values; unsupported quote/control characters are rejected. Remove a provider by explicitly setting both of its values empty. To turn email verification back on after an older local configuration saved `true`, set `SKIP_EMAIL_VERIFICATION=false` while enabling a working sender.
+The wizard writes configuration but does not recreate running services. Apply the saved configuration through Compose. Recreating API, signaling, media or workers interrupts active sessions.
 
 ## Local endpoints
 
@@ -62,85 +49,76 @@ Unknown existing settings imported from a previous deployment are retained. Valu
 | STUN/TURN | 3478 TCP/UDP |
 | Grafana | `http://localhost:3000` |
 | Prometheus | `http://localhost:9090` |
-| RTMP ingest | `rtmp://localhost:1935` |
+| RTMP ingest | 1935 TCP |
 | WHIP media | 8189 UDP |
 
-Read the generated Grafana login only when needed:
+Grafana uses `GRAFANA_ADMIN_USER`, defaulting to `admin`, and the generated `GRAFANA_ADMIN_PASSWORD` in your private `.env`. Your RelayRTC account is created separately in the console.
+
+## Start, inspect or stop
 
 ```sh
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 credentials
+docker compose up -d --remove-orphans
+docker compose ps -a
+docker compose logs --tail=100 api console migrate
 ```
 
-That command deliberately prints a password. Keep its output private. Grafana is the monitoring dashboard; your RelayRTC account is created in the separate console.
+After ending calls and [draining streaming](/guides/streaming-operations#upgrades-and-draining), stop the stack:
+
+```sh
+docker compose down
+```
+
+This retains data volumes. Do not add `--volumes` when preserving an installation. Existing restart policies apply after Docker restarts. Keep the generated folder available for its runtime bind mounts.
 
 ## Public hosting and ports
 
-The one-command defaults are for this computer. For public hosting, configure your existing installation with:
+Public setup requires:
 
-- `BETTER_AUTH_URL` and trusted origins pointing to the console's HTTPS origin.
-- Working email delivery and the desired verification policy.
-- `RELAYRTC_SIGNALING_ALLOWED_ORIGINS` containing each browser application's exact origin.
-- Reachable `MEDIA_RTC_ANNOUNCED_ADDRESS`, `TURN_PUBLIC_IP`, `TURN_STUN_URLS` and `TURN_URLS`.
-- Streaming public origins and hosts from [public streaming access](/guides/streaming-operations#configure-public-access).
+- DNS for the console, API and signaling addresses entered in the wizard.
+- Trusted HTTPS for console/API and WSS for signaling.
+- A reverse proxy forwarding signaling WebSocket upgrades at `/v1/connect`. With one hostname, route `/v1/connect` to signaling, other `/v1/` requests to the API, and remaining requests to the console.
+- Reachable mediasoup announced addresses and coturn public IP.
+- The application's exact origin in `RELAYRTC_SIGNALING_ALLOWED_ORIGINS`.
+- Public streaming addresses from [streaming access](/guides/streaming-operations#configure-public-access).
 
-The installer refuses public console origins without HTTPS and email. OAuth remains optional. Configure the public API/signaling URLs in your application separately.
+Resend and OAuth remain optional on a public server. If you skip email, verification and email-dependent recovery/invitations remain unavailable. Configure a sender later to enable them.
 
-The supplied API, signaling and console host bindings are loopback-only, suitable for a reverse proxy on the same host. Forward signaling WebSocket upgrades at `/v1/connect`. A proxy running in another container requires explicit shared-network configuration; the installer does not silently expose management endpoints.
+The generated API, console, signaling, database and monitoring bindings are loopback-only. A reverse proxy on the same host can reach those bindings. A containerized proxy needs an explicitly configured shared network. The installer does not provision a proxy or TLS certificates.
 
-Open the configured media TCP/UDP range (default 40000-40003), TURN 3478 TCP/UDP and TURN relay UDP range (49160-49200). Proxying HTTP alone does not forward WebRTC or TURN traffic. Do not expose PostgreSQL, private media control or monitoring as public application APIs.
-
-Trusted TURN TLS requires mounting a certificate/key through a deliberately managed deployment override; the default certificate is local and self-signed. Installer-managed RTMPS certificates belong in `runtime/streaming/certs` inside the configuration volume. `STREAMING_CERTS_DIRECTORY` cannot point to a host folder in installer mode. Configure the gateway encryption setting and provide the certificate/key before enabling RTMPS.
+Open the mediasoup TCP/UDP range, default 40000-40003, coturn 3478 TCP/UDP and relay range 49160-49200 UDP. Remote ingest also needs 1935 TCP and 8189 UDP. Configure trusted certificates before using TURN TLS or RTMPS. Gateway RTMPS files belong in `runtime/streaming/certs`.
 
 ## Backups
 
-Before changes or upgrades, end calls and [drain streaming work](/guides/streaming-operations#upgrades-and-draining). Save a coordinated set:
+Drain traffic and stop application/worker writes before taking a coordinated backup of:
 
-1. A consistent PostgreSQL backup and release/migration information.
-2. The complete `relayrtc-config` volume, including original signing/encryption keys.
+1. PostgreSQL and its migration/release information.
+2. The complete generated `relayrtc` folder with original keys.
 3. Retained streaming objects from the storage volume.
-4. Any operator-managed TLS certificates or proxy configuration.
+4. Proxy and trusted TLS configuration.
 
-With the default project, a portable way to save a database dump is:
+For the default project, create a database dump without binary shell redirection:
 
 ```sh
-docker exec relayrtc-postgres-1 sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/relayrtc.dump'
-docker cp relayrtc-postgres-1:/tmp/relayrtc.dump ./relayrtc.dump
+docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f /tmp/relayrtc.dump'
+docker compose cp postgres:/tmp/relayrtc.dump ./relayrtc.dump
 ```
 
-Use your actual PostgreSQL container name if the project was customized. Wait for each command to succeed and keep the dump in a protected backup location. The copy avoids binary shell-redirection differences on Windows.
-
-Use your Docker volume backup procedure for configuration and storage volumes. The setup image's `export-env` command writes the saved dotenv file to standard output when an operator explicitly requests it; its output contains secrets and is not a complete backup. Configuration snapshots in `/setup/state/backups` do not replace database or retained-media backups.
+Wait for each command to succeed and move the dump to protected backup storage. Use your Docker volume backup procedure for retained objects and other stateful volumes.
 
 ## Upgrade
 
-The initial installer release candidate is `0.1.3`; no registry availability is implied until its images are published. For a later release, replace the image tag below with the verified target release.
+Read the target release's migration instructions before changing pinned service versions. Back up and drain the deployment first. Keep the installed wizard version for ordinary configuration changes. Pulling a newer `latest` installer does not automatically upgrade an existing folder.
 
-1. Read release notes and back up database, configuration and retained objects together.
-2. Prevent new calls/events and complete [streaming draining](/guides/streaming-operations#upgrades-and-draining).
-3. Run the target setup image with the explicit `upgrade` command, keeping the same volume.
-
-```sh
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v relayrtc-config:/setup/state ghcr.io/relayrtc/setup:0.1.3 upgrade
-```
-
-Setup snapshots configuration, downloads the new images, stops application services before migration and starts the target stack. It does not drain active workloads for you. Normal installation refuses a different installed version rather than silently upgrading it. PostgreSQL image changes and mismatched existing data mounts require a separate database/data migration procedure.
-
-If startup or migration fails, setup returns a nonzero status and retains state. Check logs and the saved configuration snapshots. Do not start older services against a potentially migrated database. Repeating the matching installer can resume an incomplete startup; inspect the original failure first.
-
-## Import a previous source or ZIP installation
-
-Do not point a fresh generated `.env` at an existing database. Preserve the original installation's `.env`, data volumes and keys.
-
-After backing up and draining the old deployment, stop its application services using its original Compose configuration. Pipe the original `.env` into `import-env`, using the same input pattern as `configure` above. Import does not start services. Then run the candidate setup image with `upgrade`.
-
-The default project name must match the old project. Existing standard data volumes are reused; custom database/storage mounts are rejected rather than silently replaced. Recreate any custom TLS/proxy/topology configuration deliberately. A different `RELAYRTC_SETUP_PROJECT` can be chosen only on first installation. The bundled topology has a fixed media subnet, so project renaming alone does not support concurrent installations on the same engine; multiple instances need an explicitly managed network/port deployment.
+Do not point a freshly generated configuration at existing volumes. A target release must preserve original credentials and explicitly account for database/schema changes before recreating services. The wizard currently handles initial installation and same-version settings, not automatic cross-version migration.
 
 ## Restore and rollback
 
-Restore into an isolated Docker engine/project with application workers stopped. Restore the matching database, retained storage and original configuration volume as one coordinated set. Configuration metadata records the configuration-volume name; preserve that identity or follow an explicit migration procedure rather than copying metadata into an unrelated volume.
+Restore the database, retained objects and original configuration as one compatible set with workers stopped. An older image cannot undo applied migrations. Use a matching backup when a release cannot read the restored schema.
 
-An older image cannot undo database migrations. Restore a matching backup when a release does not support the migrated schema. Avoid reactivating old publishers/workers against active restored leases; allow ownership reconciliation before deliberately resuming media work.
+The default project name is `relayrtc`, with a fixed media subnet. A second folder is not an isolated second deployment on the same Docker engine. Multiple simultaneous installations require explicit project, network and port changes.
 
-## Source-development installations
+## Existing installations
 
-`pnpm docker:up` remains available in a source checkout and builds all services locally. Its source Compose files use repository bind mounts; installer-managed deployments use bundled configuration and named-volume subdirectories instead. The four-file release composition remains an advanced/manual option for existing installations, not a requirement for the new installer.
+The folder wizard does not automatically adopt an older named-volume setup or source deployment. It refuses fresh configuration when a `relayrtc` project already has containers or volumes. Keep the original `.env`, deployment definition, keys and data, and perform a controlled migration rather than generating replacement secrets.
+
+Source developers can continue using `pnpm docker:up` and the canonical source Compose definitions.

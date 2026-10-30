@@ -1,30 +1,37 @@
 ---
 title: "Streaming configuration"
-description: "Configure the streaming services already included in your RelayRTC installation."
+description: "Configure the streaming services included in your RelayRTC installation."
 section: "Self-hosting"
 ---
 
-Streaming is part of the standard [RelayRTC installation](/self-hosting). The setup image starts its workers, ingest gateway and private storage together with rooms. There is no additional streaming download, installation or enablement command.
+Streaming is included in the standard [setup wizard](/self-hosting). PostgreSQL, rooms, mediasoup, coturn, streaming workers, the ingest gateway and private storage share one generated Compose project.
 
 ## Services and credentials
 
-The complete stack has 16 services. Streaming uses source, output, recording and room-export workers, a MediaMTX ingest gateway and private object storage. The installer generates their credentials and keeps the original values across restarts.
+The complete stack has 16 services. Source, output, recording and room-export workers use the same release's streaming image with role-specific commands. The wizard generates independent credentials and saves them in the installation folder.
 
-Inspect the stack with the setup image's `status` or `logs` command from [installation](/self-hosting#start-inspect-or-stop). Successful `migrate` and `streaming-storage-init` containers exit with code 0. A healthy container does not by itself establish working ingest or playback.
+From that folder:
+
+```sh
+docker compose ps -a
+docker compose logs --tail=100 streaming-worker streaming-gateway
+```
+
+`migrate` and `streaming-storage-init` exit with code 0 after successful initialization. Healthy containers alone do not establish working ingest or playback.
 
 ## Default local addresses
 
 | Setting | Default |
 | --- | --- |
 | `STREAMING_PUBLIC_ORIGIN` | `http://localhost:8080` |
-| `STREAMING_PUBLIC_RTMP_ORIGIN` | `rtmp://localhost:1935` |
+| `STREAMING_PUBLIC_RTMP_ORIGIN` | `rtmp://127.0.0.1:1935` |
 | `STREAMING_GUEST_SIGNALING_URL` | `ws://localhost:8081/v1/connect` |
 | `STREAMING_INGEST_BIND` | `127.0.0.1` |
 | `STREAMING_WEBRTC_HOSTS` | `127.0.0.1` |
 
-`STREAMING_ALLOWED_ORIGINS` must contain the viewing application's exact origin. External HLS pulls require `STREAMING_SOURCE_ALLOWED_HOSTS`; an empty value disables those pulls. Internal API, gateway and storage endpoints remain private Docker addresses.
+The wizard derives public streaming addresses from your API, signaling and media settings. Review RTMP/WHIP routing separately for remote publishers. `STREAMING_ALLOWED_ORIGINS` must include each browser application's exact origin. External HLS pulls require an explicit `STREAMING_SOURCE_ALLOWED_HOSTS` allowlist.
 
-Use [settings management](/guides/self-hosting-operations#change-settings) to change these values. Existing public addresses are preserved; changing a host port does not automatically rewrite them.
+Use [settings management](/guides/self-hosting-operations#change-settings) for later changes. Update saved public origins explicitly when changing host ports.
 
 ## Publish and play
 
@@ -33,15 +40,13 @@ Use [settings management](/guides/self-hosting-operations#change-settings) to ch
 3. Wait for `readiness.viewerReady`.
 4. Authorize a viewer using [private playback](/guides/streaming-playback).
 
-For remote encoders and viewers, use [public streaming access](/guides/streaming-operations#configure-public-access) together with [public hosting](/guides/self-hosting-operations#public-hosting-and-ports).
+Remote encoders and viewers also need [public streaming access](/guides/streaming-operations#configure-public-access) and the base [media/TURN ports](/guides/self-hosting-operations#public-hosting-and-ports).
 
 ## Operations
 
 - [Capacity and private delivery](/guides/streaming-operations#capacity-and-private-delivery)
-- [Draining before upgrades](/guides/streaming-operations#upgrades-and-draining)
+- [Draining before changes](/guides/streaming-operations#upgrades-and-draining)
 - [Backups and restore](/guides/streaming-operations#backups-and-restore)
 - [Troubleshooting](/guides/streaming-operations#troubleshooting)
 
-Installer-managed gateway configuration, certificates and monitoring files live in isolated subdirectories of the persistent configuration volume. No source-checkout bind mounts are needed. See [configuration storage](/guides/self-hosting-operations#configuration-and-data) before supplying custom certificates.
-
-For source development, `pnpm docker:up` still starts the same complete stack using the repository's Compose definitions. The streaming-named script aliases remain compatibility aliases, not separate deployments.
+Runtime gateway configuration, certificates and monitoring files live inside your generated installation folder. Keep that folder alongside the stateful Docker volumes. No separate streaming installer is needed.
