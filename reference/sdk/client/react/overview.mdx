@@ -74,3 +74,7 @@ Create rooms, issue tokens and administer participants with the [Node SDK](/refe
 
 These hooks use application callbacks rather than a management key in the browser. The status hooks do not require an RTC provider. `useDvrPlayback` observes an already attached media element; `useGuestSession` owns its separate guest room. Use provider hooks for the room owned by that provider.
 
+
+## Room roles and effective permissions
+
+[`useRoomAccess`](/reference/sdk/client/react/hooks/useRoomAccess) observes the local effective capability snapshot and exposes participant-authorized access reads/updates. See [room roles](/guides/room-roles-and-permissions) for host assignment, moderator boundaries and live screen-share revocation.
