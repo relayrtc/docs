@@ -54,6 +54,18 @@
       {
         "label": "TURN configuration",
         "href": "/guides/turn-configuration"
+      },
+      {
+        "label": "Room roles and permissions",
+        "href": "/guides/room-roles-and-permissions"
+      },
+      {
+        "label": "Room admission and lifecycle",
+        "href": "/guides/room-admission-and-lifecycle"
+      },
+      {
+        "label": "Speakers, activity and push-to-talk",
+        "href": "/guides/speakers-activity-and-push-to-talk"
       }
     ]
   },
@@ -159,11 +171,11 @@
         "href": "/self-hosting"
       },
       {
-        "label": "Sign-in and email",
+        "label": "Sign-in and email settings",
         "href": "/guides/self-hosting-authentication"
       },
       {
-        "label": "Streaming configuration",
+        "label": "Streaming settings (included)",
         "href": "/guides/streaming-self-hosting"
       },
       {
@@ -230,6 +242,22 @@
           {
             "label": "Read room cleanup",
             "href": "/reference/api/v1/rooms/runtime-operation"
+          },
+          {
+            "label": "Room audit log",
+            "href": "/reference/api/v1/rooms/audit"
+          },
+          {
+            "label": "Room lifecycle",
+            "href": "/reference/api/v1/rooms/lifecycle"
+          },
+          {
+            "label": "Speakers and activity",
+            "href": "/reference/api/v1/rooms/activity"
+          },
+          {
+            "label": "Room invitations",
+            "href": "/reference/api/v1/rooms/invitations"
           }
         ]
       },
@@ -264,6 +292,10 @@
           {
             "label": "Read participant cleanup",
             "href": "/reference/api/v1/participants/runtime-operation"
+          },
+          {
+            "label": "Participant access",
+            "href": "/reference/api/v1/participants/access"
           }
         ]
       },
@@ -533,6 +565,18 @@
           {
             "label": "useMediaTrack",
             "href": "/reference/sdk/client/react/hooks/useMediaTrack"
+          },
+          {
+            "label": "useRoomAccess",
+            "href": "/reference/sdk/client/react/hooks/useRoomAccess"
+          },
+          {
+            "label": "Room lifecycle and invitations",
+            "href": "/reference/sdk/client/react/hooks/useRoomLifecycle"
+          },
+          {
+            "label": "Speaker, activity and push-to-talk hooks",
+            "href": "/reference/sdk/client/react/hooks/useRoomActivity"
           }
         ]
       },
@@ -630,6 +674,18 @@
       {
         "label": "StreamGuestClient",
         "href": "/reference/sdk/client/javascript/stream-guest-client"
+      },
+      {
+        "label": "Room access",
+        "href": "/reference/sdk/client/javascript/room-access"
+      },
+      {
+        "label": "Room lifecycle",
+        "href": "/reference/sdk/client/javascript/room-lifecycle"
+      },
+      {
+        "label": "Activity and push-to-talk",
+        "href": "/reference/sdk/client/javascript/room-activity"
       }
     ]
   },
@@ -839,6 +895,18 @@
       {
         "label": "Types",
         "href": "/reference/sdk/server/node/types"
+      },
+      {
+        "label": "Room access and audits",
+        "href": "/reference/sdk/server/node/room-access"
+      },
+      {
+        "label": "Room lifecycle and invitations",
+        "href": "/reference/sdk/server/node/room-lifecycle"
+      },
+      {
+        "label": "Room activity policy",
+        "href": "/reference/sdk/server/node/room-activity"
       }
     ]
   }
