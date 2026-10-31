@@ -1,0 +1,61 @@
+---
+title: "Room admission and lifecycle"
+description: "Lock rooms, issue expiring invitations and manage room deadlines."
+section: "Guides"
+---
+
+These features target RelayRTC 0.1.4. Apply migrations `0045_room_access` and `0046_room_lifecycle` before deploying matching API and signaling builds. Deploy the browser and React SDKs together with the updated signaling protocol. Older strict protocol clients cannot parse the new lifecycle messages.
+
+Rooms start unlocked with no deadline. Lifecycle policy is stored separately from room metadata. Editing metadata or client role labels never changes admission authority.
+
+## Locking and reconnects
+
+A host or moderator can lock or unlock a joined room using `room.lifecycle`. A management backend uses `rooms.updateLifecycle` with a secret key carrying `rooms:write`. Console operators use the existing project authorization rules. Read access requires `rooms:read` for management requests.
+
+| Attempt | Unlocked | Locked |
+| --- | --- | --- |
+| Issue a new ordinary participant token | Allowed for an authorized backend | Rejected |
+| Join with an already issued token | Capacity and room state checked | Rejected |
+| Redeem an invitation | Identity, expiry, uses and capacity checked | Rejected |
+| Join with an invitation token | Invitation and room state checked again | Rejected |
+| Continue an existing session | Allowed | Allowed |
+| Resume the same disconnected session | Existing reconnect grace and credential checks | Same rules |
+| Renew an active session token | Existing authorization and deadline checks | Allowed |
+
+Hosts and moderators can unlock the room through their existing session. Their roles do not grant a new identity a bypass. An administrator can recover a locked room through the management API or console. A fresh join cannot claim to be a reconnect. Reconnect requires the original participant and session identifiers, a valid token and the existing server grace window.
+
+Locking, admission, invitation redemption and deadline updates serialize on the room row. A token issued just before a lock is still rejected at admission. Locking does not remove existing participants.
+
+## Invitations
+
+Create an invitation from the console or your backend. Its secret is returned once. Store or share it privately. Lists and audit events never contain that secret or its hash. An invitation may be restricted to a trusted application identity and grants only its specified participant permissions. It never assigns host or moderator roles.
+
+Your application's authenticated backend must derive `identity` from the current user. Do not forward an arbitrary browser-supplied identity. Use `rooms.invitations.redeem` with that identity and return only the resulting participant token to the browser. No RelayRTC management key belongs in a browser.
+
+Each redemption requires a UUID `redemptionId`. Keep the same ID when retrying the same request. A matching retry returns the same participant and claims without spending another use. Reusing it for another identity or participant name produces a conflict. A different ID consumes another use. Consumed uses are not refunded if the participant never joins.
+
+Invitations expire within seven days, support 1–100 redemptions, and can be revoked. Rooms allow at most 1,000 invitations and 10,000 redemption records over their lifetime. Lists use 50-item cursor pages. The room deletion cascade removes invitation secrets, hashes and redemption records. Ending a room retains them for administration until the room is deleted according to your data-retention policy.
+
+Redemption checks room capacity but does not reserve a seat. Joining checks capacity again. Invitation tokens last at most 15 minutes and cannot initially outlive the invitation or room deadline. Revocation and expiry block unused grants from joining. They do not remove already admitted participants. Active-session renewal keeps the original signed grants and persisted permission ceiling. Use participant removal to revoke established membership.
+
+Create requests are not automatically retried by the Node SDK because a lost response would also lose the one-time secret. Revoke is idempotent. Admission failures do not consume additional uses.
+
+## Timed rooms
+
+Set `endsAt` to an ISO timestamp in the next seven days or `null` for an untimed room. A host, moderator or authorized management backend can extend or remove the deadline before it passes. All updates include the current policy `version`. A concurrent change produces a conflict. Reload the policy before asking the user to save again.
+
+Joined clients receive `lifecycleChanged` when the policy changes and when the deadline enters its last 60 seconds. The snapshot includes `serverTime` for estimating clock offset. React's `useRoomLifecycle` exposes `remainingSeconds`. A countdown is informational. The server decides admission and termination.
+
+The existing API maintenance worker scans at startup and every work cycle, claims at most 25 due rooms, marks them ended and queues durable runtime cleanup. Expired deadlines are recovered after a restart. Admission and reconnect checks reject elapsed deadlines even if the maintenance worker is unavailable. Physical media cleanup remains asynchronous and depends on worker and network recovery. Read `rooms.getRuntimeOperation` for cleanup progress.
+
+An extension cannot reopen an ended room or revive an elapsed deadline. Manual ending and deadline processing use the existing room state and durable cleanup operation. A successful policy save acknowledges persistence, not completed disconnection of every media transport.
+
+## SDKs and console
+
+- [JavaScript lifecycle controls](/reference/sdk/client/javascript/room-lifecycle)
+- [React admission hooks](/reference/sdk/client/react/hooks/useRoomLifecycle)
+- [Node lifecycle and invitations](/reference/sdk/server/node/room-lifecycle)
+- [Lifecycle REST contract](/reference/api/v1/rooms/lifecycle)
+- [Invitation REST contract](/reference/api/v1/rooms/invitations)
+
+The console adds admission and lifecycle controls to the existing room details screen. It supports locking, deadlines, invitation creation and revocation, and operator redemption. Invitation and lifecycle changes appear in room audit history. Playground examples are supplied in the source repository.

@@ -1,0 +1,38 @@
+---
+title: "Activity and push-to-talk"
+description: "Observe active speakers and activity and control a microphone while held."
+section: "JavaScript SDK"
+---
+
+These features require browser SDK 0.1.4, migration `0047_room_activity` and compatible services.
+
+`room.activity.current` returns `RoomActivitySnapshot | null`. `get()` refreshes it explicitly. `preferences` exposes the local preferences. `configure({ mode, shareActivity, shareSpeaking })` saves all three preferences through the active session. It rejects while another configuration is pending. Normal automatic reporting runs every 15 seconds and stops on disconnect or disposal. Reconnect resumes reporting with the same local preferences.
+
+```ts
+const current = await room.activity.get()
+await room.activity.configure({ mode: 'away', shareActivity: true, shareSpeaking: false })
+
+const unsubscribe = room.on('activityChanged', snapshot => {
+  renderSpeakers(snapshot.speakers, snapshot.dominantSpeakerId, snapshot.speakerState)
+  renderActivity(snapshot.participants, snapshot.truncated)
+})
+
+unsubscribe()
+```
+
+The combined snapshot separates speakers from activity and connection state. Signaling checks live activity every 250 milliseconds, independently of its two-second housekeeping timer. It bounds activity events to at most four per second per connection and shares a 250-millisecond room-level read cache. Six seconds without fresh snapshots clears local speaking indicators and changes visible activity to unknown. A privacy-hidden state remains hidden.
+
+Initial preferences can be supplied as `activity` in `RelayClientOptions`. Reported input is a boolean, not text or coordinates. Configure resolves with the accepted local preferences. Refresh snapshots after reconnect before relying on observation state.
+
+```ts
+const talk = createPushToTalk(room)
+const unsubscribe = talk.subscribe(snapshot => renderTalkState(snapshot))
+await talk.press()
+await talk.release()
+unsubscribe()
+talk.dispose()
+```
+
+`PushToTalkSnapshot` has `pressed`, `active`, `pending` and nullable `error`. Creating the controller takes ownership of microphone muting. Release silences the local audio track immediately while the network mute completes. Handle promise rejections and keep a visible error. Dispose releases and removes listeners. Mount one controller per microphone. Keyboard and pointer bindings are supplied by your application or the React integration.
+
+Exported types include `RoomActivitySnapshot`, `RoomActivityPolicy`, `ParticipantActivityPreferences`, `ParticipantActivityState`, `RoomActivityControl`, `PushToTalkController` and `PushToTalkSnapshot`. See [privacy, limits and media behavior](/guides/speakers-activity-and-push-to-talk).

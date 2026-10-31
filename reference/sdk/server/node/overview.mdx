@@ -72,3 +72,7 @@ See [RelayServer options](/reference/sdk/server/node/RelayServer) and [request o
 
 [Stream management and operation methods](/reference/sdk/server/node/streams) add typed source configuration, encoder credentials and private playback grants. Use compatible API/SDK builds; see [installation](/installation). Streaming commands generate idempotency keys unless an explicit application command ID is supplied.
 
+
+## Room access and audit history
+
+Use [`participants.getAccess`, `participants.updateAccess` and `rooms.audit`](/reference/sdk/server/node/room-access) to administer versioned room roles, permission restrictions and immutable room history. Mutations require the new `participants:write` scope.

@@ -1,0 +1,41 @@
+---
+title: "Room lifecycle and invitations"
+description: "Manage admission policies and issue identity-bound room invitations."
+section: "Node SDK"
+---
+
+Requires Node SDK 0.1.4, migration `0046_room_lifecycle` and the matching API. Standard request cancellation and timeout options apply. Existing keys require explicit `rooms:write` provisioning for mutations.
+
+| Method | Returns | Scope |
+| --- | --- | --- |
+| `rooms.getLifecycle(roomId, options?)` | `RoomLifecycle` | `rooms:read` |
+| `rooms.updateLifecycle(roomId, input, options?)` | `RoomLifecycle` | `rooms:write` |
+| `rooms.invitations.create(roomId, input, options?)` | `{ invitation, secret }` | `rooms:write` |
+| `rooms.invitations.list(roomId, query?, options?)` | `CursorPage<RoomInvitation>` | `rooms:read` |
+| `rooms.invitations.revoke(roomId, invitationId, options?)` | `RoomInvitation` | `rooms:write` |
+| `rooms.invitations.redeem(roomId, input, options?)` | `ParticipantToken` | `tokens:create` |
+
+```ts
+const policy = await relay.rooms.getLifecycle(roomId)
+await relay.rooms.updateLifecycle(roomId, {
+  version: policy.version,
+  locked: false,
+  endsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+})
+
+const created = await relay.rooms.invitations.create(roomId, {
+  expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+  maxUses: 1,
+  identity: verifiedUser.id,
+  permissions: ['room:join', 'audio:publish'],
+})
+
+const grant = await relay.rooms.invitations.redeem(roomId, {
+  secret: created.secret,
+  redemptionId,
+  identity: verifiedUser.id,
+  participantName: verifiedUser.name,
+})
+```
+
+Generate the redemption UUID once per attempted admission and preserve it across retries. Derive `verifiedUser` from your authenticated application session. Return only the participant grant to the browser. Creation disables automatic transport retries because the secret is returned once. A redemption retry must preserve identity and participant name. See [REST errors](/reference/api/v1/rooms/invitations) and [lifecycle behavior](/guides/room-admission-and-lifecycle).

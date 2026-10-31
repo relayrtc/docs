@@ -33,7 +33,7 @@ docker compose up -d --remove-orphans
 
 Existing secrets must remain unchanged unless you perform a coordinated rotation. Editing a database or storage password does not update an already initialized account. Keep signing and encryption keys with backups.
 
-You can reopen the wizard at its installed version by running the installation command from the parent folder with `relayrtc/relayrtc:0.1.3`. It reads `relayrtc/wizard.json`, offers **Keep current credentials** for configured providers, and preserves infrastructure secrets. A different installer version is rejected rather than silently rewriting an existing deployment.
+You can reopen the wizard at its installed version by running the installation command from the parent folder with `relayrtc/relayrtc:0.1.4`. It reads `relayrtc/wizard.json`, offers **Keep current credentials** for configured providers, and preserves infrastructure secrets. A different installer version is rejected rather than silently rewriting an existing deployment.
 
 The wizard writes configuration but does not recreate running services. Apply the saved configuration through Compose. Recreating API, signaling, media or workers interrupts active sessions.
 

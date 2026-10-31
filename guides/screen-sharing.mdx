@@ -78,3 +78,7 @@ If the browser does not supply display audio, no screen-audio publication appear
 `await local.screen.stop()` releases the capture and removes its publications. The SDK also handles the browser's Stop sharing control. Use `mute()`/`unmute()` to pause and resume publications while keeping capture open; await their server confirmation.
 
 See [screen controls](/reference/sdk/client/react/media/screen) for supported options and snapshots.
+
+## Live room permissions
+
+Room hosts and moderators can restrict `screen:publish` while a participant is connected. Revocation applies to both screen video and display audio. Use the [room policy guide](/guides/room-roles-and-permissions) for effective capability state, server enforcement timing and host delegation. Browser capture permission remains a separate requirement.

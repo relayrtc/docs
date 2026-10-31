@@ -1,0 +1,30 @@
+---
+title: "Speaker, activity and push-to-talk hooks"
+description: "Use room observation snapshots and accessible hold-to-talk controls."
+section: "React SDK"
+---
+
+These hooks require matching local browser and React SDK builds and updated services.
+
+`useRoomActivity()` returns `snapshot`, local `preferences`, `get` and `configure`. The snapshot and preferences are null before joining. `configure` requires the complete mode/share policy and returns a promise. Present pending/error state around the operation and handle rejection. It does not grant permission to alter another participant.
+
+`useActiveSpeakers()` returns `speakers`, nullable `dominantSpeakerId` and explicit availability `state`. An empty list with available state differs from unavailable observation. A loudest participant is not the same as all currently speaking participants.
+
+```tsx
+const { snapshot, configure } = useRoomActivity()
+const { speakers, dominantSpeakerId, state } = useActiveSpeakers()
+```
+
+`usePushToTalk(options?)` owns one controller for the provider room and returns `pressed`, `active`, `pending`, `error`, `press` and `release`. The optional `key` is a browser keyboard code such as `Space`. Keydown ignores text fields, contenteditable regions, repeated events and Ctrl/Alt/Meta combinations. Keyup releases even if focus moved. Focus loss, visibility loss, disconnect and unmount also release. The microphone stays muted after cleanup.
+
+```tsx
+const talk = usePushToTalk({ key: 'Space' })
+```
+
+`PushToTalkButton` is a native button using the same hook. It handles primary pointer capture, pointer release/cancellation, lost capture, blur, Space and Enter. It exposes pressed/busy state through ARIA, renders failures in an alert, accepts normal class/style/disabled props, and disables itself without a joined room and `audio:publish`. Its pending label must not prevent a release while microphone setup is in progress. Use `usePushToTalk` directly when you need custom controls or error presentation.
+
+```tsx
+<PushToTalkButton className="your-existing-button">Hold to talk</PushToTalkButton>
+```
+
+Use either the supplied button or your own controller for a microphone. Do not mount both independently. The hook disposes its controller and keyboard listeners when the room changes or the component unmounts. See [guide](/guides/speakers-activity-and-push-to-talk) for privacy, stale state and browser limitations.

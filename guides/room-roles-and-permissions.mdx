@@ -1,0 +1,86 @@
+---
+title: "Room roles and live permissions"
+description: "Assign room hosts, delegate moderation and revoke live publication access."
+section: "Build calls"
+---
+
+Room roles are server-owned policy. Setting `role` inside participant metadata does not grant authority. New participants start as ordinary participants; joining first does not make someone the host.
+
+This feature requires the Phase 1 source changes in the API, signaling service, browser and React SDKs, and database migration `0045_room_access`. These additions are not a claim that a published npm version includes them. Deploy the migration before the updated services and deploy compatible browser/React clients together. Older strict protocol clients cannot consume the new capability fields and events; coordinate their upgrade rather than mixing them with the new signaling service.
+
+## Roles
+
+| Role | Room administration | Media and messaging |
+| --- | --- | --- |
+| Participant | Read participant access policies in their joined room | Original token grants intersected with the server permission restriction |
+| Moderator | Further restrict permissions of ordinary participants; cannot restore grants, change roles or restrict another moderator/host | Same token and server intersection |
+| Host | Assign moderators, update participant restrictions, transfer host ownership | Same token and server intersection |
+| Server administrator | Assign/recover host ownership and manage access using a scoped management key or authorized console session | No browser media authority is implied |
+
+A host or moderator role never adds `audio:publish`, `video:publish`, `screen:publish`, `messages:send` or `metadata:update` to the signed token. Effective permissions are the token permissions intersected with `allowedPermissions`; `null` means no additional server restriction. `room:join` must remain allowed. Use participant removal to revoke admission.
+
+## Assign or transfer the host
+
+After your intended host joins, authenticate your application's administrator and use the Node SDK on the server:
+
+```ts
+const current = await relay.participants.getAccess(roomId, participantId)
+const updated = await relay.participants.updateAccess(roomId, participantId, {
+  version: current.version,
+  role: 'host',
+  allowedPermissions: current.allowedPermissions,
+})
+```
+
+The key needs `participants:read` and `participants:write`. Existing keys do not automatically gain the new write scope; create a suitably scoped key through your existing key-management flow. Keep it on the server.
+
+Only one non-removed host is allowed per room. Assigning a new host atomically demotes the old host to participant while preserving their permission restriction. A host must be present when appointed. You cannot demote a host directly; transfer ownership to a different present participant instead.
+
+Leaving or disconnecting does not automatically promote another participant. Ownership remains reserved for the same host identity, and reconnecting preserves it. When that identity cannot return, a server administrator explicitly assigns a new host. Stream guest identities use their separate guest moderation system and cannot receive ordinary room access assignments.
+
+## Revoke screen sharing
+
+Read the latest policy, keep its role, and save a permission ceiling without `screen:publish`:
+
+```ts
+import { roomParticipantPermissions } from '@relayrtc/node'
+
+const current = await relay.participants.getAccess(roomId, participantId)
+await relay.participants.updateAccess(roomId, participantId, {
+  version: current.version,
+  role: current.role,
+  allowedPermissions: (current.allowedPermissions ?? roomParticipantPermissions)
+    .filter(permission => permission !== 'screen:publish'),
+})
+```
+
+Saving returns the committed policy, not confirmation that every media worker has completed cleanup. Signaling checks current policy for new participant operations, and media publish/resume checks run under the same room advisory lock used for policy mutations. Existing unauthorized camera, microphone and screen publications are removed by the media reconciliation path. Both screen video and screen audio require `screen:publish`.
+
+Connected SDKs receive capability changes on signaling's periodic access refresh, normally every two seconds. Updated browser clients stop corresponding local capture, including pending capture, and expose the new effective permissions. Media reconciliation runs independently of client cooperation, normally with the room event loop; failed cleanup remains eligible for background retry. Worker/network failures can delay removal, so applications must not interpret a policy-save response as instantaneous revocation completion.
+
+Restoring a permission ceiling does not restart capture automatically. The participant must explicitly enable the input/share again, and their token must still grant it. Renewing an old token preserves its original signed grant and continues to apply the persisted server restriction; renewal cannot undo revocation.
+
+## Browser and React
+
+```ts
+const capabilities = room.access.current
+const unsubscribe = room.on('capabilitiesChanged', next => {
+  renderPermissions(next)
+})
+```
+
+Call the returned unsubscribe function when your view is disposed. `room.access.get(participantId)` reads a policy, and `room.access.update(participantId, input)` submits a participant-authorized mutation. A moderator's update must be a subset of the target's current allowed permission ceiling; only a host or server administrator can restore permissions. All authorization runs again on the server.
+
+In React, use `useRoomAccess()` inside `RelayProvider` and a joined `RelayRoom`. It returns `capabilities`, `get` and `update`. Render pending and error state for mutations and use `capabilities.permissions.includes('screen:publish')` to explain unavailable sharing. Device/browser permission is separate from room permission.
+
+The console exposes the same policy under a participant connection's **Room access** section. Operators can assign roles, restrict publications and confirm host transfer. Read-only workspace members can inspect policy but cannot save it.
+
+## Concurrency and auditing
+
+Every mutation supplies the current participant policy `version`. A concurrent change returns HTTP `409` with `ROOM_ACCESS_CONFLICT`; fetch current state and ask the operator to reapply their intended change. Do not automatically overwrite a newer policy. A lost response can also require reloading to discover whether the original write committed.
+
+Host transfers and policy changes are serialized per room and audited transactionally with previous/new role, policy version and permission ceilings. The log contains no tokens or credentials. Participant commands identify the participant actor; console actions identify the user; REST management actions identify the key.
+
+Use `relay.rooms.audit(roomId, query)` or the console's **Room audit log** to inspect events. Audit history uses existing append-only protection and the existing 365-day retention policy. Successful access updates, host demotion, rejected participant access commands and participant removal are included, along with existing room/runtime events and scoped administrative API outcomes. Other future Phase 2–6 actions appear when their features are implemented.
+
+See [room access REST APIs](/reference/api/v1/participants/access), [room audit REST API](/reference/api/v1/rooms/audit), [Node methods](/reference/sdk/server/node/room-access), [browser access](/reference/sdk/client/javascript/room-access) and [React hook](/reference/sdk/client/react/hooks/useRoomAccess).

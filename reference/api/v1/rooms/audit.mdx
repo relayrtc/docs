@@ -1,0 +1,23 @@
+---
+title: "Room audit log"
+description: "Read immutable room policy and administrative history."
+section: "REST API"
+---
+
+`GET /v1/rooms/:roomId/audit` requires a secret key with `rooms:read` for the room's project/environment. The room must still exist in that scope.
+
+| Query | Behavior |
+| --- | --- |
+| `limit` | Integer 1–100; default 50 |
+| `action` | Exact action filter, maximum 160 characters |
+| `actorId` | Exact actor identifier, maximum 128 characters |
+| `participantId` | Target participant identifier for participant resource events |
+| `before`, `cursor` | Supply both from the previous page's `endCursor` |
+
+Returns `nodes` and `pageInfo: { hasNextPage, endCursor }`. `endCursor` is `null` or an object containing `before` and `cursor`. Ordering is descending by timestamp and ID. Preserve the returned timestamp precision when requesting the next page.
+
+Each event contains `id`, `occurredAt`, `actorType`, nullable `actorId`, `actorName`, `resourceType`, nullable `resourceId`, `action`, `outcome`, nullable `correlationId` and a safe `metadata` object. Room role/permission changes use `room.participant_access_updated`; participant removal uses `room.participant_removed`; denied participant policy commands use `room.participant_access_denied`. Host transfer records both the old host's demotion and the new host's assignment.
+
+The log also includes existing room/runtime-operation records and scoped administrative REST outcomes. Policy metadata includes previous/new role, version and permission-ceiling values without credentials. `PARTICIPANT` identifies a participant-authorized command; `USER`, `API_KEY` and `SYSTEM` identify their respective actors.
+
+Audit entries cannot be edited or deleted through this API. Existing 365-day audit retention applies. Historical records lacking explicit actor context remain system-attributed; the endpoint does not invent actor identity or backfill unavailable history.
