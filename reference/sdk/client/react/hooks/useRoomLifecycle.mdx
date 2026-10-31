@@ -1,0 +1,20 @@
+---
+title: "useRoomLifecycle and useRoomInvitations"
+description: "React lifecycle snapshots, countdowns and application-authorized invitations."
+section: "React SDK"
+---
+
+These hooks require browser and React SDKs at 0.1.4 with matching services.
+
+Within the existing Relay provider, `useRoomLifecycle()` returns `policy`, `remainingSeconds`, `get` and `update`. The policy is initially null. The countdown uses the latest observed server clock offset and updates once per second while a deadline exists. It is informational. Browser suspension and network latency can delay it. Server admission and cleanup remain authoritative.
+
+`update` takes `{ version, locked, endsAt }`. Show a pending state and handle rejections. The server authorizes the current participant role. Reload after a version conflict. The provider cleans up room subscriptions and the hook cleans up its timer.
+
+`useRoomInvitations(backend)` accepts a stable `RoomInvitationBackend` object implemented through your authenticated application endpoints. It returns `create`, `list`, `revoke`, `redeem`, `pending` and `error`. Operations reject on failure, allow one pending action per hook and forward an abort signal. Unmount or backend replacement aborts pending work. Keep and reuse a redemption UUID across retries.
+
+```tsx
+const { policy, remainingSeconds, update } = useRoomLifecycle()
+const invitations = useRoomInvitations(invitationBackend)
+```
+
+The hook does not infer identity from editable participant metadata. Your application backend must derive it from its verified user session. Store one-time secrets and tokens privately, and clear them when their owning view closes. The source Playground example demonstrates controls using the existing hooks.
