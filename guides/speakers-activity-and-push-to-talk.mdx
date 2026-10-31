@@ -1,0 +1,70 @@
+---
+title: "Speakers, activity and push-to-talk"
+description: "Observe microphone activity, share presence preferences and add hold-to-talk controls."
+section: "Guides"
+---
+
+These features target RelayRTC 0.1.4. They require migration `0047_room_activity` after the Phase 1 and Phase 2 migrations, matching API/media/signaling services, and compatible browser and React SDK builds. Older strict protocol clients cannot parse the new activity messages.
+
+Connection state, activity presence and speaking are separate signals. A connected participant can be inactive or away. A participant can speak without interacting with the page. An unknown activity state does not establish that someone left the room.
+
+## Microphone speakers
+
+The media service uses mediasoup's audio-level observer for microphone publications. Camera and screen audio are excluded. Observation samples every 250 milliseconds and considers at most 16 loud microphone producers in an interval. A speaker enters after two consecutive samples at or above -50 dBov. An established speaker remains eligible down to -56 dBov. Missing observations expire after one second.
+
+Snapshots expose multiple speaking participants and a separate `dominantSpeakerId`. Dominance normally holds for at least 1.5 seconds while that speaker remains active. A challenger must exceed the current level by 3 dB for two observations. If the current speaker stops, another eligible speaker can replace them immediately.
+
+Reported `level` values are quantized from 0 to 1 using the observed audio level. They are not microphone gain controls or proof that a human is speaking. RTP audio-level reporting, noise, devices and audio processing affect detection. Speaking is never inferred from connection quality or packet loss.
+
+Paused, closed and removed publications are excluded. Signaling filters removed participants, inactive sessions, dead node leases, permission revocation and observations older than a successful reconnect. Snapshots expire after three seconds without fresh media observations. A browser without fresh activity snapshots clears speaker indicators after six seconds. Availability is explicit: `available`, `unavailable` or `disabled`. An empty available speaker list means no eligible speaker was observed.
+
+The media service keeps one current observation per allocated room and has at most one pending persistence request per observer. It does not keep an audio-level history or record audio for this feature. On room close it releases the native observer, timer and producer state. Stale snapshot rows are pruned by the API maintenance worker after 30 seconds, in batches of at most 1,000. During a maintenance outage stale data remains hidden by its read expiry and is removed when maintenance resumes. Room deletion also removes it. Keep service and PostgreSQL clocks synchronized because observation freshness is time-based.
+
+## Console observation
+
+The room overview uses a streamed activity feed rather than repeated snapshot HTTP requests. Hidden tabs close the feed, and reconnects use backoff. Each snapshot rechecks the signed-in user's room access. Session lists refresh separately at a slower interval.
+
+The live activity dialog shows each participant's most recently observed speech, with an animated elapsed counter after speaking stops. This counter is kept only while the room overview remains open. Refreshing or leaving the page resets it. It is not persistent speaking history, attendance or a measure of speaking duration.
+
+## Activity presence
+
+The browser reports activity with the authenticated participant session. It sends only preferences, page visibility and whether input occurred since the last accepted heartbeat. It does not transmit key values, typed text, pointer coordinates, URLs or browser history. Reports normally run every 15 seconds. The server accepts at most one update per second per joined connection.
+
+| State | Meaning |
+| --- | --- |
+| `online` | Fresh visible-page heartbeat and recent local input |
+| `away` | Explicit away preference with a fresh visible-page heartbeat |
+| `inactive` | Fresh visible-page heartbeat but input older than the room's idle window |
+| `unknown` | Reconnecting, hidden page, missing heartbeat or expired node/session evidence |
+| `hidden` | Participant opted out of activity sharing, or room activity reporting is disabled |
+
+Default idle time is 120 seconds and heartbeat expiry is 45 seconds. Administrators can set idle time to 30–3,600 seconds and heartbeat expiry to 30–120 seconds. Browser suspension may delay reports. Treat unknown as uncertainty, not absence or a moderation signal. These indicators describe client-reported activity and are not authorization or attendance evidence.
+
+Snapshot activity lists contain at most 512 participants, ordered by participant ID. `truncated` indicates that other current participants were omitted. Use the normal participant/session APIs for complete membership and connection history. Speaker lists contain at most 16 participants and may include participants outside the bounded activity list.
+
+## Privacy and room policy
+
+Default participant preferences are `{ mode: 'auto', shareActivity: true, shareSpeaking: true }`. Set `activity` in `RelayClientOptions` to choose different preferences before connecting. After joining, call `room.activity.configure` with all three properties. An explicit `mode: 'away'` overrides automatic idle classification while the page remains visible and reporting.
+
+Turning off `shareActivity` clears the stored heartbeat and last-input timestamps and reports hidden state. Turning off `shareSpeaking` removes the participant from published speaker indicators. It does not encrypt media or prevent the SFU from receiving audio. Permission changes can take one observation and signaling refresh to reach other clients. Initial privacy preferences avoid publishing the browser's activity heartbeat before your application chooses a policy.
+
+The room policy independently enables activity and speaker indicators. Disabling activity clears current input timestamps. Disabling speakers suppresses published observations. This does not mute or disconnect anyone. Policy writes require `rooms:write` through a secret-key backend or the existing console project authorization. Reads use `rooms:read`. Version conflicts require a reload. Individual participants control only their own reporting preferences through signaling.
+
+Latest participant preferences persist for that room identity. Departure/removal clears heartbeat and input timestamps. Room deletion removes activity records. There is no activity-history endpoint. Room policy changes are audited as `room.activity_policy_updated`, without input or audio-level data.
+
+## Push-to-talk
+
+`createPushToTalk(room)` creates a browser controller on the existing microphone control. Creating it mutes an existing microphone publication. `press()` enables or unmutes capture only while held and permitted. `release()` disables the local audio track immediately, then reconciles the server mute state. If capture is pending, release cancels it through the existing microphone lifecycle. It never starts capture merely to establish a muted state.
+
+The controller releases on focus loss, a hidden page, page exit, disconnect, permission revocation and disposal. React's `PushToTalkButton` also handles pointer release, cancellation, lost capture, blur, Space and Enter. A keyboard binding through `usePushToTalk({ key: 'Space' })` ignores repeated keydown, modified shortcuts and editable targets. Microphone permission still requires normal browser approval. Browser/device failures may require a new press after the error is resolved.
+
+Use one push-to-talk controller per room microphone. Do not mount a keyboard controller and a separate button controller for the same microphone. Dispose the controller when its owning view closes. It does not restore a previously unmuted microphone on disposal. The button accepts your application's normal class and style props. [React reference](/reference/sdk/client/react/hooks/useRoomActivity) includes pending/error guidance.
+
+## Integration points
+
+- [JavaScript activity and push-to-talk](/reference/sdk/client/javascript/room-activity)
+- [React hooks and hold control](/reference/sdk/client/react/hooks/useRoomActivity)
+- [Node policy methods](/reference/sdk/server/node/room-activity)
+- [REST activity and policy](/reference/api/v1/rooms/activity)
+
+The console shows bounded speaker/activity snapshots in room details and lets authorized operators configure room policy using its existing controls. The source Playground includes pointer and keyboard examples. Node intentionally has no microphone capture or push-to-talk API.

@@ -1,0 +1,28 @@
+---
+title: "Room activity policy"
+description: "Read room observations and configure server-side activity defaults."
+section: "Node SDK"
+---
+
+These Node SDK 0.1.4 methods require migration `0047_room_activity` and the updated API.
+
+| Method | Returns | Scope |
+| --- | --- | --- |
+| `rooms.getActivity(roomId, options?)` | `RoomActivitySnapshot` | `rooms:read` |
+| `rooms.getActivityPolicy(roomId, options?)` | `RoomActivityPolicy` | `rooms:read` |
+| `rooms.updateActivityPolicy(roomId, policy, options?)` | `RoomActivityPolicy` | `rooms:write` |
+
+```ts
+const policy = await relay.rooms.getActivityPolicy(roomId)
+await relay.rooms.updateActivityPolicy(roomId, {
+  ...policy,
+  idleSeconds: 180,
+  speakersEnabled: true,
+})
+
+const observation = await relay.rooms.getActivity(roomId)
+```
+
+Writes require the current version. `ROOM_ACTIVITY_CONFLICT` means another writer changed the policy. Reload and ask the user to save again. Disabling indicators does not mute or disconnect participants. Participant privacy choices continue to narrow what is shared.
+
+Standard request options support cancellation and timeout. Activity and speaker snapshots are current bounded observations, not historical reports or proof of attendance. Node intentionally has no capture, speech assertion or push-to-talk API. See [REST contract](/reference/api/v1/rooms/activity) and [behavior](/guides/speakers-activity-and-push-to-talk).

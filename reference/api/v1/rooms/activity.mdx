@@ -1,0 +1,33 @@
+---
+title: "Room speakers and activity"
+description: "Read current room observations and configure presence policy."
+section: "API reference"
+---
+
+Requires RelayRTC 0.1.4, migration `0047_room_activity` and matching services.
+
+| Method | Path | Secret key scope |
+| --- | --- | --- |
+| GET | `/v1/rooms/:roomId/activity` | `rooms:read` |
+| GET | `/v1/rooms/:roomId/activity-policy` | `rooms:read` |
+| PUT | `/v1/rooms/:roomId/activity-policy` | `rooms:write` |
+
+`RoomActivitySnapshot` contains `roomId`, ISO `observedAt`, `policy`, bounded `participants`, `truncated`, bounded `speakers`, nullable `dominantSpeakerId` and `speakerState`. Participants have `participantId` and `state` from `online`, `away`, `inactive`, `unknown` or `hidden`. Speakers have `participantId` and normalized `level` between 0 and 1. Availability is `available`, `unavailable` or `disabled`. A read may return stale-data unavailability without ending the room.
+
+Policy reads and writes use the complete `RoomActivityPolicy` shape:
+
+```json
+{
+  "version": 1,
+  "activityEnabled": true,
+  "speakersEnabled": true,
+  "idleSeconds": 120,
+  "heartbeatSeconds": 45
+}
+```
+
+Idle time accepts integers 30–3,600. Heartbeat expiry accepts integers 30–120. A successful PUT returns HTTP 200 and increments the version. On `ROOM_ACTIVITY_CONFLICT`, reload before saving again. `ROOM_NOT_FOUND` and `ROOM_NOT_JOINABLE` reject missing, inaccessible or ended room mutations. Existing keys do not automatically gain `rooms:write`.
+
+Participant signaling uses `room.activity.get`, `participant.activity.update`, responses `room.activity` and `participant.activity.updated`, and event `room.activity.changed`. Requests include the joined `roomId` and `sessionId`. Updates include `mode`, `shareActivity`, `shareSpeaking`, `visible` and `active`. Mode is `auto` or `away`. All flags are booleans. `active` indicates local input since the preceding accepted update. The server assigns heartbeat/input timestamps and rejects spoofed session ownership. Update rate is limited to once per second per joined connection.
+
+There is no endpoint for a participant to set another participant's speaking state. Speaking originates in the media observer and is filtered through active session and privacy policy. Activity is client-reported and cannot authorize an operation. See [semantics and limits](/guides/speakers-activity-and-push-to-talk).
