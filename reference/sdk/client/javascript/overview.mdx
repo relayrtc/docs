@@ -125,3 +125,7 @@ await client.leave()
 
 Leaving releases the local session and media. To end the call for every participant, use [rooms.end](/reference/sdk/server/node/rooms/end) on your backend.
 
+
+## Room access policies
+
+[`room.access`](/reference/sdk/client/javascript/room-access) exposes effective capabilities and versioned participant policy reads/updates. `capabilitiesChanged` observes local authorization changes. See [room roles and live permissions](/guides/room-roles-and-permissions).
