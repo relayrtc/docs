@@ -1,0 +1,40 @@
+---
+title: "Participant access policy"
+description: "Read or update a participant's server-owned room role and permission ceiling."
+section: "REST API"
+---
+
+## Read
+
+`GET /v1/rooms/:roomId/participants/:participantId/access` requires a secret key with `participants:read` in the room's project/environment.
+
+The response contains `roomId`, `participantId`, `role`, positive integer `version` and `allowedPermissions` (an array or `null`). Roles are `host`, `moderator` and `participant`. Stream guest roles are managed separately; this resource does not assign guest stage roles.
+
+## Update
+
+`PUT /v1/rooms/:roomId/participants/:participantId/access` requires `participants:write`.
+
+```json
+{
+  "version": 1,
+  "role": "moderator",
+  "allowedPermissions": ["room:join", "audio:publish", "messages:send"]
+}
+```
+
+All three fields are required. Unknown fields and duplicate/unknown permissions are rejected. Allowed permissions are `room:join`, `audio:publish`, `video:publish`, `screen:publish`, `messages:send` and `metadata:update`. A non-null ceiling must include `room:join`; `null` removes the additional ceiling, while leaving signed-token limits intact.
+
+Returns HTTP `200` with the committed policy and its new version, or the unchanged version for an identical update. Assigning a host transfers ownership atomically and increments the prior host's version as well. Direct host demotion is rejected. Closed rooms, removed participants and stream guest identities cannot be mutated through this endpoint.
+
+| Error | Meaning |
+| --- | --- |
+| `400` validation error | Invalid fields, permissions or version |
+| `403 API_KEY_SCOPE_REQUIRED` | Missing secret-key scope |
+| `403 ROOM_ACCESS_FORBIDDEN` | Unsupported target such as a stream guest |
+| `404 ROOM_NOT_FOUND` / `PARTICIPANT_NOT_FOUND` | Resource is unavailable in the authorized scope |
+| `409 ROOM_ACCESS_CONFLICT` | Fetch the latest version before saving again |
+| `409 ROOM_HOST_TRANSFER_REQUIRED` | Assign another host instead of directly demoting the current one |
+| `409 ROOM_HOST_MUST_BE_PRESENT` | A departed participant cannot be appointed host |
+| `409 ROOM_NOT_JOINABLE` | Room lifecycle no longer permits this mutation |
+
+This response acknowledges persistence. Live media cleanup is reconciled separately and can retry after failure. See [live permission semantics](/guides/room-roles-and-permissions#revoke-screen-sharing) before treating a save as capture termination.

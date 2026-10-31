@@ -66,3 +66,7 @@ Playback grants expire. Issuing a grant does not prove the media is ready, and a
 ## Logs and errors
 
 Record safe error codes and request IDs for diagnosis. Avoid logging API keys, participant tokens, webhook secrets, encoder credentials, signed playback URLs or full credential responses. Return useful application errors without exposing backend secrets or raw provider responses.
+
+## Room policy
+
+[Room roles and permission ceilings](/guides/room-roles-and-permissions) are assigned and enforced by the server. Metadata cannot grant a role. Host/moderator assignment does not expand signed publication grants, and persisted restrictions continue to apply after token renewal. Manage policies with the `participants:write` secret-key scope or an authorized participant session.

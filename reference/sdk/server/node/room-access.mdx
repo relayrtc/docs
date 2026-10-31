@@ -1,0 +1,31 @@
+---
+title: "Room access and audit methods"
+description: "Manage roles and permission ceilings and read room history from your backend."
+section: "Node SDK"
+---
+
+These source additions extend `RelayServer`. They require an updated API deployment and migration `0045_room_access`.
+
+| Method | Returns | Scope |
+| --- | --- | --- |
+| `participants.getAccess(roomId, participantId, options?)` | `ParticipantAccess` | `participants:read` |
+| `participants.updateAccess(roomId, participantId, input, options?)` | `ParticipantAccess` | `participants:write` |
+| `rooms.audit(roomId, query?, options?)` | `RoomAuditPage` | `rooms:read` |
+
+`UpdateParticipantAccess` requires `version`, `role` and `allowedPermissions`. `RoomRole`, `RoomParticipantPermission`, `ParticipantAccess`, `UpdateParticipantAccess`, `RoomAuditEvent`, `RoomAuditQuery`, `RoomAuditPage` and `roomParticipantPermissions` are exported from `@relayrtc/node`. Standard request options apply.
+
+```ts
+const access = await relay.participants.getAccess(roomId, participantId)
+await relay.participants.updateAccess(roomId, participantId, {
+  version: access.version,
+  role: 'moderator',
+  allowedPermissions: access.allowedPermissions,
+})
+
+const first = await relay.rooms.audit(roomId, { limit: 25 })
+const next = first.pageInfo.hasNextPage && first.pageInfo.endCursor
+  ? await relay.rooms.audit(roomId, { limit: 25, ...first.pageInfo.endCursor })
+  : null
+```
+
+On `ROOM_ACCESS_CONFLICT`, reload policy before presenting another save. Do not retry stale writes as though they were unconditional updates. A saved ceiling cannot add permissions absent from the token. See the [role guide](/guides/room-roles-and-permissions) and [REST contract](/reference/api/v1/participants/access) for host transfer and enforcement timing.
