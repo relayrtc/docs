@@ -1,0 +1,26 @@
+---
+title: "Room access"
+description: "Observe effective capabilities and submit participant-authorized policy changes."
+section: "Browser SDK"
+---
+
+`room.access` is a `RoomAccessControl` with `current`, `get(participantId)` and `update(participantId, input)`. It operates through the authenticated participant signaling session; no management API key belongs in the browser.
+
+`current` is a `RoomCapabilities` snapshot, or `null` when the server has not supplied capabilities or the room has closed. It contains `roomId`, `participantId`, `role`, `version`, effective `permissions`, `canManageRoles` and `canManagePermissions`. `version` belongs to this participant's policy, not a room-global counter. Unsupported older servers cannot provide this feature.
+
+```ts
+const current = await room.access.get(targetParticipantId)
+const saved = await room.access.update(targetParticipantId, {
+  version: current.version,
+  role: 'moderator',
+  allowedPermissions: current.allowedPermissions,
+})
+```
+
+`get` returns `ParticipantAccess`, including the server ceiling rather than the target's private token contents. `update` requires `UpdateParticipantAccess`. Hosts may change roles/ceilings; moderators may only further restrict ordinary participants. The server enforces these boundaries for every command.
+
+Subscribe to `room.on('capabilitiesChanged', listener)` for local effective-policy changes and dispose the returned unsubscribe function. Remote role changes update participant state through the existing participant update lifecycle. Reconnect snapshots include the latest capabilities. Screen/audio/video revocation stops local capture; restoring grants requires a new explicit enable/start action.
+
+Wire additions are `participant.access.get` → `participant.access`, `participant.access.update` → `participant.access.update.accepted`, and `room.capabilities.changed`. Requests carry `roomId`, current `sessionId` and target `participantId`; updates also carry `version`, `role` and `allowedPermissions`. The response payload is `{ access }`. Join/resume responses optionally carry `capabilities` for source compatibility with older servers. Updated servers emitting these fields/events require updated strict protocol clients.
+
+See [room policy and revocation timing](/guides/room-roles-and-permissions). Browser device permission and room publication permission are independent.

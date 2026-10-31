@@ -1,0 +1,23 @@
+---
+title: "useRoomAccess"
+description: "Read effective room capabilities and manage participant access through the active room."
+section: "React SDK"
+---
+
+Call `useRoomAccess()` within `RelayProvider` and a joined `RelayRoom`. It returns `capabilities: RoomCapabilities | null`, `get(participantId)` and `update(participantId, input)`. Calls before joining reject with `RoomError('NOT_CONNECTED', ...)`.
+
+```tsx
+'use client'
+
+import { useRoomAccess } from '@relayrtc/react'
+
+export function ScreenPermission() {
+  const { capabilities } = useRoomAccess()
+  const allowed = capabilities?.permissions.includes('screen:publish') ?? false
+  return <p role="status">{allowed ? 'Screen sharing allowed' : 'Screen sharing unavailable'}</p>
+}
+```
+
+Use the existing local-media controls to start/stop sharing and display their pending/error state. The room access hook observes server authorization; it does not request browser capture permission. `get` and `update` forward to the browser client's room access control and use server-side role enforcement. Render mutation pending/error state in your component and reload the latest policy after a conflict.
+
+The hook consumes the existing provider store and listener cleanup. It does not open another connection or hold a management key. See the [browser contract](/reference/sdk/client/javascript/room-access) and [role guide](/guides/room-roles-and-permissions).
