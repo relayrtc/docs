@@ -1,0 +1,39 @@
+---
+title: "Room lifecycle"
+description: "Read and update a room's persisted admission and deadline policy."
+section: "API reference"
+---
+
+Requires RelayRTC 0.1.4, migration `0046_room_lifecycle` and matching services. See [admission rules](/guides/room-admission-and-lifecycle).
+
+| Method | Path | Secret key scope |
+| --- | --- | --- |
+| GET | `/v1/rooms/:roomId/lifecycle` | `rooms:read` |
+| PUT | `/v1/rooms/:roomId/lifecycle` | `rooms:write` |
+
+GET returns `RoomLifecycle`: `roomId`, positive integer `version`, boolean `locked`, nullable ISO `endsAt`, boolean `warning` and ISO `serverTime`. `warning` is true when a configured deadline is within 60 seconds or has passed.
+
+PUT requires the complete policy. Omitted properties and unknown fields are rejected.
+
+```json
+{
+  "version": 1,
+  "locked": true,
+  "endsAt": null
+}
+```
+
+A successful update returns HTTP 200 and the new snapshot. The supplied version must match the stored version. Each accepted update increments it. Set `endsAt` in the next seven days, or send `null` to remove the deadline before it expires.
+
+| Error | Meaning |
+| --- | --- |
+| `ROOM_NOT_FOUND` | Room missing or outside the active project and environment |
+| `ROOM_LIFECYCLE_CONFLICT` | Policy changed, reload before saving |
+| `ROOM_DEADLINE_INVALID` | Invalid or out-of-range deadline |
+| `ROOM_NOT_JOINABLE` | Ended, ending, failed or elapsed deadline |
+
+Existing keys do not automatically receive `rooms:write`. A lock blocks new admissions and new ordinary token issuance, including tokens issued before the lock. Existing session resume and renewal continue under their existing rules. A deadline always overrides a lock or invitation.
+
+Participant signaling uses `room.lifecycle.get`, `room.lifecycle.update`, responses `room.lifecycle` and `room.lifecycle.updated`, and event `room.lifecycle.changed`. Requests carry the joined `roomId` and `sessionId`. Updates additionally carry the complete policy. Host/moderator status is read from persisted participant state.
+
+The existing `/v1/rooms/:roomId/runtime-operation` endpoint reports asynchronous cleanup after deadline or manual termination. Policy reads do not start or complete cleanup themselves.

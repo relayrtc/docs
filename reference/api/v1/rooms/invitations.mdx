@@ -1,0 +1,35 @@
+---
+title: "Room invitations"
+description: "Create, list, revoke and redeem expiring room invitations."
+section: "API reference"
+---
+
+These RelayRTC 0.1.4 routes require migration `0046_room_lifecycle` and the updated API.
+
+| Method | Path | Secret key scope |
+| --- | --- | --- |
+| POST | `/v1/rooms/:roomId/invitations` | `rooms:write` |
+| GET | `/v1/rooms/:roomId/invitations?cursor=...` | `rooms:read` |
+| DELETE | `/v1/rooms/:roomId/invitations/:invitationId` | `rooms:write` |
+| POST | `/v1/rooms/:roomId/invitations/redeem` | `tokens:create` |
+
+Creation requires `expiresAt` within seven days, `maxUses` from 1 to 100, nullable `identity` of at most 200 characters and unique `permissions` drawn from the six participant permissions. `room:join` is required. POST returns HTTP 201 with `{ invitation, secret }`. The secret is 64 hexadecimal characters and is returned only at creation. Store it privately. Responses containing secrets or participant tokens use `Cache-Control: no-store`.
+
+An invitation has `id`, `roomId`, `createdAt`, `expiresAt`, nullable `revokedAt`, `identity`, `permissions`, `maxUses` and `uses`. Lists return `{ nodes, pageInfo: { hasNextPage, endCursor } }`, ordered by descending invitation ID, with 50 resources per page. Pass `endCursor` as `cursor`. Lists never include secrets or hashes. DELETE returns the invitation and preserves its original revocation timestamp on retries.
+
+Redemption requires this body, through your trusted backend:
+
+```json
+{
+  "secret": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "redemptionId": "cc44b90e-d14e-4d49-a3ed-6883c9f16b78",
+  "identity": "application-user-42",
+  "participantName": "Ada"
+}
+```
+
+Derive identity from your application's verified session. It is not a browser assertion. Redemption returns HTTP 201 with `token`, `tokenId`, `participantId` and `expiresAt`. Use the token with the normal RTC join flow. It grants no role elevation and reserves no capacity. Retries with the same invitation, redemption ID, identity and participant name preserve the original grant and use count. A stale redemption ID is not a way to obtain a fresh token.
+
+Failures include `ROOM_LOCKED`, `ROOM_FULL`, `ROOM_NOT_JOINABLE`, `ROOM_INVITATION_UNAVAILABLE`, `ROOM_INVITATION_EXHAUSTED`, `ROOM_INVITATION_LIMIT`, `ROOM_REDEMPTION_LIMIT`, `ROOM_REDEMPTION_CONFLICT` and `ROOM_REDEMPTION_EXPIRED`. Unknown, revoked, expired and identity-mismatched secrets share the unavailable response. Authorization, expiry, room state and capacity are checked again at admission.
+
+Audit actions are `room.invitation_created`, `room.invitation_revoked` and `room.invitation_redeemed`. Audit metadata contains no invite secret, hash, identity or participant token. See the [guide](/guides/room-admission-and-lifecycle) for existing-member behavior and retention.

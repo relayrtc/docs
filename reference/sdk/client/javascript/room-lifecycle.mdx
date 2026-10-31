@@ -1,0 +1,30 @@
+---
+title: "Room lifecycle controls"
+description: "Observe locks and deadlines and apply participant-authorized changes."
+section: "JavaScript SDK"
+---
+
+Requires browser SDK 0.1.4, matching API and signaling services, and migration `0046_room_lifecycle`.
+
+`room.lifecycle.current` is `RoomLifecycle | null`. It becomes available through a lifecycle response or live event. `get()` fetches it explicitly. `update({ version, locked, endsAt })` returns the saved policy. Only joined hosts and moderators can update it. Management keys must remain on your backend.
+
+```ts
+const policy = await room.lifecycle.get()
+await room.lifecycle.update({
+  version: policy.version,
+  locked: true,
+  endsAt: policy.endsAt,
+})
+
+const unsubscribe = room.on('lifecycleChanged', policy => {
+  renderRoomDeadline(policy.endsAt, policy.serverTime, policy.warning)
+})
+
+unsubscribe()
+```
+
+On conflicts, reload before another save. Policy events are reconciled by signaling's existing periodic refresh, normally within two seconds, and after reconnect. Warnings are policy snapshots with `warning: true` in the last 60 seconds. No event delivery is guaranteed while disconnected. Refresh current state after reconnect before making decisions.
+
+The exported `RoomInvitationBackend` interface describes application-owned callbacks for create, list, revoke and redeem. It does not send requests directly to a management API or ship a default backend. Implement it using your authenticated application endpoints and forward cancellation signals. The redeem callback accepts secret, redemption ID and participant name. Your backend supplies the verified identity before calling the Node SDK.
+
+Exported types include `RoomLifecycle`, `UpdateRoomLifecycle`, `RoomLifecycleControl`, `RoomInvitation`, `CreateRoomInvitation`, `RedeemRoomInvitation` and `RoomInvitationBackend`. See [admission behavior](/guides/room-admission-and-lifecycle).
