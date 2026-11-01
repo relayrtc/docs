@@ -48,11 +48,21 @@ export function ReceiveQuality() {
 | `1080p`, `720p`, `360p` | Prefer the corresponding available quality level within bandwidth limits. |
 | `audio-only` | Stop receiving video for this subscription. |
 
+`auto` is the default when no preference is supplied. It aims for the highest available layer that fits the subscriber's shared bandwidth budget, after reserving capacity for audio. It starts conservatively while measurements arrive. Automatic upgrades require three qualifying observations, normally collected about two seconds apart. Downgrades do not wait for those upgrade observations.
+
+Manual preferences set a maximum received resolution, not a promise to hold that resolution through congestion. With a 720p source offering 240p, 480p and 720p encodings, `360p` selects the available 240p encoding, while `720p` permits the full 720p encoding. A 480p encoding is not treated as 360p. Unknown encoding dimensions remain unavailable rather than being inferred from RID names.
+
 Preferences apply to camera or screen video, not microphone audio. Selecting `audio-only` does not change the participant's publishing permissions or enforce an audio-only room. A request for 1080p cannot turn a lower-resolution capture into a 1080p source.
+
+Automatic allocation retains an audio-only fallback when video no longer fits the budget, observations become stale, packet loss reaches 20%, or round-trip time reaches one second. Video can resume when fresh measurements support it. Audio still depends on an available connection.
 
 ## Sending layers
 
 The current client enables video simulcast by default. It offers three encodings with resolution scale-down factors of 3, 1.5 and 1 and maximum bitrates of 150,000, 1,500,000 and 4,000,000 bits per second. These are encoding ceilings, not guaranteed traffic or output resolution.
+
+The media service derives layer heights from source height and each encoding's scale metadata. A 1280 × 720 camera therefore offers approximately 427 × 240, 853 × 480 and 1280 × 720. This describes offered encodings. Browser adaptation and the receiver's selected layer can produce different observed dimensions.
+
+The subscriber budget uses 85% of estimated capacity under normal conditions, reserves at least 64 Kbps for audio or 64 Kbps per audio subscription, and requires 10% additional layer bitrate for a spatial upgrade. At 8% packet loss it reduces the usable share to 65%. A single 4 Mbps video layer with one audio subscription needs approximately 5.25 Mbps estimated capacity to upgrade under normal conditions. Once allocated, its budget threshold is approximately 4.78 Mbps. Mediasoup can still forward a lower layer according to its own congestion control and stream availability.
 
 `videoSimulcast: false` selects one full-resolution encoding. Set this on the client or provider before joining; changing a prop does not reconfigure an active publication. This option requires a client build exposing `videoSimulcast`; see [package compatibility](/installation#package-and-server-compatibility). Retain the default for ordinary calls unless your workflow specifically needs a single-layer source.
 
@@ -75,3 +85,5 @@ export function NetworkStatus() {
 ```
 
 Missing or stale measurements are not proof of zero loss or unlimited bandwidth. Inspect per-stream dimensions, selected ICE candidates and packet statistics when diagnosing a mismatch. See [quality statistics](/reference/sdk/client/react/hooks/useConnectionQuality) for units and fields.
+
+For media operators, the optional internal usage diagnostic endpoint separates the requested quality preference, allocated layer, mediasoup preferred layers and actually forwarded layers. Its heights are estimates from encoding metadata, not decoded-frame measurements. Compare them with browser inbound stream dimensions or a video element's `videoWidth` and `videoHeight`. A decoded frame's dimensions can remain available while a video is paused, so also inspect pause state and incoming byte changes.
